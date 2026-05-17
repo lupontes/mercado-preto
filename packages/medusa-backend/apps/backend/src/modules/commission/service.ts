@@ -1,5 +1,6 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import Commission from "./models/commission"
+import MarketplaceConfig from "./models/marketplace-config"
 
 type CalculateInput = {
   orderId: string
@@ -9,7 +10,27 @@ type CalculateInput = {
   commissionRate?: number
 }
 
-class CommissionModuleService extends MedusaService({ Commission }) {
+class CommissionModuleService extends MedusaService({ Commission, MarketplaceConfig }) {
+  async getCommissionRate(): Promise<number> {
+    try {
+      const configs = await this.listMarketplaceConfigs({ key: "commission_rate" })
+      if (configs[0]) return Number(configs[0].value)
+    } catch {}
+    return Number(process.env.MARKETPLACE_COMMISSION_RATE ?? 15)
+  }
+
+  async setCommissionRate(rate: number): Promise<void> {
+    const configs = await this.listMarketplaceConfigs({ key: "commission_rate" })
+    if (configs[0]) {
+      await this.updateMarketplaceConfigs({
+        selector: { id: configs[0].id },
+        data: { value: String(rate) },
+      })
+    } else {
+      await this.createMarketplaceConfigs({ key: "commission_rate", value: String(rate) })
+    }
+  }
+
   calculate(input: CalculateInput) {
     const rate = input.commissionRate
       ?? Number(process.env.MARKETPLACE_COMMISSION_RATE ?? 15)

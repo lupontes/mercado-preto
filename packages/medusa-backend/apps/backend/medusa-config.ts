@@ -30,6 +30,11 @@ module.exports = defineConfig({
       resolve: "./src/modules/payout",
     },
 
+    // Módulo fiscal — emissão de NF-e/NFS-e via Focus NFe
+    {
+      resolve: "./src/modules/fiscal",
+    },
+
     // Payment provider MercadoPago registrado no módulo de pagamento nativo
     {
       resolve: "@medusajs/medusa/payment",
