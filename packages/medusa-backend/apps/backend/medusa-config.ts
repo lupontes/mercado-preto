@@ -11,6 +11,34 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
-    }
-  }
+    },
+  },
+
+  modules: [
+    // Módulo de vendedores afroemprendedores
+    {
+      resolve: "./src/modules/seller",
+    },
+
+    // Módulo de comissão e repasse
+    {
+      resolve: "./src/modules/commission",
+    },
+
+    // Payment provider MercadoPago registrado no módulo de pagamento nativo
+    {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "./src/modules/mercadopago",
+            id: "mercadopago",
+            options: {
+              accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN,
+            },
+          },
+        ],
+      },
+    },
+  ],
 })
