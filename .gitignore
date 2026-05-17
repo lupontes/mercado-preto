@@ -6,3 +6,18 @@ dist/
 .next/
 .turbo/
 *.log
+
+# Medusa build outputs
+.medusa/
+medusa-build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads locais
+uploads/

@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta Mercado Preto — inspirada na ancestralidade afro-brasileira */
+  --color-amber: #D4A017;
+  --color-amber-light: #E8B830;
+  --color-amber-dark: #B8880F;
+
+  --color-terracotta: #B84B2D;
+  --color-terracotta-light: #D05A38;
+  --color-terracotta-dark: #963D24;
+
+  --color-forest: #2D6A35;
+  --color-forest-light: #3A8545;
+  --color-forest-dark: #1F4D26;
+
+  --color-onyx: #1A1A1A;
+  --color-cream: #FAF6EF;
+  --color-sand: #F0E8D8;
+  --color-sand-dark: #D8C9AD;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Montserrat', 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    @apply bg-cream text-onyx;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
