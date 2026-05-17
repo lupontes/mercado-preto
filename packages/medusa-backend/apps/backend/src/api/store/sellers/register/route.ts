@@ -27,7 +27,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(409).json({ error: "Este e-mail já está cadastrado" })
   }
 
-  const [seller] = await sellerService.createSellers({
+  const seller = await sellerService.createSellers({
     ...parsed.data,
     status: "pending",
   })

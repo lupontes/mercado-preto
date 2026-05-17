@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import { SELLER_MODULE } from "../../../../../modules/seller"
 import SellerModuleService from "../../../../../modules/seller/service"
 
@@ -12,5 +13,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const seller = await sellerService.approveSeller(id)
+
+  const eventBus = req.scope.resolve(Modules.EVENT_BUS)
+  await eventBus.emit({ name: "seller.approved", data: { id: seller.id } })
+
   res.json({ seller })
 }

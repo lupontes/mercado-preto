@@ -25,6 +25,11 @@ module.exports = defineConfig({
       resolve: "./src/modules/commission",
     },
 
+    // Módulo de repasses financeiros para vendedores
+    {
+      resolve: "./src/modules/payout",
+    },
+
     // Payment provider MercadoPago registrado no módulo de pagamento nativo
     {
       resolve: "@medusajs/medusa/payment",

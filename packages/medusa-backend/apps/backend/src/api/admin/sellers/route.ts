@@ -23,7 +23,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const sellers = await sellerService.listSellers(filters, {
     take: Number(limit),
     skip: Number(offset),
-    order: { createdAt: "DESC" },
+    order: { created_at: "DESC" },
   })
 
   const count = await sellerService.listSellers(filters).then((s) => s.length)
@@ -39,6 +39,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
-  const [seller] = await sellerService.createSellers(parsed.data)
+  const seller = await sellerService.createSellers(parsed.data)
   res.status(201).json({ seller })
 }

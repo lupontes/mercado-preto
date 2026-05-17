@@ -3,12 +3,11 @@ import { COMMISSION_MODULE } from "../../../modules/commission"
 import CommissionModuleService from "../../../modules/commission/service"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
+  const sellerId = (req as any).sellerId
+  const { status, limit = 20, offset = 0 } = req.query as Record<string, string>
+
   const commissionService: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
-
-  const { seller_id, status, limit = 20, offset = 0 } = req.query as Record<string, string>
-
-  const filters: Record<string, string> = {}
-  if (seller_id) filters.sellerId = seller_id
+  const filters: Record<string, string> = { sellerId }
   if (status) filters.status = status
 
   const commissions = await commissionService.listCommissions(filters, {

@@ -19,6 +19,7 @@ const Seller = model.define("seller", {
   status: model.enum(["pending", "approved", "active", "suspended"]).default("pending"),
   rejectionReason: model.text().nullable(),
   mercadopagoUserId: model.text().nullable(),
+  passwordHash: model.text().nullable(),
 })
 
 export default Seller
