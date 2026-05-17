@@ -2,9 +2,9 @@ import { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getProduct, formatPrice } from '@/lib/api'
+import { getProduct } from '@/lib/api'
 import { ArrowLeft } from 'lucide-react'
-import { AddToCartButton } from '@/components/cart/AddToCartButton'
+import { ProductDetails } from '@/components/product/ProductDetails'
 
 export const revalidate = 60
 
@@ -40,8 +40,6 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
   } catch {}
 
   if (!product) notFound()
-
-  const price = product.variants?.[0]?.prices?.find((p) => p.currency_code === 'brl')
 
   return (
     <div className="bg-cream min-h-screen">
@@ -79,46 +77,13 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
               {product.title}
             </h1>
 
-            {price && (
-              <p className="font-display text-3xl font-bold text-terracotta mt-6">
-                {formatPrice(price.amount)}
-              </p>
-            )}
-
-            {product.description && (
-              <p className="text-onyx/70 mt-6 leading-relaxed">{product.description}</p>
-            )}
-
-            {product.variants && product.variants.length > 1 && (
-              <div className="mt-6">
-                <p className="text-sm font-semibold text-onyx mb-3">Variações</p>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants.map((v) => (
-                    <button
-                      key={v.id}
-                      className="rounded-lg border border-sand-dark px-4 py-2 text-sm hover:border-amber transition-colors"
-                    >
-                      {v.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-8">
-              <AddToCartButton
-                productId={product.id}
-                variantId={product.variants?.[0]?.id ?? product.id}
-                title={product.title}
-                variantTitle={product.variants?.[0]?.title ?? 'Padrão'}
-                thumbnail={product.thumbnail}
-                price={price?.amount ?? 0}
-              />
-            </div>
-
-            <p className="text-xs text-onyx/40 mt-4 text-center">
-              Venda realizada por um afroemprendedor do Mercado Preto
-            </p>
+            <ProductDetails
+              productId={product.id}
+              title={product.title}
+              description={product.description}
+              thumbnail={product.thumbnail}
+              variants={product.variants ?? []}
+            />
           </div>
         </div>
       </div>

@@ -22,7 +22,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   if (token) {
     try {
-      const response = await fetch("https://melhorenvio.com.br/api/v2/me/shipment/calculate", {
+      const baseUrl = process.env.NODE_ENV === "production"
+        ? "https://melhorenvio.com.br"
+        : "https://sandbox.melhorenvio.com.br"
+      const response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

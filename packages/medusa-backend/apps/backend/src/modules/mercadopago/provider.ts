@@ -123,8 +123,8 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
     const paymentId = data.payment_id as string
 
     try {
-      const { Refund } = await import("mercadopago")
-      const refund = new Refund(this.mp)
+      const { PaymentRefund } = await import("mercadopago")
+      const refund = new PaymentRefund(this.mp)
       await refund.create({
         payment_id: Number(paymentId),
         body: { amount: refundAmount / 100 },

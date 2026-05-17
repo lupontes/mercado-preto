@@ -1,3 +1,4 @@
+import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { z } from "zod"
@@ -8,6 +9,7 @@ const schema = z.object({
       title: z.string(),
       quantity: z.number().int().positive(),
       price: z.number().int().positive(),
+      variantId: z.string().optional(),
     })
   ),
   address: z.object({
@@ -27,6 +29,7 @@ const schema = z.object({
     price: z.number().int().nonnegative(),
   }),
   total: z.number().int().positive(),
+  sellerId: z.string().optional(),
 })
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -37,11 +40,16 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) {
+    console.error("[checkout/preference] validation error:", JSON.stringify(parsed.error.flatten()))
+    console.error("[checkout/preference] body received:", JSON.stringify(req.body))
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address, shipping, total } = parsed.data
+  const { items, address, shipping, total, sellerId } = parsed.data
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
+  const backendUrl = process.env.BACKEND_URL
+
+  const externalReference = crypto.randomUUID()
 
   const mp = new MercadoPagoConfig({ accessToken })
   const preference = new Preference(mp)
@@ -51,7 +59,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       body: {
         items: [
           ...items.map((item) => ({
-            id: item.title.toLowerCase().replace(/\s+/g, "-"),
+            id: item.variantId ?? item.title.toLowerCase().replace(/\s+/g, "-"),
             title: item.title,
             quantity: item.quantity,
             unit_price: item.price / 100,
@@ -88,9 +96,24 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           failure: `${storeCors}/checkout/erro`,
           pending: `${storeCors}/checkout/pendente`,
         },
-        auto_return: "approved",
+        ...(storeCors.startsWith("https") ? { auto_return: "approved" } : {}),
         statement_descriptor: "MERCADO PRETO",
-        external_reference: `mp-${Date.now()}`,
+        external_reference: externalReference,
+        // notification_url só funciona com URL pública (HTTPS). Em desenvolvimento local,
+        // configure BACKEND_URL com uma URL de túnel (ex: ngrok) para receber webhooks.
+        ...(backendUrl ? { notification_url: `${backendUrl}/webhooks/mercadopago` } : {}),
+        // Snapshot do pedido para rastreabilidade via webhook
+        metadata: {
+          seller_id: sellerId,
+          items: items.map((i) => ({
+            variant_id: i.variantId,
+            title: i.title,
+            quantity: i.quantity,
+            price: i.price,
+          })),
+          shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
+          total,
+        },
       },
     })
 
@@ -98,9 +121,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       preference_id: result.id,
       init_point: result.init_point,
       sandbox_init_point: result.sandbox_init_point,
+      external_reference: externalReference,
     })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
+    const msg = err instanceof Error ? err.message : JSON.stringify(err)
+    console.error("[checkout/preference] MercadoPago error:", err)
     res.status(500).json({ error: "Erro ao criar preferência MercadoPago.", detail: msg })
   }
 }

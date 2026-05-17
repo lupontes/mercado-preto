@@ -1,5 +1,6 @@
 const BASE_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? "http://localhost:9000"
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ""
+const REGION_ID = process.env.NEXT_PUBLIC_REGION_ID ?? ""
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -75,15 +76,17 @@ export async function listProducts(params?: {
   if (params?.q) qs.set("q", params.q)
   qs.set("limit", String(params?.limit ?? 24))
   qs.set("offset", String(params?.offset ?? 0))
-  qs.set("status[]", "published")
+  if (REGION_ID) qs.set("region_id", REGION_ID)
   if (params?.category_id) params.category_id.forEach((id) => qs.append("category_id[]", id))
+  qs.set("fields", "*variants.prices")
   return apiFetch<{ products: Product[]; count: number; limit: number; offset: number }>(
     `/store/products?${qs}`
   )
 }
 
 export async function getProduct(handle: string) {
-  return apiFetch<{ products: Product[] }>(`/store/products?handle=${handle}&fields=*variants.prices`)
+  const regionParam = REGION_ID ? `&region_id=${REGION_ID}` : ""
+  return apiFetch<{ products: Product[] }>(`/store/products?handle=${handle}&fields=*variants.prices${regionParam}`)
 }
 
 export async function searchContent(params: {

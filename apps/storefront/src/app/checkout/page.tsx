@@ -38,14 +38,16 @@ async function fetchCep(cep: string) {
 }
 
 async function fetchShippingRates(cep: string): Promise<ShippingRate[]> {
-  const res = await fetch(`${MEDUSA_URL}/store/shipping/estimate?cep=${cep}`)
+  const res = await fetch(`${MEDUSA_URL}/store/shipping/estimate?cep=${cep}`, {
+    headers: { 'x-publishable-api-key': PUB_KEY },
+  })
   if (!res.ok) return []
   const { rates } = await res.json()
   return rates ?? []
 }
 
 async function initiateMercadoPagoCheckout(
-  items: { title: string; quantity: number; price: number }[],
+  items: { title: string; quantity: number; price: number; variantId?: string }[],
   address: Address,
   shipping: ShippingRate
 ): Promise<string | null> {
@@ -128,7 +130,7 @@ export default function CheckoutPage() {
     setError('')
 
     const url = await initiateMercadoPagoCheckout(
-      items.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price })),
+      items.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price, variantId: i.variantId })),
       address,
       selectedShipping!
     )
