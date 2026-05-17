@@ -1,3 +1,12 @@
+# =============================================================================
+# Mercado Preto — Docker Compose PRODUÇÃO
+# Pré-requisitos:
+#   1. Criar o arquivo infra/.env a partir de infra/.env.template
+#   2. Preencher todas as vars obrigatórias no .env
+#   3. Certificados SSL em ./nginx/ssl/ ou usar Cloudflare em modo proxy
+# Subir: docker compose -f docker-compose.prod.yml --env-file .env up -d
+# =============================================================================
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -22,6 +31,11 @@ services:
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   meilisearch:
     image: getmeili/meilisearch:v1.13
@@ -32,6 +46,11 @@ services:
     volumes:
       - meilisearch_data:/meili_data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   medusa:
     build:
@@ -39,19 +58,69 @@ services:
       dockerfile: Dockerfile
     container_name: mercado-preto-api
     environment:
+      # --- Infra (geradas pelo compose) ---
       DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
+      NODE_ENV: production
+
+      # --- Segurança ---
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
-      NODE_ENV: production
+
+      # --- CORS ---
+      STORE_CORS: ${STORE_CORS}
+      ADMIN_CORS: ${ADMIN_CORS}
+      AUTH_CORS: ${AUTH_CORS}
+
+      # --- MercadoPago ---
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
+
+      # --- Focus NFe (fiscal) ---
+      FOCUS_NFE_TOKEN: ${FOCUS_NFE_TOKEN}
+      FOCUS_NFE_SANDBOX: ${FOCUS_NFE_SANDBOX:-false}
+      FOCUS_NFE_CNPJ: ${FOCUS_NFE_CNPJ}
+      FOCUS_NFE_IE: ${FOCUS_NFE_IE}
+      FOCUS_NFE_ADDRESS_STREET: ${FOCUS_NFE_ADDRESS_STREET}
+      FOCUS_NFE_ADDRESS_NUMBER: ${FOCUS_NFE_ADDRESS_NUMBER}
+      FOCUS_NFE_ADDRESS_DISTRICT: ${FOCUS_NFE_ADDRESS_DISTRICT}
+      FOCUS_NFE_ADDRESS_CITY: ${FOCUS_NFE_ADDRESS_CITY}
+      FOCUS_NFE_ADDRESS_STATE: ${FOCUS_NFE_ADDRESS_STATE}
+      FOCUS_NFE_ADDRESS_ZIP: ${FOCUS_NFE_ADDRESS_ZIP}
+
+      # --- Melhor Envio (frete) ---
+      MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
+      MELHOR_ENVIO_ORIGIN_CEP: ${MELHOR_ENVIO_ORIGIN_CEP:-44300000}
+
+      # --- Brevo (e-mail) ---
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@mercadopreto.com.br}
+
+      # --- Evolution API (WhatsApp) ---
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
+
+      # --- ClearSale (antifraude) ---
+      CLEARSALE_WEBHOOK_SECRET: ${CLEARSALE_WEBHOOK_SECRET}
+
+      # --- Plausible (analytics) ---
+      PLAUSIBLE_URL: ${PLAUSIBLE_URL}
+      PLAUSIBLE_DOMAIN: ${PLAUSIBLE_DOMAIN:-mercadopreto.com.br}
+
+      # --- Comissão padrão ---
+      MARKETPLACE_COMMISSION_RATE: ${MARKETPLACE_COMMISSION_RATE:-15}
+
     ports:
       - "9000:9000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      meilisearch:
         condition: service_healthy
     restart: unless-stopped
 
