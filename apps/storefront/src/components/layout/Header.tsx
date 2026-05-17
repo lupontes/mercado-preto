@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { Search, ShoppingBag, Menu } from 'lucide-react'
+import { Search, Menu } from 'lucide-react'
+import { CartCount } from '@/components/cart/CartCount'
 
 export function Header() {
   return (
@@ -40,9 +41,7 @@ export function Header() {
             >
               Categorias
             </Link>
-            <Link href="/carrinho" aria-label="Carrinho" className="relative">
-              <ShoppingBag className="h-6 w-6 text-cream hover:text-amber transition-colors" />
-            </Link>
+            <CartCount />
             <Link
               href="/entrar"
               className="hidden sm:block rounded-lg bg-amber px-4 py-1.5 text-sm font-semibold text-onyx hover:bg-amber-light transition-colors"

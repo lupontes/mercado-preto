@@ -35,6 +35,19 @@ module.exports = defineConfig({
       resolve: "./src/modules/fiscal",
     },
 
+    // Fulfillment manual (flat-rate) — base para shipping options no admin
+    {
+      resolve: "@medusajs/medusa/fulfillment",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/fulfillment-manual",
+            id: "manual",
+          },
+        ],
+      },
+    },
+
     // Payment provider MercadoPago registrado no módulo de pagamento nativo
     {
       resolve: "@medusajs/medusa/payment",

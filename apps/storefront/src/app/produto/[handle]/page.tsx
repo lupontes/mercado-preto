@@ -3,7 +3,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getProduct, formatPrice } from '@/lib/api'
-import { ArrowLeft, ShoppingBag } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { AddToCartButton } from '@/components/cart/AddToCartButton'
 
 export const revalidate = 60
 
@@ -104,10 +105,16 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
               </div>
             )}
 
-            <button className="mt-8 flex items-center justify-center gap-3 rounded-xl bg-amber px-8 py-4 font-display font-bold text-onyx text-lg hover:bg-amber-dark transition-colors">
-              <ShoppingBag className="h-5 w-5" />
-              Adicionar ao carrinho
-            </button>
+            <div className="mt-8">
+              <AddToCartButton
+                productId={product.id}
+                variantId={product.variants?.[0]?.id ?? product.id}
+                title={product.title}
+                variantTitle={product.variants?.[0]?.title ?? 'Padrão'}
+                thumbnail={product.thumbnail}
+                price={price?.amount ?? 0}
+              />
+            </div>
 
             <p className="text-xs text-onyx/40 mt-4 text-center">
               Venda realizada por um afroemprendedor do Mercado Preto
