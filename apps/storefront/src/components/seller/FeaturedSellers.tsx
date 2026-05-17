@@ -1,13 +1,21 @@
 import Link from 'next/link'
+import { MapPin, Tag } from 'lucide-react'
+import { listSellers, type Seller } from '@/lib/api'
 
-const MOCK_SELLERS = [
-  { id: '1', name: 'Ateliê Dandara', category: 'Moda Afro', location: 'Salvador, BA', avatar: '👘' },
-  { id: '2', name: 'Raízes do Recôncavo', category: 'Artesanato', location: 'Cachoeira, BA', avatar: '🪆' },
-  { id: '3', name: 'Saberes de Axé', category: 'Gastronomia', location: 'Rio de Janeiro, RJ', avatar: '🍲' },
-  { id: '4', name: 'Origens Vivas', category: 'Beleza Natural', location: 'São Paulo, SP', avatar: '🌺' },
-]
+async function getSellers(): Promise<Seller[]> {
+  try {
+    const { sellers } = await listSellers({ limit: 4 })
+    return sellers
+  } catch {
+    return []
+  }
+}
 
-export function FeaturedSellers() {
+export async function FeaturedSellers() {
+  const sellers = await getSellers()
+
+  if (sellers.length === 0) return null
+
   return (
     <section className="py-16 bg-cream">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -27,20 +35,41 @@ export function FeaturedSellers() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {MOCK_SELLERS.map((seller) => (
-            <Link
-              key={seller.id}
-              href={`/loja/${seller.id}`}
-              className="group rounded-2xl border border-sand-dark bg-white p-6 text-center hover:border-amber hover:shadow-lg transition-all"
-            >
-              <div className="text-5xl mb-3">{seller.avatar}</div>
-              <h3 className="font-display font-bold text-onyx group-hover:text-amber transition-colors">
-                {seller.name}
-              </h3>
-              <p className="text-sm text-onyx/60 mt-1">{seller.category}</p>
-              <p className="text-xs text-onyx/40 mt-1">{seller.location}</p>
-            </Link>
-          ))}
+          {sellers.map((seller) => {
+            const initials = seller.name
+              .split(' ')
+              .slice(0, 2)
+              .map((w) => w[0])
+              .join('')
+              .toUpperCase()
+
+            return (
+              <Link
+                key={seller.id}
+                href={`/loja/${seller.id}`}
+                className="group rounded-2xl border border-sand-dark bg-white p-6 text-center hover:border-amber hover:shadow-lg transition-all"
+              >
+                <div className="w-14 h-14 mx-auto rounded-full bg-amber/20 flex items-center justify-center font-display font-black text-lg text-amber mb-3">
+                  {initials}
+                </div>
+                <h3 className="font-display font-bold text-onyx group-hover:text-amber transition-colors leading-tight">
+                  {seller.name}
+                </h3>
+                {seller.category && (
+                  <p className="flex items-center justify-center gap-1 text-xs text-onyx/50 mt-1">
+                    <Tag className="h-3 w-3" />
+                    {seller.category}
+                  </p>
+                )}
+                {seller.location && (
+                  <p className="flex items-center justify-center gap-1 text-xs text-onyx/40 mt-1">
+                    <MapPin className="h-3 w-3" />
+                    {seller.location}
+                  </p>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </section>
