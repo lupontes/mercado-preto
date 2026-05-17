@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: medusa
       POSTGRES_DB: mercado_preto
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: mercado-preto-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -36,7 +36,7 @@ services:
       MEILI_MASTER_KEY: mercadopreto_search_key
       MEILI_ENV: development
     ports:
-      - "7700:7700"
+      - "7701:7700"
     volumes:
       - meilisearch_data:/meili_data
     healthcheck:
