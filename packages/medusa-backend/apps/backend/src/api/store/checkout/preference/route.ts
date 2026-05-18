@@ -40,8 +40,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) {
-    console.error("[checkout/preference] validation error:", JSON.stringify(parsed.error.flatten()))
-    console.error("[checkout/preference] body received:", JSON.stringify(req.body))
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
@@ -125,7 +123,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
-    console.error("[checkout/preference] MercadoPago error:", err)
     res.status(500).json({ error: "Erro ao criar preferência MercadoPago.", detail: msg })
   }
 }

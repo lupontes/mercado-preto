@@ -56,7 +56,7 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
             failure: `${process.env.STORE_CORS?.split(",")[0]}/checkout/erro`,
             pending: `${process.env.STORE_CORS?.split(",")[0]}/checkout/pendente`,
           },
-          auto_return: "approved",
+          ...(process.env.STORE_CORS?.split(",")[0]?.startsWith("https") ? { auto_return: "approved" as const } : {}),
           // marketplace_fee aplicado quando aprovação de marketplace estiver ativa:
           // marketplace_fee: Math.round(Number(amount) * 0.15),
         },
