@@ -43,6 +43,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const mp = new MercadoPagoConfig({ accessToken })
   const paymentClient = new Payment(mp)
+  const backendUrl = process.env.BACKEND_URL
 
   try {
     const payment = await paymentClient.create({
@@ -56,6 +57,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         payer,
         description: "Pedido Mercado Preto",
         statement_descriptor: "MERCADO PRETO",
+        ...(backendUrl ? { notification_url: `${backendUrl}/webhooks/mercadopago` } : {}),
       },
       requestOptions: { idempotencyKey: crypto.randomUUID() },
     })

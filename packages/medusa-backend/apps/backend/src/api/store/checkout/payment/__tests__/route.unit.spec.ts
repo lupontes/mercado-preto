@@ -115,6 +115,24 @@ describe("POST /store/checkout/payment", () => {
     expect(call.body.installments).toBe(1)
   })
 
+  it("includes notification_url when BACKEND_URL is set", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 1, status: "approved", status_detail: "accredited" })
+
+    await POST(makeReq(cardBody, { BACKEND_URL: "https://abc.ngrok.io" }), makeRes())
+
+    const call = mockPaymentCreate.mock.calls[0][0]
+    expect(call.body.notification_url).toBe("https://abc.ngrok.io/webhooks/mercadopago")
+  })
+
+  it("omits notification_url when BACKEND_URL is not set", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 1, status: "approved", status_detail: "accredited" })
+
+    await POST(makeReq(cardBody, { BACKEND_URL: "" }), makeRes())
+
+    const call = mockPaymentCreate.mock.calls[0][0]
+    expect(call.body.notification_url).toBeUndefined()
+  })
+
   it("returns 400 when body fails schema validation", async () => {
     const res = makeRes()
     await POST(makeReq({ payment_method_id: "visa" }), res)
