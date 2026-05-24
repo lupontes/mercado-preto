@@ -116,7 +116,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
       logger.info(`[mercadopago/webhook] pedido criado: ${order.id}`)
 
-      await eventBusService.emit([{ name: "order.placed", data: { id: order.id } }])
+      // order.placed              → WhatsApp de confirmação
+      // mercadopago.order_approved → emissão NF-e (evento customizado para evitar
+      //                              conflito com subscriber interno do Medusa para
+      //                              order.payment_captured)
+      await eventBusService.emit([
+        { name: "order.placed",               data: { id: order.id } },
+        { name: "mercadopago.order_approved", data: { id: order.id } },
+      ])
     }
 
     res.sendStatus(200)
