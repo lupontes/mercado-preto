@@ -23,6 +23,9 @@ importers:
       '@medusajs/types':
         specifier: ^2.15.2
         version: 2.15.2(ioredis@5.10.1)(vite@5.4.21(@types/node@22.19.19)(lightningcss@1.32.0))
+      '@mercadopago/sdk-react':
+        specifier: ^1.0.7
+        version: 1.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1647,6 +1650,15 @@ packages:
   '@medusajs/workflows-sdk@2.15.2':
     resolution: {integrity: sha512-x8s/29tzlzukzjyItlZvyDuK8JKm7ciaoSb0Gm2q5n4R/u23KS6PQqg2vtpa2guM1CxvtuIF6PEukYPaNrb1nw==}
     engines: {node: '>=20.0.0'}
+
+  '@mercadopago/sdk-js@0.0.3':
+    resolution: {integrity: sha512-kO48DNLHdfFAp3on12nuKdqNlEmw1x3+nM6wLd04BdWOXoFcAhkNMQV3AyUIanXdO/bB/dENakdacLT29297EQ==}
+
+  '@mercadopago/sdk-react@1.0.7':
+    resolution: {integrity: sha512-babuAgsi1pQU+jfIQX1Sl0efp2no64OU/9yYK+RDz0NvSyARe+/D9ih9GyDNwVJJZuAA2lS4GF06oSxDFS5HYg==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   '@mikro-orm/cli@6.6.12':
     resolution: {integrity: sha512-NDsPRFgthHz7yXfhADF/xeZDliY0lCjsZvTHLnXJe4PlPy4r8OeaOGILwJJMPrkjrq4EF9t4JrMi8XCEPoVHBg==}
@@ -9520,6 +9532,14 @@ snapshots:
       - sqlite3
       - supports-color
       - tedious
+
+  '@mercadopago/sdk-js@0.0.3': {}
+
+  '@mercadopago/sdk-react@1.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@mercadopago/sdk-js': 0.0.3
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
 
   '@mikro-orm/cli@6.6.12(pg@8.20.0)':
     dependencies:

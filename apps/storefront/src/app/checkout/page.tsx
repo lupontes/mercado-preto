@@ -2,10 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useCartStore, type ShippingRate } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/api'
 import { ChevronRight, Loader2, Truck, CreditCard, MapPin } from 'lucide-react'
+
+const MercadoPagoBrick = dynamic(
+  () => import('@/components/payment/MercadoPagoBrick'),
+  { ssr: false, loading: () => <p className="text-sm text-onyx/50">Carregando formulário de pagamento...</p> }
+)
 
 const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
@@ -22,6 +28,11 @@ type Address = {
   address2: string
   city: string
   state: string
+}
+
+type PreferenceData = {
+  preferenceId: string
+  externalReference: string
 }
 
 const EMPTY_ADDRESS: Address = {
@@ -46,11 +57,11 @@ async function fetchShippingRates(cep: string): Promise<ShippingRate[]> {
   return rates ?? []
 }
 
-async function initiateMercadoPagoCheckout(
+async function createPreference(
   items: { title: string; quantity: number; price: number; variantId?: string }[],
   address: Address,
   shipping: ShippingRate
-): Promise<string | null> {
+): Promise<PreferenceData | null> {
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0) + shipping.price
 
   const res = await fetch(`${MEDUSA_URL}/store/checkout/preference`, {
@@ -63,8 +74,8 @@ async function initiateMercadoPagoCheckout(
   })
 
   if (!res.ok) return null
-  const { init_point, sandbox_init_point } = await res.json()
-  return sandbox_init_point ?? init_point ?? null
+  const { preference_id, external_reference } = await res.json()
+  return { preferenceId: preference_id, externalReference: external_reference }
 }
 
 export default function CheckoutPage() {
@@ -74,19 +85,21 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<Step>('address')
   const [address, setAddress] = useState<Address>(EMPTY_ADDRESS)
   const [rates, setRates] = useState<ShippingRate[]>([])
+  const [preferenceData, setPreferenceData] = useState<PreferenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [hydrated, setHydrated] = useState(false)
+  const [paid, setPaid] = useState(false)
   useEffect(() => {
     useCartStore.persist.rehydrate()
     setHydrated(true)
   }, [])
 
   useEffect(() => {
-    if (hydrated && items.length === 0) router.replace('/carrinho')
-  }, [hydrated, items.length, router])
+    if (hydrated && items.length === 0 && !paid) router.replace('/carrinho')
+  }, [hydrated, items.length, router, paid])
 
   async function handleCepBlur() {
     const cep = address.cep.replace(/\D/g, '')
@@ -122,28 +135,36 @@ export default function CheckoutPage() {
       return
     }
     setError('')
-    setStep('payment')
-  }
-
-  async function handlePaymentSubmit() {
     setLoading(true)
-    setError('')
 
-    const url = await initiateMercadoPagoCheckout(
+    const data = await createPreference(
       items.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price, variantId: i.variantId })),
       address,
-      selectedShipping!
+      selectedShipping
     )
 
-    if (!url) {
-      setError('Erro ao iniciar o pagamento. Tente novamente.')
+    if (!data) {
+      setError('Erro ao preparar o pagamento. Tente novamente.')
       setLoading(false)
       return
     }
 
-    clear()
-    window.location.href = url
+    setPreferenceData(data)
+    setLoading(false)
+    setStep('payment')
   }
+
+  function handlePaymentSuccess(paymentId: string) {
+    setPaid(true)
+    clear()
+    router.push(`/checkout/sucesso?payment_id=${paymentId}`)
+  }
+
+  function handlePaymentError(message: string) {
+    setError(message)
+  }
+
+  const totalCents = subtotal() + (selectedShipping?.price ?? 0)
 
   const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
     { id: 'address', label: 'Endereço', icon: <MapPin className="h-4 w-4" /> },
@@ -291,8 +312,9 @@ export default function CheckoutPage() {
                     className="rounded-xl border border-sand-dark px-6 py-3 font-semibold text-onyx/60 hover:border-amber transition-colors">
                     Voltar
                   </button>
-                  <button onClick={handleShippingSubmit}
-                    className="flex-1 rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors">
+                  <button onClick={handleShippingSubmit} disabled={loading}
+                    className="flex-1 rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Ir para pagamento
                   </button>
                 </div>
@@ -300,53 +322,24 @@ export default function CheckoutPage() {
             )}
 
             {/* Pagamento */}
-            {step === 'payment' && (
+            {step === 'payment' && preferenceData && (
               <div className="bg-white rounded-2xl border border-sand-dark p-6">
-                <h2 className="font-display font-black text-xl text-onyx mb-2">Pagamento</h2>
-                <p className="text-onyx/60 text-sm mb-6">
-                  Você será redirecionado para o MercadoPago para concluir o pagamento com segurança.
-                </p>
+                <h2 className="font-display font-black text-xl text-onyx mb-6">Pagamento</h2>
 
-                <div className="rounded-xl bg-sand p-4 space-y-2 text-sm mb-6">
-                  <p className="font-semibold text-onyx">Resumo do pedido</p>
-                  {items.map((item) => (
-                    <div key={item.variantId} className="flex justify-between text-onyx/70">
-                      <span>{item.title} × {item.quantity}</span>
-                      <span>{formatPrice(item.price * item.quantity)}</span>
-                    </div>
-                  ))}
-                  {selectedShipping && (
-                    <div className="flex justify-between text-onyx/70">
-                      <span>Frete ({selectedShipping.name})</span>
-                      <span>{formatPrice(selectedShipping.price)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-display font-bold text-onyx border-t border-sand-dark pt-2 mt-2">
-                    <span>Total</span>
-                    <span>{formatPrice(subtotal() + (selectedShipping?.price ?? 0))}</span>
-                  </div>
-                </div>
+                {error && <p className="text-terracotta text-sm mb-4">{error}</p>}
 
-                <div className="flex items-center gap-3 rounded-xl bg-amber/10 border border-amber/30 p-3 text-sm mb-6">
-                  <CreditCard className="h-5 w-5 text-amber shrink-0" />
-                  <span className="text-onyx/70">
-                    Cartão, PIX, boleto e parcelamento em até 12×
-                  </span>
-                </div>
+                <MercadoPagoBrick
+                  preferenceId={preferenceData.preferenceId}
+                  externalReference={preferenceData.externalReference}
+                  amountCents={totalCents}
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                />
 
-                {error && <p className="text-terracotta text-sm mb-3">{error}</p>}
-
-                <div className="flex gap-3">
-                  <button onClick={() => setStep('shipping')}
-                    className="rounded-xl border border-sand-dark px-6 py-3 font-semibold text-onyx/60 hover:border-amber transition-colors">
-                    Voltar
-                  </button>
-                  <button onClick={handlePaymentSubmit} disabled={loading}
-                    className="flex-1 rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Pagar com MercadoPago
-                  </button>
-                </div>
+                <button onClick={() => setStep('shipping')}
+                  className="mt-4 text-sm text-onyx/50 hover:text-onyx transition-colors">
+                  ← Voltar para entrega
+                </button>
               </div>
             )}
           </div>
@@ -381,7 +374,7 @@ export default function CheckoutPage() {
               )}
               <div className="flex justify-between font-display font-bold text-onyx pt-1">
                 <span>Total</span>
-                <span>{formatPrice(subtotal() + (selectedShipping?.price ?? 0))}</span>
+                <span>{formatPrice(totalCents)}</span>
               </div>
             </div>
           </div>
