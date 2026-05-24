@@ -91,14 +91,15 @@ export default function CheckoutPage() {
   const [error, setError] = useState('')
 
   const [hydrated, setHydrated] = useState(false)
+  const [paid, setPaid] = useState(false)
   useEffect(() => {
     useCartStore.persist.rehydrate()
     setHydrated(true)
   }, [])
 
   useEffect(() => {
-    if (hydrated && items.length === 0) router.replace('/carrinho')
-  }, [hydrated, items.length, router])
+    if (hydrated && items.length === 0 && !paid) router.replace('/carrinho')
+  }, [hydrated, items.length, router, paid])
 
   async function handleCepBlur() {
     const cep = address.cep.replace(/\D/g, '')
@@ -154,6 +155,7 @@ export default function CheckoutPage() {
   }
 
   function handlePaymentSuccess(paymentId: string) {
+    setPaid(true)
     clear()
     router.push(`/checkout/sucesso?payment_id=${paymentId}`)
   }

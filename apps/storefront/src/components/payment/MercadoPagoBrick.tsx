@@ -4,8 +4,6 @@ import { useEffect } from 'react'
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react'
 
 const MP_PUBLIC_KEY = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY ?? ''
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 type Props = {
   preferenceId: string
@@ -26,30 +24,44 @@ export default function MercadoPagoBrick({
     initMercadoPago(MP_PUBLIC_KEY, { locale: 'pt-BR' })
   }, [])
 
-  async function handleSubmit(formData: Record<string, unknown>) {
-    const res = await fetch(`${MEDUSA_URL}/store/checkout/payment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-publishable-api-key': PUB_KEY,
-      },
-      body: JSON.stringify({
-        ...formData,
-        external_reference: externalReference,
-        transaction_amount: amountCents / 100,
-      }),
-    })
+  async function handleSubmit(brickData: Record<string, unknown>): Promise<void> {
+    // IPaymentFormData nests the actual payment fields inside .formData
+    const paymentFields = (brickData.formData ?? brickData) as Record<string, unknown>
+    console.log('[MercadoPagoBrick] brickData:', JSON.stringify(brickData, null, 2))
+    console.log('[MercadoPagoBrick] paymentFields:', JSON.stringify(paymentFields, null, 2))
 
-    const data = await res.json()
-    if (!res.ok) {
-      throw new Error(data.error ?? 'Erro ao processar pagamento.')
+    try {
+      const res = await fetch('/api/checkout/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...paymentFields,
+          external_reference: externalReference,
+          transaction_amount: amountCents / 100,
+        }),
+      })
+
+      const data = await res.json()
+      console.log('[MercadoPagoBrick] response:', res.status, JSON.stringify(data))
+
+      if (!res.ok) {
+        onError(data.error ?? `Erro ao processar pagamento (${res.status}).`)
+        throw new Error(data.error ?? 'Erro ao processar pagamento.')
+      }
+
+      onSuccess(String(data.payment_id))
+    } catch (err) {
+      console.error('[MercadoPagoBrick] fetch error:', err)
+      const msg = (err as Error)?.message ?? 'Erro ao processar pagamento.'
+      onError(msg)
+      throw err
     }
-
-    onSuccess(String(data.payment_id))
   }
 
-  function handleError(err: { message?: string }) {
-    onError(err?.message ?? 'Erro no formulário de pagamento.')
+  function handleError(err: unknown) {
+    console.error('[MercadoPagoBrick] brick error:', err)
+    const msg = (err as { message?: string })?.message ?? 'Erro no formulário de pagamento.'
+    onError(msg)
   }
 
   return (
@@ -64,11 +76,11 @@ export default function MercadoPagoBrick({
           debitCard: 'all',
           ticket: 'all',
           bankTransfer: 'all',
-          atm: 'none',
           maxInstallments: 12,
         },
       }}
-      onSubmit={handleSubmit}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onSubmit={handleSubmit as any}
       onError={handleError}
     />
   )
