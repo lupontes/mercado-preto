@@ -1,86 +1,179 @@
+# =============================================================================
+# Mercado Preto — Infraestrutura local (docker-compose)
+#
+# USO:
+#   Subir tudo:        docker compose up -d
+#   Subir um serviço:  docker compose up -d postgres
+#   Ver logs:          docker compose logs -f evolution-api
+#   Parar tudo:        docker compose down
+#
+# PRODUÇÃO:
+#   Este arquivo é voltado para desenvolvimento local. Em produção prefira
+#   serviços gerenciados (RDS, ElastiCache, Meilisearch Cloud) e remova as
+#   portas expostas de serviços que não devem ser acessíveis externamente.
+# =============================================================================
+
 services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — banco de dados principal
+  # ---------------------------------------------------------------------------
+  # Em produção: use RDS (AWS), Cloud SQL (GCP) ou Supabase.
+  # A porta 5433 (host) → 5432 (container) evita conflito com Postgres local.
+  # ATENÇÃO: troque user/password/db antes de ir para produção.
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: mercado-preto-db
     environment:
-      POSTGRES_USER: medusa
-      POSTGRES_PASSWORD: medusa
-      POSTGRES_DB: mercado_preto
+      POSTGRES_USER: medusa           # → DATABASE_URL no backend .env
+      POSTGRES_PASSWORD: medusa       # → DATABASE_URL no backend .env (use senha forte em prod)
+      POSTGRES_DB: mercado_preto      # banco principal do Medusa
     ports:
-      - "5433:5432"
+      - "5433:5432"                   # host:container — acesso local via psql -p 5433
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data   # dados persistidos entre restarts
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U medusa -d mercado_preto"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Redis — cache e filas de eventos (Medusa + Evolution API)
+  # ---------------------------------------------------------------------------
+  # Em produção: use ElastiCache (AWS) ou Redis Cloud.
+  # A porta 6380 (host) → 6379 (container) evita conflito com Redis local.
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: mercado-preto-redis
     ports:
-      - "6380:6379"
+      - "6380:6379"                   # host:container — acesso local via redis-cli -p 6380
     volumes:
-      - redis_data:/data
+      - redis_data:/data              # dados persistidos (filas, sessões)
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Meilisearch — motor de busca full-text para produtos
+  # ---------------------------------------------------------------------------
+  # Em produção: use Meilisearch Cloud ou instância dedicada com HTTPS.
+  # MEILI_MASTER_KEY: chave de acesso — deve ser forte e secreta em produção.
+  # MEILI_ENV: "development" desativa autenticação anônima; use "production" em prod.
+  # A porta 7701 (host) → 7700 (container) evita conflito com Meilisearch local.
+  # ---------------------------------------------------------------------------
   meilisearch:
     image: getmeili/meilisearch:v1.13
     container_name: mercado-preto-search
     environment:
-      MEILI_MASTER_KEY: mercadopreto_search_key
-      MEILI_ENV: development
+      MEILI_MASTER_KEY: mercadopreto_search_key   # → MEILISEARCH_API_KEY no backend .env
+      MEILI_ENV: development                       # trocar para "production" em prod
     ports:
-      - "7701:7700"
+      - "7701:7700"                   # host:container — dashboard em http://localhost:7701
     volumes:
-      - meilisearch_data:/meili_data
+      - meilisearch_data:/meili_data  # índices persistidos
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Evolution API — gateway WhatsApp para notificações de pedido
+  # ---------------------------------------------------------------------------
+  # Documentação: https://doc.evolution-api.com
+  # Manager (UI): http://localhost:8080/manager
+  #
+  # FLUXO DE CONEXÃO:
+  #   1. Suba o serviço: docker compose up -d evolution-api
+  #   2. Crie instância: POST /instance/create  { instanceName, integration }
+  #   3. Obtenha QR:     GET  /instance/connect/{instanceName}
+  #   4. Escaneie o QR com WhatsApp → Dispositivos vinculados → Vincular dispositivo
+  #   5. Confirme estado: GET /instance/fetchInstances
+  #
+  # EM PRODUÇÃO:
+  #   - Troque AUTHENTICATION_API_KEY por uma chave forte e aleatória
+  #   - Atualize SERVER_URL para a URL pública (ex: https://evo.mercadopreto.com.br)
+  #   - Troque DATABASE_CONNECTION_URI para o banco de produção
+  #   - Troque CACHE_REDIS_URI para o Redis de produção
+  #   - Exponha apenas via HTTPS (nginx/Caddy com TLS)
+  # ---------------------------------------------------------------------------
   evolution-api:
     image: atendai/evolution-api:v2.2.3
     container_name: mercado-preto-evolution
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8080:8080"                   # host:container — API e manager na mesma porta
     environment:
+      # URL pública da própria API — usada internamente nos links de QR e webhooks
+      # Em produção: https://evo.mercadopreto.com.br (ou subdomínio equivalente)
       SERVER_URL: http://localhost:8080
+
+      # Mantém instâncias ativas mesmo sem conexão WhatsApp (não apaga ao desconectar)
       DEL_INSTANCE: "false"
+
+      # Idioma das mensagens internas da API
       LANGUAGE: pt-BR
-      # Auth
+
+      # --- Autenticação ---
+      # Tipo de autenticação: "apikey" usa header "apikey: <valor>" em todas as requests
       AUTHENTICATION_TYPE: apikey
+      # Chave global de acesso — trocar por valor aleatório forte em produção
+      # Gere: openssl rand -hex 24
+      # → EVOLUTION_API_KEY no backend .env
       AUTHENTICATION_API_KEY: mercadopreto_evo_key
+      # Expõe o token de cada instância no endpoint /instance/fetchInstances
+      # Necessário para usar o token de instância em endpoints que exigem autenticação por instância
       AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
-      # Banco de dados
+
+      # --- Banco de dados ---
+      # A Evolution API usa seu próprio schema dentro do PostgreSQL compartilhado
+      # O banco "evolution" é criado manualmente antes do primeiro start:
+      #   docker exec mercado-preto-db psql -U medusa -c "CREATE DATABASE evolution;"
+      # Em produção: use a connection string do banco gerenciado
       DATABASE_PROVIDER: postgresql
       DATABASE_CONNECTION_URI: postgresql://medusa:medusa@postgres:5432/evolution
       DATABASE_CONNECTION_CLIENT_NAME: evolution
-      # Cache
+
+      # --- Cache Redis ---
+      # Sessões Baileys e QR codes são cacheados no Redis
+      # CACHE_REDIS_TTL: tempo de vida dos itens em cache (segundos) — 604800 = 7 dias
       CACHE_REDIS_URI: redis://redis:6379
       CACHE_REDIS_PREFIX_KEY: evolution
       CACHE_REDIS_ENABLED: "true"
       CACHE_REDIS_TTL: "604800"
-      # QR Code
+
+      # --- QR Code ---
+      # Número máximo de QR codes gerados por instância antes de expirar a sessão
       QRCODE_LIMIT: "30"
+      # Cor do QR code gerado (hex) — cor verde WhatsApp
       QRCODE_COLOR: "#00a884"
-      # Override hardcoded WA version — update if WhatsApp rejects handshake again
+
+      # --- Versão do protocolo WhatsApp (Baileys) ---
+      # O binário v2.2.3 tem esta versão hardcoded. Se o WhatsApp rejeitar a conexão
+      # com erro 405, busque a versão atual e atualize este valor:
+      #   docker exec mercado-preto-evolution node -e \
+      #     "require('/evolution/node_modules/baileys').fetchLatestBaileysVersion().then(v=>console.log(v.version.join('.')))"
       CONFIG_SESSION_PHONE_VERSION: "2.3000.1035194821"
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
+      # Arquivos de sessão Baileys (chaves de criptografia WhatsApp)
+      # ATENÇÃO: perder este volume desconecta todas as instâncias — faça backup em produção
       - evolution_data:/evolution/instances
 
+# =============================================================================
+# Volumes nomeados — dados persistidos entre restarts e recreações de container
+# Em produção considere mapear para diretórios com backup automático
+# =============================================================================
 volumes:
   postgres_data:
   redis_data:
