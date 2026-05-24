@@ -1,7 +1,7 @@
 import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
-import { MercadoPagoConfig, Payment } from "mercadopago"
+import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
 
 type MPWebhookBody = {
   type?: string
@@ -74,7 +74,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         `[mercadopago/webhook] pagamento aprovado — R$ ${payment.transaction_amount} | ref: ${payment.external_reference}`
       )
 
-      const meta = payment.metadata as Record<string, any> | undefined
+      // MP does not propagate preference.metadata to the payment object.
+      // Fetch the preference by external_reference to recover the order snapshot.
+      let meta = payment.metadata as Record<string, any> | undefined
+      if ((!meta?.items?.length) && payment.external_reference) {
+        try {
+          const prefClient = new Preference(mp)
+          const searchResult = await prefClient.search({
+            options: { external_reference: payment.external_reference },
+          })
+          const prefId = searchResult.elements?.[0]?.id
+          if (prefId) {
+            const pref = await prefClient.get({ preferenceId: prefId })
+            meta = pref.metadata as Record<string, any> | undefined
+            logger.info(`[mercadopago/webhook] metadados recuperados da preferência ${prefId}`)
+          }
+        } catch (prefErr) {
+          logger.warn(`[mercadopago/webhook] falha ao buscar preferência: ${prefErr}`)
+        }
+      }
+
       const addr = meta?.address as Record<string, string> | undefined
       const mpItems: { variant_id?: string; title: string; quantity: number; price: number }[] =
         meta?.items ?? []
@@ -101,11 +120,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           items: mpItems.map((i) => ({
             title: i.title,
             quantity: i.quantity,
-            unit_price: i.price / 100,
+            unit_price: i.price,
             ...(i.variant_id ? { variant_id: i.variant_id } : {}),
           })),
           shipping_methods: shipping
-            ? [{ name: shipping.name, amount: shipping.price / 100 }]
+            ? [{ name: shipping.name, amount: shipping.price }]
             : [],
           metadata: {
             mercadopago_payment_id: String(payment.id),
