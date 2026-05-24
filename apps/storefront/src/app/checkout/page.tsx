@@ -225,24 +225,50 @@ export default function CheckoutPage() {
                 </Field>
 
                 <Field label="Telefone / WhatsApp">
-                  <input type="tel" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))}
-                    className="input" placeholder="(11) 99999-9999" />
+                  <input
+                    type="tel"
+                    value={address.phone}
+                    onChange={(e) => {
+                      const d = e.target.value.replace(/\D/g, '').slice(0, 11)
+                      let masked = d
+                      if (d.length > 10) masked = `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+                      else if (d.length > 6) masked = `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+                      else if (d.length > 2) masked = `(${d.slice(0,2)}) ${d.slice(2)}`
+                      else if (d.length > 0) masked = `(${d}`
+                      setAddress((a) => ({ ...a, phone: masked }))
+                    }}
+                    className="input"
+                    placeholder="(11) 99999-9999"
+                    inputMode="tel"
+                  />
                 </Field>
 
                 <div className="grid grid-cols-3 gap-4">
                   <Field label="CEP" required>
                     <input
                       value={address.cep}
-                      onChange={(e) => setAddress((a) => ({ ...a, cep: e.target.value }))}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 8)
+                        const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
+                        setAddress((a) => ({ ...a, cep: masked }))
+                      }}
                       onBlur={handleCepBlur}
                       className="input"
                       placeholder="00000-000"
+                      inputMode="numeric"
                       required
                     />
                   </Field>
                   <Field label="Estado">
-                    <input value={address.state} onChange={(e) => setAddress((a) => ({ ...a, state: e.target.value }))}
-                      className="input" maxLength={2} placeholder="SP" />
+                    <input
+                      value={address.state}
+                      onChange={(e) => {
+                        const letters = e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase()
+                        setAddress((a) => ({ ...a, state: letters }))
+                      }}
+                      className="input"
+                      placeholder="SP"
+                    />
                   </Field>
                   <Field label="Cidade">
                     <input value={address.city} onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))}

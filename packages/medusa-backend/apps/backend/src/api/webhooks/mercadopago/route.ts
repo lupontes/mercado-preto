@@ -1,5 +1,6 @@
 import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment } from "mercadopago"
 
 type MPWebhookBody = {
@@ -72,8 +73,50 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       logger.info(
         `[mercadopago/webhook] pagamento aprovado — R$ ${payment.transaction_amount} | ref: ${payment.external_reference}`
       )
-      // Ponto de extensão: criar pedido Medusa, acionar commissão, notificar vendedor.
-      // O snapshot do pedido original está em payment.metadata.
+
+      const meta = payment.metadata as Record<string, any> | undefined
+      const addr = meta?.address as Record<string, string> | undefined
+      const mpItems: { variant_id?: string; title: string; quantity: number; price: number }[] =
+        meta?.items ?? []
+      const shipping: { name: string; price: number } | undefined = meta?.shipping
+
+      const orderService = req.scope.resolve(Modules.ORDER)
+      const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
+
+      const [order] = await orderService.createOrders([
+        {
+          currency_code: "brl",
+          email: addr?.email ?? (payment.payer as any)?.email,
+          shipping_address: {
+            first_name: addr?.first_name ?? (payment.payer as any)?.name ?? "",
+            last_name: addr?.last_name ?? (payment.payer as any)?.surname ?? "",
+            phone: addr?.phone ?? (payment.payer as any)?.phone?.number ?? "",
+            address_1: addr?.address_1 ?? (payment.payer as any)?.address?.street_name ?? "",
+            address_2: addr?.address_2 ?? "",
+            city: addr?.city ?? "",
+            province: addr?.state ?? "",
+            country_code: "br",
+            postal_code: addr?.postal_code ?? (payment.payer as any)?.address?.zip_code ?? "",
+          },
+          items: mpItems.map((i) => ({
+            title: i.title,
+            quantity: i.quantity,
+            unit_price: i.price / 100,
+            ...(i.variant_id ? { variant_id: i.variant_id } : {}),
+          })),
+          shipping_methods: shipping
+            ? [{ name: shipping.name, amount: shipping.price / 100 }]
+            : [],
+          metadata: {
+            mercadopago_payment_id: String(payment.id),
+            mercadopago_external_reference: payment.external_reference,
+          },
+        },
+      ])
+
+      logger.info(`[mercadopago/webhook] pedido criado: ${order.id}`)
+
+      await eventBusService.emit([{ name: "order.placed", data: { id: order.id } }])
     }
 
     res.sendStatus(200)
