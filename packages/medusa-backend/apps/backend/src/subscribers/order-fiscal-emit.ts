@@ -13,7 +13,7 @@ export default async function orderFiscalEmit({
 
   const orderService = container.resolve(Modules.ORDER)
   const order = await orderService.retrieveOrder(orderId, {
-    relations: ["items", "shipping_address", "customer"],
+    relations: ["items", "shipping_address"],
   })
 
   if (!order) return
@@ -21,20 +21,17 @@ export default async function orderFiscalEmit({
   const sellerId: string | undefined = (order.metadata as any)?.seller_id
   const amountCents = Number(order.total ?? 0)
 
-  const customer = (order as any).customer
   const address = (order as any).shipping_address
 
   await fiscalService.emitNfe({
     orderId,
     sellerId: sellerId ?? "unknown",
     amountCents,
-    buyerName: customer?.first_name
-      ? `${customer.first_name} ${customer.last_name || ""}`.trim()
-      : address?.first_name
-        ? `${address.first_name} ${address.last_name || ""}`.trim()
-        : "Consumidor Final",
+    buyerName: address?.first_name
+      ? `${address.first_name} ${address.last_name || ""}`.trim()
+      : "Consumidor Final",
     buyerDocument: (order.metadata as any)?.buyer_document || "000.000.000-00",
-    buyerEmail: customer?.email || "",
+    buyerEmail: (order as any).email || "",
     buyerAddress: {
       street: address?.address_1 || "Não informado",
       number: address?.address_2 || "S/N",
@@ -52,5 +49,5 @@ export default async function orderFiscalEmit({
 }
 
 export const config: SubscriberConfig = {
-  event: "order.payment_captured",
+  event: "mercadopago.order_approved",
 }
