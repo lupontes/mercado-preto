@@ -7,13 +7,15 @@ export default async function orderPlacedWhatsApp({
   container,
 }: SubscriberArgs<{ id: string }>) {
   const orderService = container.resolve(Modules.ORDER)
-  const order = await orderService.retrieveOrder(event.data.id, { relations: ["customer"] })
+  const order = await orderService.retrieveOrder(event.data.id, {
+    relations: ["shipping_address"],
+  })
   if (!order) return
 
-  const phone = (order as any).customer?.phone
+  const phone = (order as any).shipping_address?.phone
   if (!phone) return
 
-  const name = (order as any).customer?.first_name || "Cliente"
+  const name = (order as any).shipping_address?.first_name ?? "Cliente"
   const total = (Number(order.total) / 100).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",

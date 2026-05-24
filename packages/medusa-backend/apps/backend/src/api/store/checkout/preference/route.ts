@@ -103,6 +103,17 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         // Snapshot do pedido para rastreabilidade via webhook
         metadata: {
           seller_id: sellerId,
+          address: {
+            first_name: address.firstName,
+            last_name: address.lastName,
+            email: address.email,
+            phone: address.phone ?? "",
+            address_1: address.address1,
+            address_2: address.address2 ?? "",
+            city: address.city,
+            state: address.state,
+            postal_code: address.cep.replace(/\D/g, ""),
+          },
           items: items.map((i) => ({
             variant_id: i.variantId,
             title: i.title,
