@@ -6,7 +6,8 @@ async function getClient() {
   const apiKey = process.env.MEILISEARCH_API_KEY
   if (!host) return null
 
-  const { MeiliSearch } = await import("meilisearch")
+  const MeiliSearchModule = await import("meilisearch")
+  const MeiliSearch = (MeiliSearchModule as any).MeiliSearch ?? (MeiliSearchModule as any).default
   return new MeiliSearch({ host, apiKey })
 }
 

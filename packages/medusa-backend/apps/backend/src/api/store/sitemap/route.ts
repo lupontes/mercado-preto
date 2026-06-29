@@ -46,7 +46,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allRoutes
   .map(
-    (r) => `  <url>
+    (r: any) => `  <url>
     <loc>${r.url}</loc>
     ${r.lastmod ? `<lastmod>${r.lastmod}</lastmod>` : ""}
     <changefreq>${r.changefreq}</changefreq>

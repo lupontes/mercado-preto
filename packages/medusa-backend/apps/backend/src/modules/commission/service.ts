@@ -53,7 +53,7 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
 
   async recordAndCreate(input: CalculateInput) {
     const calculated = this.calculate(input)
-    const [commission] = await this.createCommissions(calculated)
+    const commission = await this.createCommissions(calculated as any)
     return commission
   }
 

@@ -30,7 +30,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
     docId: string,
     ref: string,
     input: import("./helpers").EmitNfeInput
-  ): Promise<InstanceType<typeof NfDocument>> {
+  ): Promise<any> {
     if (!process.env.FOCUS_NFE_TOKEN) {
       return await this.updateNfDocuments({
         id: docId,
@@ -98,7 +98,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
 
   async emitNfe(
     input: import("./helpers").EmitNfeInput
-  ): Promise<InstanceType<typeof NfDocument>> {
+  ): Promise<any> {
     if (input.amountCents <= 0) {
       throw new Error("Valor do pedido deve ser maior que zero")
     }
@@ -120,7 +120,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
   async retryNfe(
     id: string,
     input: import("./helpers").EmitNfeInput
-  ): Promise<InstanceType<typeof NfDocument>> {
+  ): Promise<any> {
     if (input.amountCents <= 0) {
       throw new Error("Valor do pedido deve ser maior que zero")
     }
