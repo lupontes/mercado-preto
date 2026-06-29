@@ -139,9 +139,6 @@ services:
       # Em testes: IP público. Em produção: domínio HTTPS.
       BACKEND_URL: http://${SERVER_IP}:9000
 
-      # Meilisearch (variável adicional usada pelo plugin Medusa)
-      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
-
       # Melhor Envio
       MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
       MELHOR_ENVIO_ORIGIN_CEP: ${MELHOR_ENVIO_ORIGIN_CEP:-44300000}
