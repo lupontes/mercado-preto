@@ -103,7 +103,7 @@ services:
   #   - Exponha apenas via HTTPS (nginx/Caddy com TLS)
   # ---------------------------------------------------------------------------
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: evoapicloud/evolution-api:v2.2.3
     container_name: mercado-preto-evolution
     restart: unless-stopped
     ports:

@@ -72,7 +72,7 @@ services:
   # SERVER_URL aponta para o IP público do servidor OCI
   # ---------------------------------------------------------------------------
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: evoapicloud/evolution-api:v2.2.3
     container_name: mercado-preto-evolution
     restart: unless-stopped
     ports:
