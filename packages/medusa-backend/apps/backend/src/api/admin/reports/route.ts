@@ -1,5 +1,4 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
 import { COMMISSION_MODULE } from "../../../modules/commission"
 import { PAYOUT_MODULE } from "../../../modules/payout"
 import { SELLER_MODULE } from "../../../modules/seller"
@@ -18,8 +17,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
 
   const [allCommissions, allPayouts, allSellers] = await Promise.all([
-    commissionService.listCommissions({}, { order: { created_at: "DESC" } }),
-    payoutService.listPayouts({}, { order: { created_at: "DESC" } }),
+    commissionService.listCommissions({}),
+    payoutService.listPayouts({}),
     sellerService.listSellers({}),
   ])
 
@@ -34,7 +33,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   })
 
   const totalGmv = periodCommissions.reduce(
-    (acc: number, c: any) => acc + Number(c.orderAmount ?? 0),
+    (acc: number, c: any) => acc + Number(c.grossAmount ?? 0),
     0
   )
   const totalCommission = periodCommissions.reduce(
@@ -58,7 +57,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     return {
       sellerId: seller.id,
       sellerName: seller.name,
-      gmv: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.orderAmount ?? 0), 0),
+      gmv: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.grossAmount ?? 0), 0),
       commission: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.commissionAmount ?? 0), 0),
       payouts: sellerPayouts.reduce((acc: number, p: any) => acc + Number(p.amount ?? 0), 0),
       orderCount: sellerCommissions.length,

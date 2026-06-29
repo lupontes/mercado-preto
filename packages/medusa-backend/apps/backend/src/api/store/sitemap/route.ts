@@ -42,15 +42,19 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const allRoutes = [...staticRoutes, ...productRoutes, ...sellerRoutes]
 
+  function escapeXml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;")
+  }
+
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${allRoutes
   .map(
     (r: any) => `  <url>
-    <loc>${r.url}</loc>
-    ${r.lastmod ? `<lastmod>${r.lastmod}</lastmod>` : ""}
-    <changefreq>${r.changefreq}</changefreq>
-    <priority>${r.priority}</priority>
+    <loc>${escapeXml(r.url)}</loc>
+    ${r.lastmod ? `<lastmod>${escapeXml(r.lastmod)}</lastmod>` : ""}
+    <changefreq>${escapeXml(r.changefreq)}</changefreq>
+    <priority>${escapeXml(r.priority)}</priority>
   </url>`
   )
   .join("\n")}

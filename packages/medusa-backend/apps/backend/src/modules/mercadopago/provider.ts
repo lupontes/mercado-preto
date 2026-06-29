@@ -103,7 +103,18 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
   }
 
   async capturePayment(input: CapturePaymentInput): Promise<CapturePaymentOutput> {
-    return { data: (input.data as Record<string, unknown>) ?? {} }
+    const paymentId = input.data?.payment_id as string
+    if (!paymentId) return { data: (input.data as Record<string, unknown>) ?? {} }
+
+    try {
+      const payment = await this.payment.get({ id: Number(paymentId) })
+      if (payment.status === "authorized") {
+        return { data: { ...(input.data as Record<string, unknown>), captured: true, capturedAt: new Date().toISOString() } }
+      }
+      return { data: (input.data as Record<string, unknown>) ?? {} }
+    } catch {
+      return { data: (input.data as Record<string, unknown>) ?? {} }
+    }
   }
 
   async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
