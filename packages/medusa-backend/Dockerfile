@@ -31,9 +31,8 @@ RUN apk add --no-cache curl
 # Copy built artefact from builder
 COPY --from=builder /app/apps/backend/.medusa/server ./
 COPY --from=builder /app/apps/backend/package.json ./package.json
-
-# Install only production runtime dependencies
-RUN npm install --omit=dev
+# Copy production node_modules from builder
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 9000
 
