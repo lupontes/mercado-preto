@@ -1,8 +1,29 @@
 import crypto from "crypto"
 import { defineMiddlewares } from "@medusajs/framework/http"
 
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+
+function rateLimit(maxRequests: number, windowMs: number) {
+  return (req: any, res: any, next: any) => {
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown"
+    const now = Date.now()
+    const entry = rateLimitStore.get(ip)
+
+    if (!entry || now > entry.resetAt) {
+      rateLimitStore.set(ip, { count: 1, resetAt: now + windowMs })
+      return next()
+    }
+
+    entry.count++
+    if (entry.count > maxRequests) {
+      return res.status(429).json({ error: "Muitas tentativas. Tente novamente mais tarde." })
+    }
+    next()
+  }
+}
+
 function verifySellerToken(token: string) {
-  const secret = process.env.JWT_SECRET || "supersecret"
+  const secret = process.env.JWT_SECRET!
   const parts = token.split(".")
   if (parts.length !== 3) throw new Error("Invalid token format")
   const [header, body, sig] = parts
@@ -43,11 +64,26 @@ function sellerAuth(req: any, res: any, next: any) {
   }
 }
 
+const loginRateLimit = rateLimit(10, 15 * 60 * 1000)
+const registerRateLimit = rateLimit(5, 60 * 60 * 1000)
+
 export default defineMiddlewares({
   routes: [
     {
       matcher: "/seller",
       middlewares: [sellerCors, sellerAuth],
+    },
+    {
+      matcher: "/store/sellers/login",
+      middlewares: [loginRateLimit],
+    },
+    {
+      matcher: "/store/sellers/register",
+      middlewares: [registerRateLimit],
+    },
+    {
+      matcher: "/store/sellers/set-password",
+      middlewares: [loginRateLimit],
     },
   ],
 })

@@ -42,11 +42,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
 
-  if (webhookSecret) {
-    if (!verifySignature(req, webhookSecret)) {
-      logger.warn("[mercadopago/webhook] assinatura inválida — requisição rejeitada")
-      return res.sendStatus(401)
-    }
+  if (!webhookSecret) {
+    logger.error("[mercadopago/webhook] MERCADOPAGO_WEBHOOK_SECRET não configurado — webhook rejeitado")
+    return res.status(500).json({ error: "Webhook secret not configured" })
+  }
+
+  if (!verifySignature(req, webhookSecret)) {
+    logger.warn("[mercadopago/webhook] assinatura inválida — requisição rejeitada")
+    return res.sendStatus(401)
   }
 
   const body = req.body as MPWebhookBody
@@ -101,6 +104,15 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
       const orderService = req.scope.resolve(Modules.ORDER)
       const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
+
+      const existingOrders = await orderService.listOrders(
+        { metadata: { mercadopago_external_reference: payment.external_reference } } as any,
+        { take: 1 }
+      )
+      if (existingOrders.length > 0) {
+        logger.info(`[mercadopago/webhook] pedido já existe: ${existingOrders[0].id} — ignorando webhook duplicado`)
+        return res.sendStatus(200)
+      }
 
       const [order] = await orderService.createOrders([
         {

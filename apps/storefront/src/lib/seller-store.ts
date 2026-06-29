@@ -12,6 +12,9 @@ export type SellerProfile = {
   bio?: string
   location?: string
   category?: string
+}
+
+export type SellerBanking = {
   pixKey?: string
   pixKeyType?: string
   bankName?: string
@@ -51,6 +54,19 @@ export const useSellerStore = create<SellerStore>()(
           ? localStorage
           : ({ getItem: () => null, setItem: () => {}, removeItem: () => {}, length: 0, clear: () => {}, key: () => null } as Storage)
       ),
+      partialize: (state) => ({
+        token: state.token,
+        seller: state.seller ? {
+          id: state.seller.id,
+          name: state.seller.name,
+          email: state.seller.email,
+          status: state.seller.status,
+          ownerName: state.seller.ownerName,
+          bio: state.seller.bio,
+          location: state.seller.location,
+          category: state.seller.category,
+        } : null,
+      }),
       skipHydration: true,
     }
   )

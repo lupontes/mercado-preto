@@ -13,7 +13,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
   }
 
   private isSandbox(): boolean {
-    return process.env.FOCUS_NFE_SANDBOX !== "false"
+    return process.env.FOCUS_NFE_SANDBOX === "true"
   }
 
   private baseUrl(): string {
