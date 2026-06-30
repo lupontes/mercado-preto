@@ -1,26 +1,6 @@
 import crypto from "crypto"
 import { defineMiddlewares } from "@medusajs/framework/http"
-
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
-
-function rateLimit(maxRequests: number, windowMs: number) {
-  return (req: any, res: any, next: any) => {
-    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown"
-    const now = Date.now()
-    const entry = rateLimitStore.get(ip)
-
-    if (!entry || now > entry.resetAt) {
-      rateLimitStore.set(ip, { count: 1, resetAt: now + windowMs })
-      return next()
-    }
-
-    entry.count++
-    if (entry.count > maxRequests) {
-      return res.status(429).json({ error: "Muitas tentativas. Tente novamente mais tarde." })
-    }
-    next()
-  }
-}
+import rateLimit from "express-rate-limit"
 
 function verifySellerToken(token: string) {
   const secret = process.env.JWT_SECRET!
@@ -64,8 +44,24 @@ function sellerAuth(req: any, res: any, next: any) {
   }
 }
 
-const loginRateLimit = rateLimit(10, 15 * 60 * 1000)
-const registerRateLimit = rateLimit(5, 60 * 60 * 1000)
+const rateLimitKeyGenerator = (req: any) => {
+  const xff = req.headers["x-forwarded-for"] as string | undefined
+  return xff?.split(",")[0]?.trim() ?? req.ip ?? "unknown"
+}
+
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: { error: "Muitas tentativas. Tente novamente mais tarde." },
+  keyGenerator: rateLimitKeyGenerator,
+})
+
+const registerRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  message: { error: "Muitas tentativas. Tente novamente mais tarde." },
+  keyGenerator: rateLimitKeyGenerator,
+})
 
 export default defineMiddlewares({
   routes: [
