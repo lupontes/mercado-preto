@@ -10,15 +10,37 @@
 | CPU / RAM | 2 OCPUs / 12 GB |
 | Docker | pré-instalado via cloud-init |
 
-### Portas abertas (NSG Oracle Cloud)
+### Portas abertas (NSG Oracle Cloud + iptables)
 
-| Porta | Serviço |
-|-------|---------|
-| `22` | SSH |
-| `9000` | Medusa backend (API + Admin) |
-| `3000` | Next.js storefront |
-| `8080` | Evolution API (WhatsApp) |
-| `7700` | Meilisearch |
+| Porta | Protocolo | Serviço | Descrição | Restrição |
+|-------|-----------|---------|-----------|-----------|
+| `22` | TCP | SSH | Acesso remoto | Chave pública |
+| `9000` | TCP | Medusa backend | API + Admin | Acesso externo |
+| `3000` | TCP | Next.js storefront | Vitrine pública | Acesso externo |
+| `8080` | TCP | Evolution API | WhatsApp (Baileys) | Acesso externo |
+| `7700` | TCP | Meilisearch | Dashboard de busca | Pode ser restrito ao IP da equipe |
+| `19999` | TCP | Netdata | Monitoramento | Dashboard de métricas |
+
+### Configuração de Firewall (UFW + iptables)
+
+```bash
+# UFW
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp
+sudo ufw allow 3000/tcp
+sudo ufw allow 9000/tcp
+sudo ufw allow 8080/tcp
+sudo ufw allow 7700/tcp
+sudo ufw allow 19999/tcp
+sudo ufw --force enable
+
+# iptables (backup para persistência)
+for port in 22 3000 9000 8080 7700 19999; do
+  sudo iptables -I INPUT -p tcp --dport $port -j ACCEPT
+done
+sudo netfilter-persistent save
+```
 
 ---
 
@@ -30,7 +52,8 @@ Internet
   ├── :9000 → Medusa backend (container)
   ├── :3000 → Next.js storefront (processo Node.js)
   ├── :8080 → Evolution API (container)
-  └── :7700 → Meilisearch (container)
+  ├── :7700 → Meilisearch (container)
+  └── :19999 → Netdata (monitoramento)
 
 Interno (sem porta externa):
   PostgreSQL, Redis
@@ -275,6 +298,8 @@ pm2 startup   # gerar comando de auto-start e executá-lo
 
 ## Passo 9 — Conectar Evolution API ao WhatsApp
 
+> **Importante:** O WhatsApp bloqueia conexões de IPs de datacenter (Oracle Cloud). Use **pairing code** em vez de QR code — funciona melhor com IPs de cloud.
+
 ```bash
 # 1. Criar instância
 curl -X POST http://168.138.148.67:8080/instance/create \
@@ -282,16 +307,28 @@ curl -X POST http://168.138.148.67:8080/instance/create \
   -H "Content-Type: application/json" \
   -d '{"instanceName":"mercadopreto","integration":"WHATSAPP-BAILEYS"}'
 
-# 2. Obter QR code
-curl http://168.138.148.67:8080/instance/connect/mercadopreto \
+# 2. Conectar via pairing code (substitua <NUMERO> pelo seu WhatsApp com DDD)
+curl "http://168.138.148.67:8080/instance/connect/mercadopreto?number=<NUMERO>" \
   -H "apikey: <EVOLUTION_API_KEY>"
 
-# 3. Escanear o QR com WhatsApp → Dispositivos vinculados → Vincular dispositivo
+# Exemplo: number=5511999999999 (formato: 55 + DDD + número)
+
+# 3. O WhatsApp exibirá um código de 8 dígitos
+#    No WhatsApp: Dispositivos vinculados → Vincular dispositivo → Digitar código
 
 # 4. Confirmar conexão
 curl http://168.138.148.67:8080/instance/fetchInstances \
   -H "apikey: <EVOLUTION_API_KEY>"
 ```
+
+### Troubleshooting: "não foi possível conectar o dispositivo"
+
+Se o pairing code não funcionar, verificar:
+
+1. **Número correto:** Formato `55` + DDD + número (ex: `5511999999999`)
+2. **WhatsApp atualizado:** Versão mais recente do WhatsApp no celular
+3. **Reiniciar instância:** `curl -X DELETE http://168.138.148.67:8080/instance/delete/mercadopreto -H "apikey: <EVOLUTION_API_KEY>"` e refazer o processo
+4. **Alternativa:** Usar VPS residencial (IP não-datacenter) ou API oficial WhatsApp Business
 
 ---
 
@@ -323,6 +360,7 @@ curl -s -o /dev/null -w "%{http_code}" http://168.138.148.67:3000
 | Storefront | http://168.138.148.67:3000 |
 | Evolution API | http://168.138.148.67:8080 |
 | Meilisearch | http://168.138.148.67:7700 |
+| Netdata | http://168.138.148.67:19999 |
 
 ---
 
