@@ -137,7 +137,7 @@ services:
     depends_on:
       - medusa
     restart: unless-stopped
-    command: sh -c 'while :; do sleep 6h; nginx -s reload; done & nginx -g "daemon off;"'
+    command: sh -c 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"'
 
   certbot:
     image: certbot/certbot:latest
