@@ -2,7 +2,7 @@
 
 **Data**: 2026-07-02
 **Status**: Em revisão
-**Contexto de negócio**: Primeira loja do marketplace Mercado Preto. Origem: loja Nuvemshop hospedada em `www.mercadopreto.com.br`, que deixará de existir como loja própria e passará a operar como o vendedor "Mulheres de Axé do Brasil" (MAB) dentro do marketplace multi-vendedor.
+**Contexto de negócio**: Primeira loja do marketplace Mercado Preto. Origem: loja Nuvemshop hospedada em `www.mercadopreto.com.br`, que deixará de existir como loja própria e passará a operar como o vendedor "Mulheres de Axé do Brasil" (MAB) dentro do marketplace multi-vendedor. A loja nova, o usuário administrador devem ser criados, configurados e documentados.
 
 ## Contexto
 
@@ -40,7 +40,7 @@ Fluxo:
    - Busca `GET /store` na API da Nuvemshop para obter `email`, `phone`, `business_id` (CPF/CNPJ), `business_name`, `address`.
    - `name` do seller é fixado como **"Mulheres de Axé do Brasil"** (não vem da API).
    - Campos bancários/PIX ficam `null` — não há repasse configurado nesta fase; podem ser preenchidos depois manualmente no admin.
-   - `ownerName`: **placeholder pendente de preenchimento manual** (a API da Nuvemshop não fornece nome do responsável) — a ser confirmado com o usuário ou completado no admin após a migração.
+   - `ownerName`: **"Vanessa Lopes Santos Neiva de Lima"** — obtido do campo `business_name` de `GET /store` (cadastro é pessoa física, `business_id` é CPF de 11 dígitos, então `business_name` já é o nome do responsável).
    - `status = "active"` — **obrigatório**, não opcional: as rotas de storefront (`api/store/sellers/route.ts`, `api/store/search/route.ts`, `api/store/sellers/[id]/products/route.ts`) só listam/exibem sellers e produtos com `status = "active"`. Sem isso, o cliente não-admin não conseguiria visualizar a loja para aprovação.
 3. Busca categorias (`GET /categories`) e cria/mapeia hierarquia (parent/child) em `product_category`.
 4. Pagina produtos (`GET /products?page=N&per_page=30`) até esgotar.
@@ -73,7 +73,7 @@ Sem isso, imagens re-hospedadas localmente seriam perdidas na próxima recriaç�
 ## Riscos aceitos (explícitos, decisão do usuário)
 
 - **Checkout real possível durante a fase de aprovação**: como os produtos entram `published` e o seller `active`, um visitante comum tecnicamente consegue tentar comprar antes da aprovação final do cliente e antes de repasses estarem configurados. Usuário optou por aceitar esse risco nesta fase (site ainda não divulgado publicamente) em vez de adicionar travas de checkout.
-- **Dados bancários/PIX e `ownerName` ausentes**: seller é criado com esses campos em aberto; precisam ser preenchidos manualmente no admin antes de qualquer repasse real ser habilitado.
+- **Dados bancários/PIX ausentes**: seller é criado com esses campos em aberto; precisam ser preenchidos manualmente no admin antes de qualquer repasse real ser habilitado.
 
 ## Fora de escopo
 
