@@ -43,6 +43,22 @@ module.exports = defineConfig({
       resolve: "./src/modules/fiscal",
     },
 
+    // Storage de arquivos — imagens de produtos migradas re-hospedadas localmente
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/file-local",
+            id: "local",
+            options: {
+              backend_url: `${process.env.BACKEND_URL}/static`,
+            },
+          },
+        ],
+      },
+    },
+
     // Fulfillment manual (flat-rate) — base para shipping options no admin
     {
       resolve: "@medusajs/medusa/fulfillment",
