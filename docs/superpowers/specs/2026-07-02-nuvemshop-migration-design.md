@@ -52,18 +52,37 @@ Fluxo:
    - **Status do produto: `published`** — decisão explícita do usuário para permitir que um cliente não-admin revise a loja/identidade visual diretamente na storefront real (`mercadopreto.com.br`), consultando e aprovando antes do lançamento oficial.
 6. **Idempotência**: usa o `id` do produto na Nuvemshop como `external_id` em metadata. Reexecuções fazem upsert (skip/update) em vez de duplicar.
 
-### 2. `infra/docker-compose.prod.yml`
+### 2. `packages/medusa-backend/apps/backend/medusa-config.ts` + `infra/docker-compose.prod.yml`
 
-Adiciona volume nomeado para persistir `uploads/` do backend entre deploys/recriações de container:
-```yaml
-services:
-  medusa-backend:
-    volumes:
-      - backend_uploads:/app/uploads   # runner stage roda com WORKDIR /app (Dockerfile:27)
+O provider de arquivos local do Medusa (`@medusajs/file-local`, usado por padrão quando nenhum módulo de arquivo é configurado) grava em `<cwd>/static` — não `uploads/` — e monta a URL pública a partir da opção `backend_url`, cujo default é `http://localhost:9000/static`. Sem configuração explícita, em produção as imagens re-hospedadas ficariam com URL apontando para `localhost:9000`, quebradas. Duas correções:
 
-volumes:
-  backend_uploads:
-```
+1. `medusa-config.ts` ganha um módulo `file` explícito, reaproveitando a env var `BACKEND_URL` já usada pelos webhooks do MercadoPago (`src/api/store/checkout/payment/route.ts`):
+   ```ts
+   {
+     resolve: "@medusajs/medusa/file",
+     options: {
+       providers: [
+         {
+           resolve: "@medusajs/file-local",
+           id: "local",
+           options: {
+             backend_url: `${process.env.BACKEND_URL}/static`,
+           },
+         },
+       ],
+     },
+   },
+   ```
+2. `infra/docker-compose.prod.yml` ganha um volume nomeado para persistir `static/` do backend entre deploys/recriações de container (o runner do Dockerfile roda com `WORKDIR /app`, então o caminho real é `/app/static`):
+   ```yaml
+   services:
+     medusa-backend:
+       volumes:
+         - backend_uploads:/app/static
+
+   volumes:
+     backend_uploads:
+   ```
 Sem isso, imagens re-hospedadas localmente seriam perdidas na próxima recriação do container — gap identificado durante o design (hoje só `postgres_data`, `redis_data` e `meilisearch_data` têm volumes).
 
 ### 3. Dependência nova
