@@ -51,8 +51,16 @@ describe("NuvemshopClient", () => {
   })
 
   it("iterateProducts() yields each page and stops on an empty page", async () => {
-    const page1 = [{ id: 1, name: { pt: "A" }, description: {}, attributes: [], images: [], variants: [], categories: [] }]
-    mockFetchSequence([{ ok: true, json: page1 }, { ok: true, json: [] }])
+    const page1 = Array.from({ length: 30 }, (_, i) => ({
+      id: i + 1,
+      name: { pt: `Produto ${i + 1}` },
+      description: {},
+      attributes: [],
+      images: [],
+      variants: [],
+      categories: [],
+    }))
+    const fetchMock = mockFetchSequence([{ ok: true, json: page1 }, { ok: true, json: [] }])
 
     const client = new NuvemshopClient({ storeId: "3779773", accessToken: "tok_123" })
     const pages = []
@@ -62,6 +70,7 @@ describe("NuvemshopClient", () => {
 
     expect(pages).toHaveLength(1)
     expect(pages[0]).toEqual(page1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it("throws when the API responds with a non-2xx status", async () => {
