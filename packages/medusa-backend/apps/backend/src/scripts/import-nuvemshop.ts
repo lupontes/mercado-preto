@@ -111,6 +111,7 @@ export default async function importNuvemshop({
   let imported = 0
   let skipped = 0
   let failed = 0
+  let orphaned = 0
 
   for await (const page of client.iterateProducts()) {
     for (const product of page) {
@@ -169,15 +170,22 @@ export default async function importNuvemshop({
           input: { products: [workflowInput] },
         })
 
-        await remoteLink.create([
-          {
-            [SELLER_MODULE]: { seller_id: seller.id },
-            [Modules.PRODUCT]: { product_id: createdProduct.id },
-          },
-        ])
-
         imported++
         logger.info(`Produto importado: ${createdProduct.title}`)
+
+        try {
+          await remoteLink.create([
+            {
+              [SELLER_MODULE]: { seller_id: seller.id },
+              [Modules.PRODUCT]: { product_id: createdProduct.id },
+            },
+          ])
+        } catch (linkErr: any) {
+          orphaned++
+          logger.error(
+            `PRODUTO CRIADO SEM VÍNCULO DE VENDEDOR — requer correção manual. product_id=${createdProduct.id} nuvemshop_id=${product.id}: ${linkErr?.message}`
+          )
+        }
       } catch (err: any) {
         failed++
         logger.error(`Falha ao importar produto Nuvemshop #${product.id}: ${err?.message}`)
@@ -186,6 +194,6 @@ export default async function importNuvemshop({
   }
 
   logger.info(
-    `Importação concluída. Importados: ${imported}, já existentes (skip): ${skipped}, falhas: ${failed}`
+    `Importação concluída. Importados: ${imported}, já existentes (skip): ${skipped}, falhas: ${failed}, órfãos sem vendedor (correção manual necessária): ${orphaned}`
   )
 }
