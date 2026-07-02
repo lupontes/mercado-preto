@@ -37,6 +37,7 @@ export interface NuvemshopVariant {
 export interface NuvemshopProduct {
   id: number
   name: { pt?: string }
+  handle: { pt?: string }
   description: { pt?: string }
   attributes: { pt?: string }[]
   images: NuvemshopImage[]

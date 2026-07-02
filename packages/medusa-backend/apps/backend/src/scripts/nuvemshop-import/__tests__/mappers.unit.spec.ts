@@ -41,6 +41,7 @@ describe("mapProductToWorkflowInput", () => {
   const singleVariantProduct: NuvemshopProduct = {
     id: 201563123,
     name: { pt: "Bolsa Africana 2 em 1" },
+    handle: { pt: "bolsa-africana-2-em-1" },
     description: { pt: '<p>Cartonagem com tecido africano</p><script>alert(1)</script>' },
     attributes: [],
     images: [
@@ -70,6 +71,7 @@ describe("mapProductToWorkflowInput", () => {
     })
 
     expect(result.title).toBe("Bolsa Africana 2 em 1")
+    expect(result.handle).toBe("bolsa-africana-2-em-1")
     expect(result.external_id).toBe("nuvemshop:product:201563123")
     expect(result.category_ids).toEqual(["pcat_01"])
     expect(result.options).toEqual([{ title: "Padrão", values: ["Padrão"] }])
@@ -103,6 +105,7 @@ describe("mapProductToWorkflowInput", () => {
     const multiVariantProduct: NuvemshopProduct = {
       id: 555,
       name: { pt: "Camisa Estampada" },
+      handle: { pt: "camisa-estampada" },
       description: { pt: "<p>Camisa</p>" },
       attributes: [{ pt: "Tamanho" }, { pt: "Cor" }],
       images: [],
@@ -139,6 +142,7 @@ describe("mapProductToWorkflowInput", () => {
       salesChannelId: "sc_01",
     })
 
+    expect(result.handle).toBe("camisa-estampada")
     expect(result.options).toEqual([
       { title: "Tamanho", values: ["P", "M"] },
       { title: "Cor", values: ["Azul"] },
@@ -151,5 +155,20 @@ describe("mapProductToWorkflowInput", () => {
       title: "M / Azul",
       options: { Tamanho: "M", Cor: "Azul" },
     })
+  })
+
+  it("omits the handle key entirely when Nuvemshop provides no handle, so Medusa's own slugify fallback applies", () => {
+    const productWithoutHandle: NuvemshopProduct = {
+      ...singleVariantProduct,
+      handle: {},
+    }
+
+    const result = mapProductToWorkflowInput(productWithoutHandle, {
+      categoryIds: [],
+      imageUrls: [],
+      salesChannelId: "sc_01",
+    })
+
+    expect(result).not.toHaveProperty("handle")
   })
 })

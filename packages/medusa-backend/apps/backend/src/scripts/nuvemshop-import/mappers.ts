@@ -86,6 +86,7 @@ export function mapProductToWorkflowInput(
 
   return {
     title: product.name.pt || `Produto ${product.id}`,
+    ...(product.handle?.pt ? { handle: product.handle.pt } : {}),
     description: sanitizeDescription(product.description?.pt),
     status: ProductStatus.PUBLISHED,
     external_id: buildProductExternalId(product.id),
