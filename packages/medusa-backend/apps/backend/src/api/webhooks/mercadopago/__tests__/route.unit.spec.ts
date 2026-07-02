@@ -16,12 +16,26 @@ import { POST } from "../route"
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeReq(body: unknown, secret = "") {
+const WEBHOOK_TEST_SECRET = "test-secret"
+
+function makeValidSignature(body: unknown, secret: string) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const crypto = require("crypto") as typeof import("crypto")
+  const dataId = (body as any)?.data?.id ?? ""
+  const ts = "1000000000"
+  const requestId = "test-request-id"
+  const message = `id:${dataId};request-id:${requestId};ts:${ts};`
+  const v1 = crypto.createHmac("sha256", secret).update(message).digest("hex")
+  return { "x-signature": `ts=${ts},v1=${v1}`, "x-request-id": requestId }
+}
+
+function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
   process.env.MERCADOPAGO_ACCESS_TOKEN = "TEST-token"
   process.env.MERCADOPAGO_WEBHOOK_SECRET = secret
 
   const mockOrderService = {
     createOrders: jest.fn().mockResolvedValue([{ id: "order-1" }]),
+    listOrders: jest.fn().mockResolvedValue([]),
   }
   const mockEventBusService = {
     emit: jest.fn().mockResolvedValue(undefined),
@@ -34,7 +48,7 @@ function makeReq(body: unknown, secret = "") {
 
   return {
     body,
-    headers: {},
+    headers: secret ? makeValidSignature(body, secret) : {},
     scope: {
       resolve: (key: string) => {
         if (key === "logger") return mockLogger
@@ -51,6 +65,7 @@ function makeReq(body: unknown, secret = "") {
 function makeRes() {
   const res = { _status: 200 } as any
   res.sendStatus = (code: number) => { res._status = code; return res }
+  res.status = (code: number) => { res._status = code; return res }
   res.json = (body: unknown) => { res._body = body; return res }
   return res
 }

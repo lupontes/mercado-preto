@@ -181,10 +181,10 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
     payload: ProviderWebhookPayload["payload"]
   ): Promise<WebhookActionResult> {
     const webhookData = payload.data as Record<string, unknown>
-    const resource = webhookData as { resource?: string; action?: string }
+    const type = webhookData.type as string | undefined
+    const paymentId = (webhookData.data as Record<string, unknown> | undefined)?.id as string | undefined
 
-    const paymentId = resource.resource?.split("/").pop()
-    if (!paymentId) {
+    if (!type?.startsWith("payment") || !paymentId) {
       return { action: "not_supported" }
     }
 

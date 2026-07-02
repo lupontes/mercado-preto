@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
       "Bash(git *)",
       "Bash(npm *)",
@@ -21,6 +20,10 @@
       "Read",
       "Write",
       "Edit"
-    ]
+    ],
+    "defaultMode": "acceptEdits"
+  },
+  "enabledPlugins": {
+    "handoff@handoff-marketplace": true
   }
 }
