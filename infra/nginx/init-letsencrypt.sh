@@ -9,6 +9,13 @@
 
 set -euo pipefail
 
+if [ -f ./.env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 DOMAINS=(mercadopreto.com.br www.mercadopreto.com.br)
 RSA_KEY_SIZE=4096
 DATA_PATH="./nginx/certbot"
@@ -17,7 +24,7 @@ STAGING="${STAGING:-0}"
 COMPOSE="docker compose -f docker-compose.prod.yml"
 PRIMARY_DOMAIN="${DOMAINS[0]}"
 
-if [ -d "$DATA_PATH/conf/live/$PRIMARY_DOMAIN" ]; then
+if [ -f "$DATA_PATH/conf/live/$PRIMARY_DOMAIN/fullchain.pem" ]; then
   echo "Certificado já existe para $PRIMARY_DOMAIN. Abortando para não sobrescrever."
   echo "Para forçar reemissão, remova $DATA_PATH/conf/live/$PRIMARY_DOMAIN antes de rodar de novo."
   exit 1
