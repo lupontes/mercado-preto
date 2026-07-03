@@ -1,7 +1,8 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
-import { listProducts, formatPrice, type Product } from '@/lib/api'
+import { listCategories, listProducts, formatPrice, type Product } from '@/lib/api'
+import { formatCategoryName } from '@/lib/format'
 
 export const metadata: Metadata = {
   title: 'Produtos',
@@ -13,7 +14,7 @@ export const revalidate = 60
 export default async function ProdutosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>
+  searchParams: Promise<{ page?: string; q?: string; categoria?: string }>
 }) {
   const params = await searchParams
   const page = Number(params.page ?? 1)
@@ -22,14 +23,30 @@ export default async function ProdutosPage({
 
   let products: Product[] = []
   let count = 0
+  let activeCategory: { id: string; name: string } | undefined
 
   try {
-    const data = await listProducts({ q: params.q, limit, offset })
+    if (params.categoria) {
+      const { product_categories } = await listCategories()
+      const match = product_categories.find((c) => c.handle === params.categoria)
+      if (match) activeCategory = { id: match.id, name: formatCategoryName(match.name) }
+    }
+
+    const data = await listProducts({
+      q: params.q,
+      category_id: activeCategory ? [activeCategory.id] : undefined,
+      limit,
+      offset,
+    })
     products = data.products
     count = data.count
   } catch {}
 
   const totalPages = Math.ceil(count / limit)
+  const pageQuery = (p: number) =>
+    `/produtos?page=${p}${params.q ? `&q=${encodeURIComponent(params.q)}` : ''}${
+      params.categoria ? `&categoria=${encodeURIComponent(params.categoria)}` : ''
+    }`
 
   return (
     <div className="bg-cream min-h-screen">
@@ -38,9 +55,19 @@ export default async function ProdutosPage({
           <p className="text-forest font-semibold text-sm uppercase tracking-widest mb-2">
             Catálogo
           </p>
-          <h1 className="font-display text-4xl font-black text-onyx">Todos os produtos</h1>
+          <h1 className="font-display text-4xl font-black text-onyx">
+            {activeCategory ? activeCategory.name : 'Todos os produtos'}
+          </h1>
           {count > 0 && (
             <p className="text-onyx/60 mt-2">{count} produtos encontrados</p>
+          )}
+          {activeCategory && (
+            <Link
+              href="/categorias"
+              className="inline-block text-sm text-onyx/60 hover:text-amber transition-colors mt-2 underline underline-offset-4"
+            >
+              Ver todas as categorias
+            </Link>
           )}
         </div>
 
@@ -62,7 +89,7 @@ export default async function ProdutosPage({
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
               <Link
                 key={p}
-                href={`/produtos?page=${p}${params.q ? `&q=${params.q}` : ''}`}
+                href={pageQuery(p)}
                 className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-semibold transition-colors ${
                   p === page
                     ? 'bg-amber text-onyx'

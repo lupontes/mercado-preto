@@ -84,6 +84,37 @@ export async function listProducts(params?: {
   )
 }
 
+export type Category = {
+  id: string
+  name: string
+  handle: string
+}
+
+export async function listCategories() {
+  return apiFetch<{ product_categories: Category[]; count: number }>(
+    `/store/product-categories?limit=100&fields=id,name,handle`
+  )
+}
+
+/**
+ * Contagem de produtos publicados por categoria. A Store API não expõe o
+ * count diretamente, então agregamos a partir de uma única listagem enxuta
+ * (id + categories.id) em vez de uma request por categoria.
+ */
+export async function countProductsByCategory(): Promise<Record<string, number>> {
+  const { products } = await apiFetch<{
+    products: Array<{ id: string; categories?: Array<{ id: string }> }>
+  }>(`/store/products?limit=1000&fields=id,categories.id`)
+
+  const counts: Record<string, number> = {}
+  for (const product of products) {
+    for (const category of product.categories ?? []) {
+      counts[category.id] = (counts[category.id] ?? 0) + 1
+    }
+  }
+  return counts
+}
+
 export async function getProduct(handle: string) {
   const regionParam = REGION_ID ? `&region_id=${REGION_ID}` : ""
   return apiFetch<{ products: Product[] }>(`/store/products?handle=${handle}&fields=*variants.prices${regionParam}`)
