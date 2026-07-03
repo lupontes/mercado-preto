@@ -85,10 +85,27 @@ describe("mapProductToWorkflowInput", () => {
       height: 10,
       length: 20,
       options: { Padrão: "Padrão" },
-      prices: [{ amount: 182, currency_code: "brl" }],
+      // Medusa stores BRL amounts in centavos: "182.00" reais → 18200
+      prices: [{ amount: 18200, currency_code: "brl" }],
     })
     expect(result.thumbnail).toBe("https://api.mercadopreto.com.br/static/a.jpg")
     expect(result.sales_channels).toEqual([{ id: "sc_01" }])
+  })
+
+  it("converts fractional prices to whole centavos", () => {
+    const product = {
+      ...singleVariantProduct,
+      variants: [{ ...singleVariantProduct.variants[0], price: "69.90" }],
+    }
+    const result = mapProductToWorkflowInput(product, {
+      categoryIds: [],
+      imageUrls: [],
+      salesChannelId: "sc_01",
+    })
+    // 69.90 * 100 = 6989.999… in floating point — must round, not truncate
+    expect(result.variants![0].prices).toEqual([
+      { amount: 6990, currency_code: "brl" },
+    ])
   })
 
   it("sanitizes the HTML description", () => {

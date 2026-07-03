@@ -78,7 +78,9 @@ export function mapProductToWorkflowInput(
       : { Padrão: "Padrão" },
     prices: [
       {
-        amount: parseFloat(variant.price || "0"),
+        // Nuvemshop sends a decimal string in reais ("69.90"); Medusa stores
+        // BRL amounts in centavos — round to avoid float artifacts (69.90*100).
+        amount: Math.round(parseFloat(variant.price || "0") * 100),
         currency_code: "brl",
       },
     ],
