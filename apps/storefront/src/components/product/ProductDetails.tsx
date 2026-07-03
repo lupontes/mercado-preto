@@ -13,12 +13,13 @@ type Variant = {
 type Props = {
   productId: string
   title: string
-  description?: string
+  /** HTML já sanitizado pelo server component (page.tsx) — nunca passar HTML cru aqui. */
+  descriptionHtml?: string
   thumbnail?: string
   variants: Variant[]
 }
 
-export function ProductDetails({ productId, title, description, thumbnail, variants }: Props) {
+export function ProductDetails({ productId, title, descriptionHtml, thumbnail, variants }: Props) {
   const [selectedVariant, setSelectedVariant] = useState<Variant>(variants[0])
 
   const price = selectedVariant?.prices?.find((p) => p.currency_code === 'brl')
@@ -31,8 +32,11 @@ export function ProductDetails({ productId, title, description, thumbnail, varia
         </p>
       )}
 
-      {description && (
-        <p className="text-onyx/70 mt-6 leading-relaxed">{description}</p>
+      {descriptionHtml && (
+        <div
+          className="text-onyx/70 mt-6 leading-relaxed space-y-3 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:rounded-lg"
+          dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+        />
       )}
 
       {variants.length > 1 && (

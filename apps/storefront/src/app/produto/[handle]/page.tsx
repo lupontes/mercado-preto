@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getProduct } from '@/lib/api'
+import { descriptionToPlainText, sanitizeDescriptionHtml } from '@/lib/sanitize'
 import { ArrowLeft } from 'lucide-react'
 import { ProductDetails } from '@/components/product/ProductDetails'
 
@@ -18,9 +19,11 @@ export async function generateMetadata({
     const { products } = await getProduct(handle)
     const product = products[0]
     if (!product) return { title: 'Produto' }
+    // Descrições podem conter HTML — meta description precisa de texto puro.
+    const plainDescription = descriptionToPlainText(product.description)
     return {
       title: product.title,
-      description: product.description ?? `${product.title} disponível no Mercado Preto.`,
+      description: plainDescription || `${product.title} disponível no Mercado Preto.`,
       openGraph: {
         images: product.thumbnail ? [product.thumbnail] : [],
       },
@@ -80,7 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             <ProductDetails
               productId={product.id}
               title={product.title}
-              description={product.description}
+              descriptionHtml={sanitizeDescriptionHtml(product.description)}
               thumbnail={product.thumbnail}
               variants={product.variants ?? []}
             />
