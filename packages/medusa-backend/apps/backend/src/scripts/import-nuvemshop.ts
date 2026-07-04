@@ -17,6 +17,7 @@ import {
 } from "./nuvemshop-import/mappers"
 
 const SELLER_NAME = "Mulheres de Axé do Brasil"
+const SELLER_CATEGORY = "Produtos Afro"
 
 export default async function importNuvemshop({
   container,
@@ -60,6 +61,7 @@ export default async function importNuvemshop({
       phone: store.phone ?? "",
       cpfCnpj: store.business_id ?? "",
       location: store.address ?? null,
+      category: SELLER_CATEGORY,
       status: "active",
     })
     logger.info(`Seller criado: ${seller.id}`)
