@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getProduct } from '@/lib/api'
+import { descriptionToPlainText, sanitizeDescriptionHtml } from '@/lib/sanitize'
 import { ArrowLeft } from 'lucide-react'
 import { ProductDetails } from '@/components/product/ProductDetails'
 
@@ -18,9 +19,11 @@ export async function generateMetadata({
     const { products } = await getProduct(handle)
     const product = products[0]
     if (!product) return { title: 'Produto' }
+    // Descriptions may contain HTML — meta description needs plain text.
+    const plainDescription = descriptionToPlainText(product.description)
     return {
       title: product.title,
-      description: product.description ?? `${product.title} disponível no Mercado Preto.`,
+      description: plainDescription || `${product.title} disponível no Mercado Preto.`,
       openGraph: {
         images: product.thumbnail ? [product.thumbnail] : [],
       },
@@ -53,7 +56,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
         </Link>
 
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
-          {/* Imagem */}
+          {/* Image */}
           <div className="aspect-square relative rounded-2xl overflow-hidden bg-sand">
             {product.thumbnail ? (
               <Image
@@ -71,7 +74,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             )}
           </div>
 
-          {/* Detalhes */}
+          {/* Details */}
           <div className="flex flex-col justify-center">
             <h1 className="font-display text-3xl sm:text-4xl font-black text-onyx leading-tight">
               {product.title}
@@ -80,7 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             <ProductDetails
               productId={product.id}
               title={product.title}
-              description={product.description}
+              descriptionHtml={sanitizeDescriptionHtml(product.description)}
               thumbnail={product.thumbnail}
               variants={product.variants ?? []}
             />

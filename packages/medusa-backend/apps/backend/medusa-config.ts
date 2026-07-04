@@ -23,27 +23,45 @@ module.exports = defineConfig({
   },
 
   modules: [
-    // Módulo de vendedores afroemprendedores
+    // Afro-entrepreneur seller module
     {
       resolve: "./src/modules/seller",
     },
 
-    // Módulo de comissão e repasse
+    // Commission and payout module
     {
       resolve: "./src/modules/commission",
     },
 
-    // Módulo de repasses financeiros para vendedores
+    // Seller payout module
     {
       resolve: "./src/modules/payout",
     },
 
-    // Módulo fiscal — emissão de NF-e/NFS-e via Focus NFe
+    // Fiscal module — NF-e/NFS-e issuance via Focus NFe
     {
       resolve: "./src/modules/fiscal",
     },
 
-    // Fulfillment manual (flat-rate) — base para shipping options no admin
+    // File storage — migrated product images re-hosted locally
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/file-local",
+            id: "local",
+            options: {
+              // Falls back to the local dev URL so images keep working when
+              // BACKEND_URL is unset/empty (production deploys must set it).
+              backend_url: `${process.env.BACKEND_URL || "http://localhost:9000"}/static`,
+            },
+          },
+        ],
+      },
+    },
+
+    // Manual (flat-rate) fulfillment — base for admin shipping options
     {
       resolve: "@medusajs/medusa/fulfillment",
       options: {
@@ -56,7 +74,7 @@ module.exports = defineConfig({
       },
     },
 
-    // Payment provider MercadoPago registrado no módulo de pagamento nativo
+    // MercadoPago payment provider registered on the native payment module
     {
       resolve: "@medusajs/medusa/payment",
       options: {
