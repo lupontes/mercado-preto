@@ -1,13 +1,14 @@
-// Conectivos que ficam em minúsculas no meio de um título em português.
+// Connective words that stay lowercase in the middle of a Portuguese title.
 const CONNECTIVES = new Set([
   "a", "as", "o", "os", "e", "de", "da", "das", "do", "dos", "em", "na", "nas",
   "no", "nos", "para", "por", "com", "sem",
 ])
 
 /**
- * Formata nomes de categoria vindos da Nuvemshop, que chegam em CAIXA ALTA
- * ("KITS PARA COZINHA"). Só reformata nomes inteiramente maiúsculos — nomes
- * já mistos ("Produtos MAB") foram curados por alguém e ficam como estão.
+ * Formats category names coming from Nuvemshop, which arrive in ALL CAPS
+ * ("KITS PARA COZINHA"). Only reformats fully-uppercase names — names that
+ * already have mixed case ("Produtos MAB") were curated by someone and are
+ * left as-is.
  */
 export function formatCategoryName(name: string): string {
   if (!name || name !== name.toLocaleUpperCase("pt-BR")) return name

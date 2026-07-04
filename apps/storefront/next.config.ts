@@ -1,8 +1,9 @@
 import type { NextConfig } from 'next'
 
-// Imagens de produto re-hospedadas pelo Medusa (file module local) são servidas
-// pelo próprio backend em NEXT_PUBLIC_MEDUSA_URL — precisa estar liberado aqui
-// além do bucket S3/DO usado por outros assets, senão next/image derruba a página.
+// Product images re-hosted by Medusa's local file module are served by the
+// backend itself at NEXT_PUBLIC_MEDUSA_URL — that host needs to be allowed
+// here in addition to the S3/DO bucket used for other assets, or next/image
+// crashes the page.
 const medusaUrl = process.env.NEXT_PUBLIC_MEDUSA_URL
   ? new URL(process.env.NEXT_PUBLIC_MEDUSA_URL)
   : undefined
@@ -13,8 +14,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.digitaloceanspaces.com' },
       { protocol: 'https', hostname: '*.amazonaws.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
-      // Túnel ngrok usado em dev local quando o backend precisa de uma URL
-      // pública (ex: BACKEND_URL para o file module / webhooks MercadoPago).
+      // ngrok tunnel used in local dev when the backend needs a public URL
+      // (e.g. BACKEND_URL for the file module / MercadoPago webhooks).
       { protocol: 'https', hostname: '*.ngrok-free.dev' },
       ...(medusaUrl
         ? [

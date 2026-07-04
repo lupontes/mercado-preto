@@ -10,8 +10,8 @@ import {
 } from "../utils/meilisearch"
 
 /**
- * Backfill completo do índice de busca (MeiliSearch) a partir do banco.
- * Mesmo comportamento do POST /admin/search/reindex, mas executável via CLI:
+ * Full search index (MeiliSearch) backfill from the database. Same behavior
+ * as POST /admin/search/reindex, but runnable via CLI:
  *   npx medusa exec ./src/scripts/reindex-search.ts
  */
 export default async function reindexSearch({ container }: ExecArgs) {
@@ -19,7 +19,7 @@ export default async function reindexSearch({ container }: ExecArgs) {
 
   const meili = await getMeiliClient()
   if (!meili) {
-    logger.error("MeiliSearch não configurado. Defina MEILISEARCH_HOST.")
+    logger.error("MeiliSearch not configured. Set MEILISEARCH_HOST.")
     return
   }
 
@@ -70,5 +70,5 @@ export default async function reindexSearch({ container }: ExecArgs) {
     sellerCount++
   }
 
-  logger.info(`Reindex concluído: ${productCount} produtos, ${sellerCount} sellers.`)
+  logger.info(`Reindex complete: ${productCount} products, ${sellerCount} sellers.`)
 }

@@ -7,8 +7,8 @@ async function getClient() {
   if (!host) return null
 
   const MeiliSearchModule = await import("meilisearch")
-  // meilisearch >= 0.38 exporta a classe como `Meilisearch`; versões antigas
-  // usavam `MeiliSearch`. Aceitar ambas evita "not a constructor" em upgrade.
+  // meilisearch >= 0.38 exports the class as `Meilisearch`; older versions
+  // used `MeiliSearch`. Accepting both avoids "not a constructor" on upgrade.
   const MeiliSearch =
     (MeiliSearchModule as any).Meilisearch ??
     (MeiliSearchModule as any).MeiliSearch ??

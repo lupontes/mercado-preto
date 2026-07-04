@@ -19,7 +19,7 @@ export async function generateMetadata({
     const { products } = await getProduct(handle)
     const product = products[0]
     if (!product) return { title: 'Produto' }
-    // Descrições podem conter HTML — meta description precisa de texto puro.
+    // Descriptions may contain HTML — meta description needs plain text.
     const plainDescription = descriptionToPlainText(product.description)
     return {
       title: product.title,
@@ -56,7 +56,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
         </Link>
 
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
-          {/* Imagem */}
+          {/* Image */}
           <div className="aspect-square relative rounded-2xl overflow-hidden bg-sand">
             {product.thumbnail ? (
               <Image
@@ -74,7 +74,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             )}
           </div>
 
-          {/* Detalhes */}
+          {/* Details */}
           <div className="flex flex-col justify-center">
             <h1 className="font-display text-3xl sm:text-4xl font-black text-onyx leading-tight">
               {product.title}

@@ -1,6 +1,6 @@
-// Espelha o shape real de meilisearch@0.58: a classe é exportada como
-// `Meilisearch` (s minúsculo), sem `MeiliSearch` nem default — exatamente o
-// que quebrou /store/search com "MeiliSearch is not a constructor".
+// Mirrors the real shape of meilisearch@0.58: the class is exported as
+// `Meilisearch` (lowercase s), with no `MeiliSearch` or default — exactly
+// what broke /store/search with "MeiliSearch is not a constructor".
 jest.mock("meilisearch", () => ({
   Meilisearch: class {
     constructor(public config: { host: string; apiKey?: string }) {}
