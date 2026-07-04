@@ -8,7 +8,7 @@ import {
 import { SELLER_MODULE } from "../modules/seller"
 import SellerModuleService from "../modules/seller/service"
 import { NuvemshopClient } from "./nuvemshop-import/client"
-import { isDuplicateHandleOrSkuError, slugifyTitle } from "./nuvemshop-import/collision"
+import { buildCollisionRetryInput, detectDuplicateCollision } from "./nuvemshop-import/collision"
 import {
   buildCategoryExternalId,
   buildProductExternalId,
@@ -178,25 +178,17 @@ export default async function importNuvemshop({
         try {
           createdProduct = await runCreateProduct(workflowInput)
         } catch (createErr: any) {
-          if (!isDuplicateHandleOrSkuError(createErr?.message)) {
+          const collision = detectDuplicateCollision(createErr?.message)
+          if (!collision) {
             throw createErr
           }
 
-          const fallbackHandle = slugifyTitle(workflowInput.title)
-          const suffixedHandle = `${workflowInput.handle ?? fallbackHandle}-${product.id}`
-          const suffixedInput = {
-            ...workflowInput,
-            handle: suffixedHandle,
-            variants: workflowInput.variants?.map((variant) =>
-              variant.sku
-                ? { ...variant, sku: `${variant.sku}-${product.id}` }
-                : variant
-            ),
-          }
-
+          const suffixedInput = buildCollisionRetryInput(workflowInput, collision, product.id)
           createdProduct = await runCreateProduct(suffixedInput)
           logger.warn(
-            `Produto Nuvemshop #${product.id} importado com handle/SKU ajustados por colisão com dado duplicado na loja de origem (handle final: ${suffixedHandle})`
+            collision === "handle"
+              ? `Produto Nuvemshop #${product.id} importado com handle ajustado por colisão de handle duplicado na loja de origem (handle final: ${suffixedInput.handle})`
+              : `Produto Nuvemshop #${product.id} importado com SKUs de variante ajustados por colisão de SKU duplicado na loja de origem`
           )
         }
 
