@@ -96,22 +96,33 @@ export async function listCategories() {
   )
 }
 
+const COUNT_PAGE_LIMIT = 200
+
 /**
- * Contagem de produtos publicados por categoria. A Store API não expõe o
- * count diretamente, então agregamos a partir de uma única listagem enxuta
- * (id + categories.id) em vez de uma request por categoria.
+ * Published product count per category. The Store API doesn't expose the
+ * count directly, so it's aggregated by paging through a lean listing
+ * (id + categories.id) instead of issuing one request per category.
  */
 export async function countProductsByCategory(): Promise<Record<string, number>> {
-  const { products } = await apiFetch<{
-    products: Array<{ id: string; categories?: Array<{ id: string }> }>
-  }>(`/store/products?limit=1000&fields=id,categories.id`)
-
   const counts: Record<string, number> = {}
-  for (const product of products) {
-    for (const category of product.categories ?? []) {
-      counts[category.id] = (counts[category.id] ?? 0) + 1
+  let offset = 0
+
+  for (;;) {
+    const { products, count } = await apiFetch<{
+      products: Array<{ id: string; categories?: Array<{ id: string }> }>
+      count: number
+    }>(`/store/products?limit=${COUNT_PAGE_LIMIT}&offset=${offset}&fields=id,categories.id`)
+
+    for (const product of products) {
+      for (const category of product.categories ?? []) {
+        counts[category.id] = (counts[category.id] ?? 0) + 1
+      }
     }
+
+    offset += COUNT_PAGE_LIMIT
+    if (offset >= count || products.length === 0) break
   }
+
   return counts
 }
 
