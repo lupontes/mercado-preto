@@ -63,7 +63,10 @@ export function mapProductToWorkflowInput(
   const variants = product.variants.map((variant) => ({
     title: variantTitle(variant),
     sku: variant.sku || undefined,
-    manage_inventory: !!variant.stock_management,
+    // This migration only populates the catalog (per design spec) and never
+    // creates inventory items/levels, so inventory tracking must stay off —
+    // otherwise Medusa treats every variant as out of stock at checkout.
+    manage_inventory: false,
     weight: variant.weight ? parseFloat(variant.weight) : undefined,
     width: variant.width ? parseFloat(variant.width) : undefined,
     height: variant.height ? parseFloat(variant.height) : undefined,

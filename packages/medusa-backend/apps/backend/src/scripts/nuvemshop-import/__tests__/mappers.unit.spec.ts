@@ -79,7 +79,9 @@ describe("mapProductToWorkflowInput", () => {
     expect(result.variants![0]).toMatchObject({
       title: "Padrão",
       sku: "8730",
-      manage_inventory: true,
+      // Migration never creates inventory levels, so inventory tracking must
+      // stay off even though the source variant had stock_management: true.
+      manage_inventory: false,
       weight: 0.5,
       width: 26,
       height: 10,
