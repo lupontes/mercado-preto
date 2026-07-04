@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AddToCartButton } from '@/components/cart/AddToCartButton'
 import { formatPrice } from '@/lib/api'
+import type { SanitizedHtml } from '@/lib/sanitize'
 
 type Variant = {
   id: string
@@ -13,8 +14,8 @@ type Variant = {
 type Props = {
   productId: string
   title: string
-  /** HTML já sanitizado pelo server component (page.tsx) — nunca passar HTML cru aqui. */
-  descriptionHtml?: string
+  /** Must come from sanitizeDescriptionHtml() — the SanitizedHtml type rejects a raw string here. */
+  descriptionHtml?: SanitizedHtml
   thumbnail?: string
   variants: Variant[]
 }
