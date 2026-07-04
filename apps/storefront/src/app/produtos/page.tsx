@@ -24,22 +24,29 @@ export default async function ProdutosPage({
   let products: Product[] = []
   let count = 0
   let activeCategory: { id: string; name: string } | undefined
+  let categoryNotFound = false
 
   try {
     if (params.categoria) {
       const { product_categories } = await listCategories()
       const match = product_categories.find((c) => c.handle === params.categoria)
-      if (match) activeCategory = { id: match.id, name: formatCategoryName(match.name) }
+      if (match) {
+        activeCategory = { id: match.id, name: formatCategoryName(match.name) }
+      } else {
+        categoryNotFound = true
+      }
     }
 
-    const data = await listProducts({
-      q: params.q,
-      category_id: activeCategory ? [activeCategory.id] : undefined,
-      limit,
-      offset,
-    })
-    products = data.products
-    count = data.count
+    if (!categoryNotFound) {
+      const data = await listProducts({
+        q: params.q,
+        category_id: activeCategory ? [activeCategory.id] : undefined,
+        limit,
+        offset,
+      })
+      products = data.products
+      count = data.count
+    }
   } catch {}
 
   const totalPages = Math.ceil(count / limit)
@@ -56,12 +63,16 @@ export default async function ProdutosPage({
             Catálogo
           </p>
           <h1 className="font-display text-4xl font-black text-onyx">
-            {activeCategory ? activeCategory.name : 'Todos os produtos'}
+            {categoryNotFound
+              ? 'Categoria não encontrada'
+              : activeCategory
+                ? activeCategory.name
+                : 'Todos os produtos'}
           </h1>
           {count > 0 && (
             <p className="text-onyx/60 mt-2">{count} produtos encontrados</p>
           )}
-          {activeCategory && (
+          {(activeCategory || categoryNotFound) && (
             <Link
               href="/categorias"
               className="inline-block text-sm text-onyx/60 hover:text-amber transition-colors mt-2 underline underline-offset-4"
@@ -71,7 +82,12 @@ export default async function ProdutosPage({
           )}
         </div>
 
-        {products.length === 0 ? (
+        {categoryNotFound ? (
+          <div className="text-center py-24 text-onyx/40">
+            <p className="text-2xl mb-2">Essa categoria não existe mais</p>
+            <p className="text-sm">O link pode estar desatualizado — veja todas as categorias disponíveis.</p>
+          </div>
+        ) : products.length === 0 ? (
           <div className="text-center py-24 text-onyx/40">
             <p className="text-2xl mb-2">Nenhum produto encontrado</p>
             <p className="text-sm">Tente um termo diferente ou volte em breve.</p>

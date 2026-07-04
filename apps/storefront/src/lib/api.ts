@@ -90,10 +90,22 @@ export type Category = {
   handle: string
 }
 
-export async function listCategories() {
-  return apiFetch<{ product_categories: Category[]; count: number }>(
-    `/store/product-categories?limit=100&fields=id,name,handle`
-  )
+const CATEGORY_PAGE_LIMIT = 200
+
+export async function listCategories(): Promise<{ product_categories: Category[]; count: number }> {
+  const product_categories: Category[] = []
+  let offset = 0
+
+  for (;;) {
+    const page = await apiFetch<{ product_categories: Category[]; count: number }>(
+      `/store/product-categories?limit=${CATEGORY_PAGE_LIMIT}&offset=${offset}&fields=id,name,handle`
+    )
+    product_categories.push(...page.product_categories)
+    offset += CATEGORY_PAGE_LIMIT
+    if (product_categories.length >= page.count || page.product_categories.length === 0) break
+  }
+
+  return { product_categories, count: product_categories.length }
 }
 
 const COUNT_PAGE_LIMIT = 200
