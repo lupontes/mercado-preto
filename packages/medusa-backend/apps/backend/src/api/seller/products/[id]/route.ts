@@ -2,12 +2,14 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { SELLER_MODULE } from "../../../../modules/seller"
+import { categoryExists } from "../category-validation"
 
 const UpdateProductSchema = z.object({
   title: z.string().min(2).optional(),
   description: z.string().optional(),
   thumbnail: z.string().url().optional(),
   status: z.enum(["draft", "published"]).optional(),
+  category_id: z.string().nullable().optional(),
 })
 
 async function getSellerProduct(req: MedusaRequest, sellerId: string, productId: string) {
@@ -29,7 +31,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   if (!linked) return res.status(404).json({ error: "Produto não encontrado nesta loja" })
 
   const productService = req.scope.resolve(Modules.PRODUCT)
-  const [product] = await productService.listProducts({ id: [id] })
+  const [product] = await productService.listProducts({ id: [id] }, { relations: ["categories"] })
   res.json({ product })
 }
 
@@ -46,7 +48,17 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const productService = req.scope.resolve(Modules.PRODUCT)
-  const product = await productService.updateProducts(id, parsed.data as any)
+
+  const { category_id, ...rest } = parsed.data
+  const updateData: Record<string, unknown> = { ...rest }
+  if (req.body && typeof req.body === "object" && "category_id" in (req.body as Record<string, unknown>)) {
+    if (category_id && !(await categoryExists(productService, category_id))) {
+      return res.status(400).json({ error: "Categoria não encontrada" })
+    }
+    updateData.category_ids = category_id ? [category_id] : []
+  }
+
+  const product = await productService.updateProducts(id, updateData as any)
   res.json({ product })
 }
 
