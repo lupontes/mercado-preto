@@ -29,4 +29,8 @@ describe("slugifyTitle", () => {
   it("handles leading/trailing whitespace and repeated non-alphanumeric characters without leading/trailing hyphens", () => {
     expect(slugifyTitle("  Bolsa -- Artesanal!!  ")).toBe("bolsa-artesanal")
   })
+
+  it("transliterates accented Portuguese characters instead of dropping them", () => {
+    expect(slugifyTitle("Luminária Grande")).toBe("luminaria-grande")
+  })
 })

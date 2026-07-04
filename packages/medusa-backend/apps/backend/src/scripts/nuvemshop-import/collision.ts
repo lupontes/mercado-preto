@@ -1,15 +1,15 @@
+import { toHandle } from "@medusajs/framework/utils"
+
 /**
  * Fallback slugifier used only when Nuvemshop provided no handle at all, so we
- * still have a base string to suffix. Mirrors the general shape of Medusa's own
- * auto-slugify (lowercase, non-alphanumeric runs collapsed to a single hyphen,
- * no leading/trailing hyphens) — it doesn't need to be identical, just sane.
+ * still have a base string to suffix. Delegates to Medusa's own toHandle so
+ * accented titles (e.g. "Luminária") produce the same accent-stripped slug
+ * Medusa's own auto-handle logic would, instead of dropping the accented
+ * character entirely. toHandle doesn't trim leading/trailing hyphens, so that
+ * is done here to avoid a double hyphen once the collision suffix is appended.
  */
 export function slugifyTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+  return toHandle(title).replace(/^-+|-+$/g, "")
 }
 
 /**
