@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSellerStore } from '@/lib/seller-store'
 import { createSellerProduct } from '@/lib/seller-api'
+import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 export default function NovoProdutoPage() {
@@ -18,6 +19,7 @@ export default function NovoProdutoPage() {
     thumbnail: '',
     price: '',
     sku: '',
+    category_id: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -41,6 +43,7 @@ export default function NovoProdutoPage() {
         description: form.description || undefined,
         status: form.status,
         thumbnail: form.thumbnail || undefined,
+        category_id: form.category_id || undefined,
         variants: [
           {
             title: 'Padrão',
@@ -97,6 +100,10 @@ export default function NovoProdutoPage() {
             <input value={form.sku} onChange={(e) => set('sku', e.target.value)} className="input" placeholder="Opcional" />
           </Field>
         </div>
+
+        <Field label="Categoria">
+          <CategorySelect value={form.category_id} onChange={(value) => set('category_id', value)} />
+        </Field>
 
         <Field label="URL da imagem principal">
           <input
