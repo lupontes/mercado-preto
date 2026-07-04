@@ -87,10 +87,15 @@ export default async function importNuvemshop({
         continue
       }
 
-      const parentId =
-        category.parent && category.parent !== 0
-          ? categoryIdMap.get(category.parent)
-          : undefined
+      let parentId: string | undefined
+      if (category.parent && category.parent !== 0) {
+        parentId = categoryIdMap.get(category.parent)
+        if (!parentId) {
+          logger.warn(
+            `Categoria #${category.id} referencia categoria-pai #${category.parent}, que não foi encontrada (ausente ou cíclica) — criando como categoria raiz.`
+          )
+        }
+      }
 
       const {
         result: [created],
