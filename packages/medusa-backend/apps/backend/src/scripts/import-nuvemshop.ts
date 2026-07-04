@@ -72,41 +72,47 @@ export default async function importNuvemshop({
   const orderedCategories = sortCategoriesByDepth(nuvemshopCategories)
 
   const categoryIdMap = new Map<number, string>()
+  let categoriesFailed = 0
   for (const category of orderedCategories) {
     const externalId = buildCategoryExternalId(category.id)
-    const { data: existing } = await query.graph({
-      entity: "product_category",
-      fields: ["id"],
-      filters: { external_id: externalId },
-    })
+    try {
+      const { data: existing } = await query.graph({
+        entity: "product_category",
+        fields: ["id"],
+        filters: { external_id: externalId },
+      })
 
-    if (existing[0]) {
-      categoryIdMap.set(category.id, existing[0].id)
-      continue
+      if (existing[0]) {
+        categoryIdMap.set(category.id, existing[0].id)
+        continue
+      }
+
+      const parentId =
+        category.parent && category.parent !== 0
+          ? categoryIdMap.get(category.parent)
+          : undefined
+
+      const {
+        result: [created],
+      } = await createProductCategoriesWorkflow(container).run({
+        input: {
+          product_categories: [
+            {
+              name: category.name.pt || `Categoria ${category.id}`,
+              external_id: externalId,
+              is_active: true,
+              ...(parentId ? { parent_category_id: parentId } : {}),
+            },
+          ],
+        },
+      })
+      categoryIdMap.set(category.id, created.id)
+    } catch (err: any) {
+      categoriesFailed++
+      logger.error(`Falha ao importar categoria Nuvemshop #${category.id}: ${err?.message}`)
     }
-
-    const parentId =
-      category.parent && category.parent !== 0
-        ? categoryIdMap.get(category.parent)
-        : undefined
-
-    const {
-      result: [created],
-    } = await createProductCategoriesWorkflow(container).run({
-      input: {
-        product_categories: [
-          {
-            name: category.name.pt || `Categoria ${category.id}`,
-            external_id: externalId,
-            is_active: true,
-            ...(parentId ? { parent_category_id: parentId } : {}),
-          },
-        ],
-      },
-    })
-    categoryIdMap.set(category.id, created.id)
   }
-  logger.info(`${categoryIdMap.size} categorias sincronizadas.`)
+  logger.info(`${categoryIdMap.size} categorias sincronizadas, ${categoriesFailed} falharam.`)
 
   logger.info("Importando produtos...")
   let imported = 0
