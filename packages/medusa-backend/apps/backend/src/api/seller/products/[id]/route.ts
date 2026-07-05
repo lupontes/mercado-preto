@@ -51,7 +51,12 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
 
   const { category_id, ...rest } = parsed.data
   const updateData: Record<string, unknown> = { ...rest }
+  // Zod's .optional() can't tell "key omitted" from "key sent as null" (both parse to undefined-ish),
+  // so we check the raw body to get three states: absent (don't touch), null (clear), string (set).
   if (req.body && typeof req.body === "object" && "category_id" in (req.body as Record<string, unknown>)) {
+    if (category_id === "") {
+      return res.status(400).json({ error: "category_id não pode ser uma string vazia; use null para limpar a categoria" })
+    }
     if (category_id && !(await categoryExists(productService, category_id))) {
       return res.status(400).json({ error: "Categoria não encontrada" })
     }
