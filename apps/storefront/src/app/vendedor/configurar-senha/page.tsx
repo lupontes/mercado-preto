@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, CheckCircle } from 'lucide-react'
-
-const BASE_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
+import { setSellerPassword } from '@/lib/seller-api'
 
 function ConfigurarSenhaForm() {
   const router = useRouter()
@@ -37,13 +36,7 @@ function ConfigurarSenhaForm() {
 
     setLoading(true)
     try {
-      const res = await fetch(`${BASE_URL}/store/sellers/set-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body?.error ?? 'Erro ao configurar senha')
+      await setSellerPassword(email, password)
       setDone(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado')
