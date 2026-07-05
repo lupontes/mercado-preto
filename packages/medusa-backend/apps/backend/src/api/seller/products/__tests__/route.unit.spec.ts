@@ -33,6 +33,26 @@ describe("GET /seller/products", () => {
       fields: expect.arrayContaining(["products.categories.id", "products.categories.name"]),
     }))
   })
+
+  it("requests variant prices so the seller panel can show and edit the product price", async () => {
+    const graph = jest.fn().mockResolvedValue({ data: [{ id: "seller_1", products: [] }] })
+    const req = {
+      sellerId: "seller_1",
+      query: {},
+      scope: makeScope({ [ContainerRegistrationKeys.QUERY]: { graph } }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(graph).toHaveBeenCalledWith(expect.objectContaining({
+      fields: expect.arrayContaining([
+        "products.variants.id",
+        "products.variants.prices.amount",
+        "products.variants.prices.currency_code",
+      ]),
+    }))
+  })
 })
 
 describe("POST /seller/products", () => {

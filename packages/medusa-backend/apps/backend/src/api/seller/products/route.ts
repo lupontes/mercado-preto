@@ -39,6 +39,9 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       "products.created_at",
       "products.categories.id",
       "products.categories.name",
+      "products.variants.id",
+      "products.variants.prices.amount",
+      "products.variants.prices.currency_code",
     ],
     filters: { id: sellerId },
   })
