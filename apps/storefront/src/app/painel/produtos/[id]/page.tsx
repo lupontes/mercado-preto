@@ -106,12 +106,13 @@ export default function EditarProdutoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-sand-dark p-6 space-y-5">
-        <Field label="Título do produto" required>
-          <input value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
+        <Field label="Título do produto" htmlFor="title" required>
+          <input id="title" value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
         </Field>
 
-        <Field label="Descrição">
+        <Field label="Descrição" htmlFor="description">
           <textarea
+            id="description"
             value={form.description}
             onChange={(e) => set('description', e.target.value)}
             className="input min-h-[100px] resize-y"
@@ -119,8 +120,9 @@ export default function EditarProdutoPage() {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Preço (R$)" required>
+          <Field label="Preço (R$)" htmlFor="price" required>
             <input
+              id="price"
               type="text"
               inputMode="decimal"
               value={form.price}
@@ -130,20 +132,21 @@ export default function EditarProdutoPage() {
               required
             />
           </Field>
-          <Field label="Visibilidade">
-            <select value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
+          <Field label="Visibilidade" htmlFor="status">
+            <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
               <option value="draft">Rascunho</option>
               <option value="published">Publicado</option>
             </select>
           </Field>
         </div>
 
-        <Field label="Categoria">
-          <CategorySelect value={form.category_id} onChange={(value) => set('category_id', value)} />
+        <Field label="Categoria" htmlFor="category_id">
+          <CategorySelect id="category_id" value={form.category_id} onChange={(value) => set('category_id', value)} />
         </Field>
 
-        <Field label="URL da imagem principal">
+        <Field label="URL da imagem principal" htmlFor="thumbnail">
           <input
+            id="thumbnail"
             type="url"
             value={form.thumbnail}
             onChange={(e) => set('thumbnail', e.target.value)}
@@ -177,10 +180,10 @@ export default function EditarProdutoPage() {
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-onyx/60 mb-1">
+      <label htmlFor={htmlFor} className="block text-xs font-semibold text-onyx/60 mb-1">
         {label} {required && <span className="text-terracotta">*</span>}
       </label>
       {children}

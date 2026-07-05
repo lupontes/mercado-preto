@@ -6,9 +6,10 @@ import { listCategories, type Category } from '@/lib/api'
 type CategorySelectProps = {
   value: string
   onChange: (categoryId: string) => void
+  id?: string
 }
 
-export function CategorySelect({ value, onChange }: CategorySelectProps) {
+export function CategorySelect({ value, onChange, id }: CategorySelectProps) {
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
   }, [])
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="input">
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="input">
       <option value="">Sem categoria</option>
       {categories.map((category) => (
         <option key={category.id} value={category.id}>
