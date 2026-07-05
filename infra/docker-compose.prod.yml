@@ -129,6 +129,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  storefront:
+    build:
+      context: ..
+      dockerfile: apps/storefront/Dockerfile
+      args:
+        NEXT_PUBLIC_MEDUSA_URL: ${NEXT_PUBLIC_MEDUSA_URL}
+        NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_REGION_ID: ${NEXT_PUBLIC_REGION_ID}
+    container_name: mercado-preto-storefront
+    restart: unless-stopped
+    depends_on:
+      - medusa
+
   nginx:
     image: nginx:alpine
     container_name: mercado-preto-nginx
@@ -141,6 +154,7 @@ services:
       - ./nginx/certbot/www:/var/www/certbot:ro
     depends_on:
       - medusa
+      - storefront
     restart: unless-stopped
     command: sh -c 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"'
 
