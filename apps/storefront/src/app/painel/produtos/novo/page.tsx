@@ -71,12 +71,13 @@ export default function NovoProdutoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-sand-dark p-6 space-y-5">
-        <Field label="Título do produto" required>
-          <input value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
+        <Field label="Título do produto" htmlFor="title" required>
+          <input id="title" value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
         </Field>
 
-        <Field label="Descrição">
+        <Field label="Descrição" htmlFor="description">
           <textarea
+            id="description"
             value={form.description}
             onChange={(e) => set('description', e.target.value)}
             className="input min-h-[100px] resize-y"
@@ -85,8 +86,9 @@ export default function NovoProdutoPage() {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Preço (R$)" required>
+          <Field label="Preço (R$)" htmlFor="price" required>
             <input
+              id="price"
               type="text"
               inputMode="decimal"
               value={form.price}
@@ -96,17 +98,18 @@ export default function NovoProdutoPage() {
               required
             />
           </Field>
-          <Field label="SKU / Código">
-            <input value={form.sku} onChange={(e) => set('sku', e.target.value)} className="input" placeholder="Opcional" />
+          <Field label="SKU / Código" htmlFor="sku">
+            <input id="sku" value={form.sku} onChange={(e) => set('sku', e.target.value)} className="input" placeholder="Opcional" />
           </Field>
         </div>
 
-        <Field label="Categoria">
-          <CategorySelect value={form.category_id} onChange={(value) => set('category_id', value)} />
+        <Field label="Categoria" htmlFor="category_id">
+          <CategorySelect id="category_id" value={form.category_id} onChange={(value) => set('category_id', value)} />
         </Field>
 
-        <Field label="URL da imagem principal">
+        <Field label="URL da imagem principal" htmlFor="thumbnail">
           <input
+            id="thumbnail"
             type="url"
             value={form.thumbnail}
             onChange={(e) => set('thumbnail', e.target.value)}
@@ -116,8 +119,8 @@ export default function NovoProdutoPage() {
           <p className="text-xs text-onyx/40 mt-1">Cole a URL de uma imagem hospedada (ex: Google Drive, Imgur)</p>
         </Field>
 
-        <Field label="Visibilidade">
-          <select value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
+        <Field label="Visibilidade" htmlFor="status">
+          <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
             <option value="draft">Rascunho (não aparece na loja)</option>
             <option value="published">Publicado (visível para clientes)</option>
           </select>
@@ -148,10 +151,10 @@ export default function NovoProdutoPage() {
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-onyx/60 mb-1">
+      <label htmlFor={htmlFor} className="block text-xs font-semibold text-onyx/60 mb-1">
         {label} {required && <span className="text-terracotta">*</span>}
       </label>
       {children}
