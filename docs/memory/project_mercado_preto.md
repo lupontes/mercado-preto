@@ -84,7 +84,7 @@ npx medusa develop --port 9000
 - `POST /admin/fiscal/:id/retry`
 - `GET /admin/reports` — relatório financeiro com filtro de período e breakdown por seller
 - `GET/PATCH /admin/settings` — taxa de comissão
-- `POST /admin/webhooks/clearsale` — webhook antifraude
+- `POST /webhooks/clearsale` — webhook antifraude
 - `POST /admin/search/reindex` — reindexar tudo no Meilisearch
 
 **Store (`/store/...`):**
