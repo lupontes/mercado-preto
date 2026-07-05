@@ -16,7 +16,7 @@ if [ -f ./.env ]; then
   set +a
 fi
 
-DOMAINS=(mercadopreto.com.br www.mercadopreto.com.br)
+DOMAINS=(teste.mercadopreto.com.br)
 RSA_KEY_SIZE=4096
 DATA_PATH="./nginx/certbot"
 EMAIL="${LETSENCRYPT_EMAIL:-admin@mercadopreto.com.br}"

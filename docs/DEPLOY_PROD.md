@@ -5,8 +5,9 @@ stack de produção (`infra/docker-compose.prod.yml`).
 
 ## Pré-requisitos
 
-- DNS de `mercadopreto.com.br` e `www.mercadopreto.com.br` já apontando
-  (registro A) para o IP público do servidor.
+- DNS de `teste.mercadopreto.com.br` já apontando (registro A) para o IP
+  público do servidor. O domínio raiz (`mercadopreto.com.br` / `www`)
+  continua apontando pra loja atual — não é tocado por este deploy.
 - `infra/.env` criado a partir de `infra/.env.template`, com todas as
   variáveis obrigatórias preenchidas — incluindo `LETSENCRYPT_EMAIL`.
 - Portas 80 e 443 liberadas no firewall/NSG do servidor.
@@ -39,9 +40,9 @@ teste). Depois de validar, remova o certificado de staging e rode de novo
 sem `STAGING=1`:
 
 ```bash
-rm -rf nginx/certbot/conf/live/mercadopreto.com.br \
-       nginx/certbot/conf/archive/mercadopreto.com.br \
-       nginx/certbot/conf/renewal/mercadopreto.com.br.conf
+rm -rf nginx/certbot/conf/live/teste.mercadopreto.com.br \
+       nginx/certbot/conf/archive/teste.mercadopreto.com.br \
+       nginx/certbot/conf/renewal/teste.mercadopreto.com.br.conf
 ./nginx/init-letsencrypt.sh
 ```
 
