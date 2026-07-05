@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSellerStore } from '@/lib/seller-store'
 import { getSellerProducts, updateSellerProduct } from '@/lib/seller-api'
+import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 type ProductForm = {
@@ -13,6 +14,7 @@ type ProductForm = {
   status: 'draft' | 'published'
   thumbnail: string
   price: string
+  category_id: string
 }
 
 export default function EditarProdutoPage() {
@@ -26,6 +28,7 @@ export default function EditarProdutoPage() {
     status: 'draft',
     thumbnail: '',
     price: '',
+    category_id: '',
   })
   const [variantId, setVariantId] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
@@ -50,6 +53,7 @@ export default function EditarProdutoPage() {
           status: product.status ?? 'draft',
           thumbnail: product.thumbnail ?? '',
           price: price ? String(price.amount / 100).replace('.', ',') : '',
+          category_id: product.categories?.[0]?.id ?? '',
         })
       })
       .finally(() => setLoadingData(false))
@@ -74,6 +78,7 @@ export default function EditarProdutoPage() {
         description: form.description || undefined,
         status: form.status,
         thumbnail: form.thumbnail || undefined,
+        category_id: form.category_id || null,
         variants: variantId
           ? [{ id: variantId, prices: [{ amount: priceAmount, currency_code: 'brl' }] }]
           : undefined,
@@ -136,6 +141,10 @@ export default function EditarProdutoPage() {
             </select>
           </Field>
         </div>
+
+        <Field label="Categoria">
+          <CategorySelect value={form.category_id} onChange={(value) => set('category_id', value)} />
+        </Field>
 
         <Field label="URL da imagem principal">
           <input
