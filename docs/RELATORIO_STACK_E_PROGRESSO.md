@@ -66,6 +66,10 @@
 | **ClearSale** | 📋 Planejado | Antifraude (webhook endpoint pronto) |
 | **Plausible Analytics** | 📋 Planejado | Analytics LGPD-compliant (proxy backend pronto) |
 | **Typebot** | 🔧 Parcial | Chatbot WhatsApp por webhook (FAQ por dicionário) |
+| **Google Analytics** | 📋 Registrado (2026-07-04) | Analytics de tráfego/conversão da vitrine (GA4) |
+| **Google Shopping (Merchant Center)** | 📋 Registrado (2026-07-04) | Feed de produtos para anúncios/listagem gratuita no Google |
+| **Instagram Shopping** | 📋 Registrado (2026-07-04) | Catálogo de produtos integrado ao Instagram/Meta Commerce |
+| **TikTok Shopping** | 📋 Registrado (2026-07-04) | Catálogo de produtos integrado ao TikTok Shop |
 
 ### Testes
 
@@ -140,6 +144,15 @@
 | Grafana/Netdata — monitoramento | Containers extras |
 | Metabase — analytics admin | Container Metabase |
 | MercadoPago Marketplace split | Vendedores aprovados + sub-contas |
+| **Google Analytics (GA4)** | Tag `gtag`/GA4 no storefront + banner de consentimento LGPD (site em produção com domínio próprio) |
+| **Google Shopping (Merchant Center)** | Conta Merchant Center verificada + gerar feed de produtos (XML/RSS ou API Content) a partir do catálogo Medusa; site em produção com TLS |
+| **Instagram Shopping** | Conta Meta Business verificada + catálogo Meta Commerce (feed de produtos) + loja aprovada pela Meta |
+| **TikTok Shopping** | Conta TikTok Shop/Business verificada + feed de catálogo compatível + elegibilidade regional (BR) |
+| **Sistema de avaliação e comentários** | Nenhum módulo hoje — precisa de modelo de review vinculado a `order`/`product` + moderação de conteúdo |
+| **Centro de mensagens (chat comprador↔vendedor)** | Nenhum módulo hoje — precisa de decidir infra (polling/WebSocket próprio vs. reaproveitar Evolution API/Chatwoot) + UI no painel do lojista e na conta do comprador |
+| **Programa de fidelidade (pontos de recompensa)** | Nenhum módulo hoje — precisa de decisão de negócio-chave: programa único da plataforma ou por lojista (mais complexo); técnica: módulo `loyalty` (ledger de pontos, ganha em `order.completed`) + módulo Promotions do Medusa para resgate no checkout |
+
+> Registrado em 2026-07-04 a pedido do usuário — nenhuma integração/feature iniciada ainda; todas dependem de feed de catálogo de produtos e, em geral, do site já estar em produção com domínio/TLS (Fase 1 da migração Nuvemshop), exceto avaliação, mensagens e fidelidade, que são features internas sem essa dependência. Design de cada uma fica para quando a fase for priorizada.
 
 ### Resumo Visual
 
