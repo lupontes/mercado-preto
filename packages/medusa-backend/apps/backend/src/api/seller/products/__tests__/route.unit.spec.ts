@@ -1,5 +1,16 @@
+jest.mock("@medusajs/medusa/core-flows", () => ({
+  createProductsWorkflow: jest.fn(),
+}))
+
 import { GET, POST } from "../route"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
+
+function mockCreateProductsWorkflow(result: unknown[]) {
+  const run = jest.fn().mockResolvedValue({ result })
+  ;(createProductsWorkflow as unknown as jest.Mock).mockReturnValue({ run })
+  return run
+}
 
 function makeScope(overrides: Record<string, unknown>) {
   return {
@@ -61,15 +72,19 @@ describe("POST /seller/products", () => {
     variants: [{ title: "Default", prices: [{ amount: 1000, currency_code: "brl" }] }],
   }
 
-  it("passes category_ids to createProducts when category_id is valid", async () => {
-    const createProducts = jest.fn().mockResolvedValue([{ id: "prod_1" }])
+  beforeEach(() => {
+    ;(createProductsWorkflow as unknown as jest.Mock).mockReset()
+  })
+
+  it("passes category_ids to the create workflow when category_id is valid", async () => {
+    const run = mockCreateProductsWorkflow([{ id: "prod_1" }])
     const listProductCategories = jest.fn().mockResolvedValue([{ id: "pcat_1" }])
     const linkCreate = jest.fn().mockResolvedValue(undefined)
     const req = {
       sellerId: "seller_1",
       body: { ...validBody, category_id: "pcat_1" },
       scope: makeScope({
-        [Modules.PRODUCT]: { createProducts, listProductCategories },
+        [Modules.PRODUCT]: { listProductCategories },
         [ContainerRegistrationKeys.LINK]: { create: linkCreate },
       }),
     } as any
@@ -78,19 +93,47 @@ describe("POST /seller/products", () => {
     await POST(req, res)
 
     expect(listProductCategories).toHaveBeenCalledWith({ id: ["pcat_1"] })
-    expect(createProducts).toHaveBeenCalledWith([expect.objectContaining({ category_ids: ["pcat_1"] })])
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      input: { products: [expect.objectContaining({ category_ids: ["pcat_1"] })] },
+    }))
     expect(res._status).toBe(201)
   })
 
+  it("forwards variant prices to the create workflow", async () => {
+    const run = mockCreateProductsWorkflow([{ id: "prod_1" }])
+    const req = {
+      sellerId: "seller_1",
+      body: validBody,
+      scope: makeScope({
+        [Modules.PRODUCT]: { listProductCategories: jest.fn() },
+        [ContainerRegistrationKeys.LINK]: { create: jest.fn().mockResolvedValue(undefined) },
+      }),
+    } as any
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      input: {
+        products: [expect.objectContaining({
+          variants: [expect.objectContaining({
+            title: "Default",
+            prices: [{ amount: 1000, currency_code: "brl" }],
+          })],
+        })],
+      },
+    }))
+  })
+
   it("omits category_ids when category_id is not provided", async () => {
-    const createProducts = jest.fn().mockResolvedValue([{ id: "prod_1" }])
+    const run = mockCreateProductsWorkflow([{ id: "prod_1" }])
     const listProductCategories = jest.fn()
     const linkCreate = jest.fn().mockResolvedValue(undefined)
     const req = {
       sellerId: "seller_1",
       body: validBody,
       scope: makeScope({
-        [Modules.PRODUCT]: { createProducts, listProductCategories },
+        [Modules.PRODUCT]: { listProductCategories },
         [ContainerRegistrationKeys.LINK]: { create: linkCreate },
       }),
     } as any
@@ -99,18 +142,20 @@ describe("POST /seller/products", () => {
     await POST(req, res)
 
     expect(listProductCategories).not.toHaveBeenCalled()
-    expect(createProducts).toHaveBeenCalledWith([expect.objectContaining({ category_ids: undefined })])
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      input: { products: [expect.objectContaining({ category_ids: undefined })] },
+    }))
     expect(res._status).toBe(201)
   })
 
-  it("returns 400 and does not create the product when category_id does not exist", async () => {
-    const createProducts = jest.fn()
+  it("returns 400 and does not run the create workflow when category_id does not exist", async () => {
+    const run = mockCreateProductsWorkflow([{ id: "prod_1" }])
     const listProductCategories = jest.fn().mockResolvedValue([])
     const req = {
       sellerId: "seller_1",
       body: { ...validBody, category_id: "pcat_missing" },
       scope: makeScope({
-        [Modules.PRODUCT]: { createProducts, listProductCategories },
+        [Modules.PRODUCT]: { listProductCategories },
         [ContainerRegistrationKeys.LINK]: { create: jest.fn() },
       }),
     } as any
@@ -120,6 +165,6 @@ describe("POST /seller/products", () => {
 
     expect(res._status).toBe(400)
     expect(res._body).toEqual({ error: "Categoria não encontrada" })
-    expect(createProducts).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
   })
 })

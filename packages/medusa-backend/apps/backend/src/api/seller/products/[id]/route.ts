@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import { categoryExists } from "../category-validation"
 
@@ -10,6 +11,13 @@ const UpdateProductSchema = z.object({
   thumbnail: z.string().url().optional(),
   status: z.enum(["draft", "published"]).optional(),
   category_id: z.string().nullable().optional(),
+  variants: z.array(z.object({
+    id: z.string(),
+    prices: z.array(z.object({
+      amount: z.number().int().positive(),
+      currency_code: z.string().length(3),
+    })),
+  })).optional(),
 })
 
 async function getSellerProduct(req: MedusaRequest, sellerId: string, productId: string) {
@@ -81,7 +89,9 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     updateData.category_ids = category_id ? [category_id] : []
   }
 
-  const product = await productService.updateProducts(id, updateData as any)
+  const { result: [product] } = await updateProductsWorkflow(req.scope).run({
+    input: { selector: { id }, update: updateData as any },
+  })
   res.json({ product })
 }
 
