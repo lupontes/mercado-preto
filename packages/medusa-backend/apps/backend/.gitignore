@@ -24,4 +24,4 @@ build
 !.yarn/sdks
 !.yarn/versions
 
-.medusa
+.medusamab-catalog-export.json

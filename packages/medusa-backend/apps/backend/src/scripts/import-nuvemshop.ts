@@ -81,7 +81,7 @@ export default async function importNuvemshop({
       const { data: existing } = await query.graph({
         entity: "product_category",
         fields: ["id"],
-        filters: { external_id: externalId },
+        filters: { external_id: externalId } as any,
       })
 
       if (existing[0]) {
