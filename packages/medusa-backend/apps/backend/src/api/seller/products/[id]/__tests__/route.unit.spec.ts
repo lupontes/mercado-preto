@@ -20,22 +20,46 @@ function makeRes() {
 const linkedGraph = jest.fn().mockResolvedValue({ data: [{ id: "seller_1", products: [{ id: "prod_1" }] }] })
 
 describe("GET /seller/products/:id", () => {
-  it("requests the categories relation", async () => {
-    const listProducts = jest.fn().mockResolvedValue([{ id: "prod_1", categories: [] }])
+  it("fetches categories and variant prices via the remote query", async () => {
+    const graph = jest.fn()
+      .mockResolvedValueOnce({ data: [{ id: "seller_1", products: [{ id: "prod_1" }] }] })
+      .mockResolvedValueOnce({ data: [{ id: "prod_1", categories: [], variants: [] }] })
     const req = {
       sellerId: "seller_1",
       params: { id: "prod_1" },
-      scope: makeScope({
-        [ContainerRegistrationKeys.QUERY]: { graph: linkedGraph },
-        [Modules.PRODUCT]: { listProducts },
-      }),
+      scope: makeScope({ [ContainerRegistrationKeys.QUERY]: { graph } }),
     } as any
     const res = makeRes()
 
     await GET(req, res)
 
-    expect(listProducts).toHaveBeenCalledWith({ id: ["prod_1"] }, { relations: ["categories"] })
+    expect(graph).toHaveBeenLastCalledWith(expect.objectContaining({
+      entity: "product",
+      fields: expect.arrayContaining([
+        "categories.id",
+        "categories.name",
+        "variants.id",
+        "variants.prices.amount",
+        "variants.prices.currency_code",
+      ]),
+      filters: { id: "prod_1" },
+    }))
     expect(res._status).toBe(200)
+  })
+
+  it("returns 404 without hitting the product graph when the seller doesn't own the product", async () => {
+    const graph = jest.fn().mockResolvedValueOnce({ data: [{ id: "seller_1", products: [] }] })
+    const req = {
+      sellerId: "seller_1",
+      params: { id: "prod_missing" },
+      scope: makeScope({ [ContainerRegistrationKeys.QUERY]: { graph } }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(res._status).toBe(404)
+    expect(graph).toHaveBeenCalledTimes(1)
   })
 })
 

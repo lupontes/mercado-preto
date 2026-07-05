@@ -30,9 +30,27 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const linked = await getSellerProduct(req, sellerId, id)
   if (!linked) return res.status(404).json({ error: "Produto não encontrado nesta loja" })
 
-  const productService = req.scope.resolve(Modules.PRODUCT)
-  const [product] = await productService.listProducts({ id: [id] }, { relations: ["categories"] })
-  res.json({ product })
+  // productService.listProducts({ relations: [...] }) throws on the nested
+  // "variants.prices" relation in this Medusa version (MikroORM bug in
+  // getJoinedFilters), so we use the remote query instead, same as the list route.
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: [
+      "id",
+      "title",
+      "description",
+      "thumbnail",
+      "status",
+      "categories.id",
+      "categories.name",
+      "variants.id",
+      "variants.prices.amount",
+      "variants.prices.currency_code",
+    ],
+    filters: { id },
+  })
+  res.json({ product: products?.[0] })
 }
 
 export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
