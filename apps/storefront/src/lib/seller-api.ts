@@ -58,6 +58,10 @@ export async function getSellerProducts(token: string, params?: { limit?: number
   return sellerFetch<{ products: unknown[]; count: number }>(`/seller/products?${qs}`, token)
 }
 
+export async function getSellerProduct(token: string, id: string) {
+  return sellerFetch<{ product: Record<string, unknown> }>(`/seller/products/${id}`, token)
+}
+
 export async function createSellerProduct(token: string, data: Record<string, unknown>) {
   return sellerFetch<{ product: Record<string, unknown> }>('/seller/products', token, {
     method: 'POST',

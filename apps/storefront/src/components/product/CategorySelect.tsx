@@ -14,7 +14,10 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
   useEffect(() => {
     listCategories()
       .then((data) => setCategories(data.product_categories))
-      .catch(() => setCategories([]))
+      .catch((err) => {
+        console.error('Failed to load categories', err)
+        setCategories([])
+      })
   }, [])
 
   return (

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSellerStore } from '@/lib/seller-store'
-import { getSellerProducts, updateSellerProduct } from '@/lib/seller-api'
+import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
@@ -37,14 +37,9 @@ export default function EditarProdutoPage() {
 
   useEffect(() => {
     if (!token || !id) return
-    getSellerProducts(token)
+    getSellerProduct(token, id)
       .then((data) => {
-        const products = data.products as any[]
-        const product = products.find((p) => p.id === id)
-        if (!product) {
-          router.replace('/painel/produtos')
-          return
-        }
+        const product = data.product as any
         const price = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
         setVariantId(product.variants?.[0]?.id ?? null)
         setForm({
@@ -56,6 +51,7 @@ export default function EditarProdutoPage() {
           category_id: product.categories?.[0]?.id ?? '',
         })
       })
+      .catch(() => router.replace('/painel/produtos'))
       .finally(() => setLoadingData(false))
   }, [token, id, router])
 

@@ -99,4 +99,15 @@ describe("PATCH /seller/products/:id", () => {
     expect(res._status).toBe(400)
     expect(updateProducts).not.toHaveBeenCalled()
   })
+
+  it("returns 400 and does not update when category_id is an empty string", async () => {
+    const updateProducts = jest.fn()
+    const req = makeReq({ category_id: "" }, { updateProducts })
+    const res = makeRes()
+
+    await PATCH(req, res)
+
+    expect(res._status).toBe(400)
+    expect(updateProducts).not.toHaveBeenCalled()
+  })
 })
