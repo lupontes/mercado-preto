@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getSellerProduct } from "../seller-api"
+import { getSellerProduct, sellerLogin, setSellerPassword } from "../seller-api"
 
 describe("getSellerProduct", () => {
   afterEach(() => {
@@ -32,5 +32,61 @@ describe("getSellerProduct", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     await expect(getSellerProduct("token", "missing")).rejects.toThrow("Produto não encontrado nesta loja")
+  })
+})
+
+describe("sellerLogin", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("sends the publishable API key header the backend's /store middleware requires", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ token: "tok", seller: { id: "seller_1" } }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await sellerLogin("joao@teste.com", "secret")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/store/sellers/login"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-publishable-api-key": expect.any(String) }),
+      })
+    )
+  })
+})
+
+describe("setSellerPassword", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("sends the publishable API key header the backend's /store middleware requires", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: "Senha configurada" }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await setSellerPassword("joao@teste.com", "novaSenha123")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/store/sellers/set-password"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-publishable-api-key": expect.any(String) }),
+      })
+    )
+  })
+
+  it("throws with the backend error message when the request fails", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Token inválido" }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(setSellerPassword("joao@teste.com", "novaSenha123")).rejects.toThrow("Token inválido")
   })
 })
