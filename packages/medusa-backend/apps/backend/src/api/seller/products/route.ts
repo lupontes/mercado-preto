@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../modules/seller"
 import { categoryExists } from "./category-validation"
 
@@ -68,21 +69,33 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   let product: any
   try {
-    const [created] = await productService.createProducts([{
-      title: parsed.data.title,
-      description: parsed.data.description,
-      handle: parsed.data.handle,
-      thumbnail: parsed.data.thumbnail,
-      status: parsed.data.status as any,
-      category_ids: parsed.data.category_id ? [parsed.data.category_id] : undefined,
-      variants: parsed.data.variants.map((v: any) => ({
-        title: v.title,
-        ...(v.sku ? { sku: v.sku } : {}),
-      })),
-    }])
+    // productService.createProducts() never touches the Pricing module, so
+    // variant prices would be silently dropped — the workflow orchestrates
+    // both the Product and Pricing modules together.
+    const { result: [created] } = await createProductsWorkflow(req.scope).run({
+      input: {
+        products: [{
+          title: parsed.data.title,
+          description: parsed.data.description,
+          handle: parsed.data.handle,
+          thumbnail: parsed.data.thumbnail,
+          status: parsed.data.status as any,
+          category_ids: parsed.data.category_id ? [parsed.data.category_id] : undefined,
+          // The seller panel only creates single-variant products (no option
+          // picker in the UI), so every variant gets the same fixed option.
+          options: [{ title: "Default", values: ["Default"] }],
+          variants: parsed.data.variants.map((v: any) => ({
+            title: v.title,
+            ...(v.sku ? { sku: v.sku } : {}),
+            prices: v.prices,
+            options: { Default: "Default" },
+          })),
+        }],
+      },
+    })
     product = created
   } catch (err: any) {
-    console.error("[seller/products POST] createProducts error:", err?.message)
+    console.error("[seller/products POST] createProductsWorkflow error:", err?.message)
     return res.status(500).json({ error: "Erro ao criar produto", details: err?.message })
   }
 
