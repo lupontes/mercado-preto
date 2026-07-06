@@ -45,21 +45,19 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
   async emitNfe(input: EmitNfeInput): Promise<InstanceType<typeof NfDocument>> {
     const ref = `order-${input.orderId}`
 
-    const [doc] = await this.createNfDocuments({
+    const doc = await this.createNfDocuments({
       orderId: input.orderId,
       sellerId: input.sellerId,
       type: "nfe",
       status: "processing",
       focusNfeRef: ref,
       amountCents: input.amountCents,
-    } as any)
+    } as any) as any
 
     if (!process.env.FOCUS_NFE_TOKEN) {
-      const [updated] = await this.updateNfDocuments({
-        selector: { id: doc.id },
-        data: { status: "error", errorMessage: "FOCUS_NFE_TOKEN não configurado" } as any,
-      })
-      return updated as any
+      return await this.updateNfDocuments(
+        { id: doc.id, status: "error", errorMessage: "FOCUS_NFE_TOKEN não configurado" } as any
+      ) as any
     }
 
     const payload = {
@@ -130,38 +128,34 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
         }
       )
 
-      const data = await response.json() as any
+      const rawText = await response.text()
+      let data: any
+      try { data = JSON.parse(rawText) } catch { data = rawText }
 
       if (response.status === 201 || response.status === 200) {
-        const [updated] = await this.updateNfDocuments({
-          selector: { id: doc.id },
-          data: {
-            status: "issued",
-            focusNfeId: data.id || data.ref,
-            xmlUrl: data.caminho_xml_nota_fiscal,
-            pdfUrl: data.caminho_danfe,
-            series: data.serie,
-            number: data.numero,
-            issuedAt: new Date(),
-          } as any,
-        })
-        return updated as any
+        return await this.updateNfDocuments({
+          id: doc.id,
+          status: "issued",
+          focusNfeId: data.id || data.ref,
+          xmlUrl: data.caminho_xml_nota_fiscal,
+          pdfUrl: data.caminho_danfe,
+          series: data.serie,
+          number: data.numero,
+          issuedAt: new Date(),
+        } as any) as any
       }
 
-      const [updated] = await this.updateNfDocuments({
-        selector: { id: doc.id },
-        data: {
-          status: "error",
-          errorMessage: JSON.stringify(data).slice(0, 500),
-        } as any,
-      })
-      return updated as any
+      return await this.updateNfDocuments({
+        id: doc.id,
+        status: "error",
+        errorMessage: JSON.stringify(data).slice(0, 500),
+      } as any) as any
     } catch (err: any) {
-      const [updated] = await this.updateNfDocuments({
-        selector: { id: doc.id },
-        data: { status: "error", errorMessage: err?.message } as any,
-      })
-      return updated as any
+      return await this.updateNfDocuments({
+        id: doc.id,
+        status: "error",
+        errorMessage: err?.message,
+      } as any) as any
     }
   }
 
@@ -170,10 +164,9 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
     if (!doc) throw new Error("Documento não encontrado")
     if (doc.status !== "error") throw new Error("Apenas documentos com erro podem ser reprocessados")
 
-    const [reset] = await this.updateNfDocuments({
-      selector: { id },
-      data: { status: "processing", errorMessage: null } as any,
-    })
+    const reset = await this.updateNfDocuments(
+      { id, status: "processing", errorMessage: null } as any
+    )
     return reset as any
   }
 }
