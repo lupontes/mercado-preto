@@ -20,7 +20,7 @@ As três implementações começaram idênticas mas divergiram em três pontos:
 |---|---|---|---|
 | `sizes` da imagem | `...33vw, 25vw` | `...33vw, 16vw` | `...33vw, 16vw` |
 | `bg-white` no container | presente | presente | ausente |
-| Fallback sem preço BRL | nada renderizado | `"Ver preço"` | `"Consulte o preço"` |
+| Fallback sem preço BRL | nada renderizado | `"Consulte o preço"` | `"Ver preço"` |
 
 A divergência de `sizes` é legítima (grids com números de colunas diferentes: `loja/[id]` usa até 4 colunas, as outras duas até 6). As outras duas divergências (`bg-white` e fallback de preço) são inconsistências acidentais de manutenção paralela.
 
@@ -62,12 +62,12 @@ import { ProductCard } from '@/components/product/ProductCard'
 
 ## Mudança de comportamento visível ao usuário
 
-Duas páginas terão comportamento ligeiramente diferente do atual após a migração:
+Duas superfícies terão comportamento ligeiramente diferente do atual após a migração:
 
 - **`loja/[id]/page.tsx`**: hoje não mostra nada quando falta preço BRL → passa a mostrar `"Consulte o preço"`.
-- **`produtos/page.tsx`**: hoje mostra `"Ver preço"` → passa a mostrar `"Consulte o preço"`.
+- **`FeaturedProducts.tsx`**: hoje mostra `"Ver preço"` → passa a mostrar `"Consulte o preço"`.
 
-`FeaturedProducts.tsx` não muda de comportamento visível (já usa `"Consulte o preço"` e já está sobre uma seção com fundo branco, então adicionar `bg-white` ao card não altera a aparência).
+`produtos/page.tsx` não muda o texto de fallback (já usa `"Consulte o preço"`). Também não muda de aparência visível quanto ao `bg-white`, já que já o tinha. `FeaturedProducts.tsx` já está sobre uma seção com fundo branco, então adicionar `bg-white` ao card não altera sua aparência — só o texto de fallback muda ali.
 
 ## Testes
 
