@@ -141,6 +141,7 @@ services:
         NEXT_PUBLIC_MEDUSA_URL: ${NEXT_PUBLIC_MEDUSA_URL}
         NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
         NEXT_PUBLIC_REGION_ID: ${NEXT_PUBLIC_REGION_ID}
+        NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: ${NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY}
     container_name: mercado-preto-storefront
     restart: unless-stopped
     depends_on:
