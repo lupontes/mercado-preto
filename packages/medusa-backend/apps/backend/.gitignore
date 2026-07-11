@@ -11,6 +11,7 @@ yarn-error.log
 coverage
 
 !src/**
+src/admin/node_modules/
 
 ./tsconfig.tsbuildinfo
 medusa-db.sql

@@ -45,7 +45,7 @@ class SellerModuleService extends MedusaService({ Seller }) {
   async activateSeller(id: string): Promise<any> {
     const [seller] = await this.updateSellers({
       selector: { id },
-      data: { status: "active" as const },
+      data: { status: "active" as const, rejectionReason: null },
     })
     return seller
   }
