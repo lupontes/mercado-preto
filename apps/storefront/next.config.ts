@@ -9,6 +9,7 @@ const medusaUrl = process.env.NEXT_PUBLIC_MEDUSA_URL
   : undefined
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.digitaloceanspaces.com' },

@@ -59,7 +59,11 @@ services:
     container_name: mercado-preto-api
     environment:
       # --- Infra (geradas pelo compose) ---
-      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      # sslmode=disable: Medusa defaults to requiring SSL for any non-localhost
+      # DATABASE_URL host under NODE_ENV=production, but this Postgres
+      # container doesn't have SSL configured — without this, the client
+      # loops forever renegotiating SSL against a server that replies "N".
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
@@ -129,6 +133,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  storefront:
+    build:
+      context: ..
+      dockerfile: apps/storefront/Dockerfile
+      args:
+        NEXT_PUBLIC_MEDUSA_URL: ${NEXT_PUBLIC_MEDUSA_URL}
+        NEXT_PUBLIC_PUBLISHABLE_KEY: ${NEXT_PUBLIC_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_REGION_ID: ${NEXT_PUBLIC_REGION_ID}
+    container_name: mercado-preto-storefront
+    restart: unless-stopped
+    depends_on:
+      - medusa
+
   nginx:
     image: nginx:alpine
     container_name: mercado-preto-nginx
@@ -141,6 +158,7 @@ services:
       - ./nginx/certbot/www:/var/www/certbot:ro
     depends_on:
       - medusa
+      - storefront
     restart: unless-stopped
     command: sh -c 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"'
 
