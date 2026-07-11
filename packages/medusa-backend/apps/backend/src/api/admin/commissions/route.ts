@@ -1,9 +1,12 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { COMMISSION_MODULE } from "../../../modules/commission"
+import { SELLER_MODULE } from "../../../modules/seller"
 import CommissionModuleService from "../../../modules/commission/service"
+import SellerModuleService from "../../../modules/seller/service"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const commissionService: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
+  const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
 
   const { seller_id, status, limit = 20, offset = 0 } = req.query as Record<string, string>
 
@@ -17,6 +20,17 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     order: { created_at: "DESC" },
   })
 
+  const count = await commissionService.listCommissions(filters).then((all) => all.length)
+
+  const sellerIds = [...new Set(commissions.map((c: any) => c.sellerId))]
+  const sellers = sellerIds.length > 0 ? await sellerService.listSellers({ id: sellerIds }) : []
+  const sellerNameById = new Map(sellers.map((s: any) => [s.id, s.name]))
+
+  const enrichedCommissions = commissions.map((c: any) => ({
+    ...c,
+    sellerName: sellerNameById.get(c.sellerId) ?? "Vendedor removido",
+  }))
+
   const totals = commissions.reduce(
     (acc, c) => ({
       grossAmount: acc.grossAmount + Number(c.grossAmount),
@@ -26,5 +40,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     { grossAmount: 0, commissionAmount: 0, sellerPayout: 0 }
   )
 
-  res.json({ commissions, totals, count: commissions.length })
+  res.json({
+    commissions: enrichedCommissions,
+    totals,
+    count,
+    limit: Number(limit),
+    offset: Number(offset),
+  })
 }
