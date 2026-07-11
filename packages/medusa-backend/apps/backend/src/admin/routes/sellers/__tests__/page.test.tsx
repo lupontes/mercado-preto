@@ -49,6 +49,17 @@ describe("SellersPage", () => {
     expect(await screen.findByText("Nenhum vendedor pendente 🎉")).toBeInTheDocument()
   })
 
+  it("shows an error message instead of the empty state when the fetch fails", async () => {
+    vi.mocked(sdk.client.fetch).mockRejectedValue(new Error("network error"))
+
+    renderPage()
+
+    expect(
+      await screen.findByText("Não foi possível carregar os vendedores. Tente novamente.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Nenhum vendedor pendente 🎉")).not.toBeInTheDocument()
+  })
+
   it("renders a row per seller with name, email, and status", async () => {
     vi.mocked(sdk.client.fetch).mockResolvedValue({
       sellers: [

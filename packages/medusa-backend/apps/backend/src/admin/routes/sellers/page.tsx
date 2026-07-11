@@ -32,7 +32,7 @@ const STATUS_FILTERS: { value: string; label: string }[] = [
 function SellersPage() {
   const [status, setStatus] = useState("pending")
   const navigate = useNavigate()
-  const { data, isLoading } = useAdminSellers(status === ALL_STATUSES ? {} : { status })
+  const { data, isLoading, isError } = useAdminSellers(status === ALL_STATUSES ? {} : { status })
 
   const sellers = data?.sellers ?? []
 
@@ -54,7 +54,13 @@ function SellersPage() {
         </Select>
       </div>
 
-      {!isLoading && sellers.length === 0 && (
+      {isError && (
+        <div className="px-6 py-8 text-center">
+          <Text>Não foi possível carregar os vendedores. Tente novamente.</Text>
+        </div>
+      )}
+
+      {!isError && !isLoading && sellers.length === 0 && (
         <div className="px-6 py-8 text-center">
           <Text>
             {status === "pending" ? "Nenhum vendedor pendente 🎉" : "Nenhum vendedor encontrado"}
