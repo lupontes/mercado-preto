@@ -70,7 +70,7 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
     periodEnd: Date,
     payoutId: string
   ): Promise<void> {
-    const pending = await this.listCommissions({ sellerId, status: "pending" })
+    const pending = await this.listCommissions({ sellerId, status: "pending", payoutId: null })
     const inPeriod = pending.filter((c: any) => {
       const created = new Date(c.created_at)
       return created >= periodStart && created <= periodEnd

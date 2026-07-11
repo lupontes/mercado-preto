@@ -20,7 +20,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     order: { created_at: "DESC" },
   })
 
-  const count = await commissionService.listCommissions(filters).then((all) => all.length)
+  const allMatching = await commissionService.listCommissions(filters)
+  const count = allMatching.length
 
   const sellerIds = [...new Set(commissions.map((c: any) => c.sellerId))]
   const sellers = sellerIds.length > 0 ? await sellerService.listSellers({ id: sellerIds }) : []
@@ -31,8 +32,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     sellerName: sellerNameById.get(c.sellerId) ?? "Vendedor removido",
   }))
 
-  const totals = commissions.reduce(
-    (acc, c) => ({
+  const totals = allMatching.reduce(
+    (acc, c: any) => ({
       grossAmount: acc.grossAmount + Number(c.grossAmount),
       commissionAmount: acc.commissionAmount + Number(c.commissionAmount),
       sellerPayout: acc.sellerPayout + Number(c.sellerPayout),

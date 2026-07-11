@@ -23,6 +23,10 @@ function formatBRL(cents: number) {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+function formatDate(isoDate: string) {
+  return new Date(isoDate).toLocaleDateString("pt-BR")
+}
+
 function TotalCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex-1 rounded-lg border border-ui-border-base p-4">
@@ -129,6 +133,7 @@ function CommissionsPage() {
                 <Table.HeaderCell>Comissão</Table.HeaderCell>
                 <Table.HeaderCell>Repasse</Table.HeaderCell>
                 <Table.HeaderCell>Status</Table.HeaderCell>
+                <Table.HeaderCell>Data</Table.HeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -144,6 +149,7 @@ function CommissionsPage() {
                       {STATUS_LABELS[commission.status]}
                     </StatusBadge>
                   </Table.Cell>
+                  <Table.Cell>{formatDate(commission.created_at)}</Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>

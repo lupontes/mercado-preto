@@ -123,6 +123,9 @@ describe("CommissionsPage", () => {
     expect(await screen.findByText("order_1")).toBeInTheDocument()
     expect(screen.getByText("Mulheres de Axé do Brasil")).toBeInTheDocument()
     expect(screen.getByText("Pendente")).toBeInTheDocument()
+    expect(
+      screen.getByText(new Date("2026-07-01T00:00:00.000Z").toLocaleDateString("pt-BR"))
+    ).toBeInTheDocument()
   })
 
   it("refetches with the selected status when the status filter changes", async () => {

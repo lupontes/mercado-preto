@@ -41,11 +41,29 @@ describe("CommissionModuleService.linkPendingToPayout", () => {
       "payout_1"
     )
 
-    expect(svc.listCommissions).toHaveBeenCalledWith({ sellerId: "seller_1", status: "pending" })
+    expect(svc.listCommissions).toHaveBeenCalledWith({ sellerId: "seller_1", status: "pending", payoutId: null })
     expect(svc.updateCommissions).toHaveBeenCalledTimes(1)
     expect(svc.updateCommissions).toHaveBeenCalledWith({
       selector: { id: "comm_1" },
       data: { payoutId: "payout_1" },
+    })
+  })
+
+  it("only fetches commissions not already linked to a payout, to avoid reassigning them", async () => {
+    const svc = makeService()
+    svc.listCommissions.mockResolvedValue([])
+
+    await svc.linkPendingToPayout(
+      "seller_1",
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-10T23:59:59.999Z"),
+      "payout_2"
+    )
+
+    expect(svc.listCommissions).toHaveBeenCalledWith({
+      sellerId: "seller_1",
+      status: "pending",
+      payoutId: null,
     })
   })
 

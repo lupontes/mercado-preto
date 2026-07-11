@@ -85,4 +85,29 @@ describe("GET /admin/commissions", () => {
 
     expect(res._body.count).toBe(3)
   })
+
+  it("sums totals over the full filtered set, not just the current page", async () => {
+    const commission2 = { ...baseCommission, id: "comm_2", grossAmount: 5000, commissionAmount: 750, sellerPayout: 4250 }
+    const commission3 = { ...baseCommission, id: "comm_3", grossAmount: 2000, commissionAmount: 300, sellerPayout: 1700 }
+    const listCommissions = jest.fn()
+      .mockResolvedValueOnce([baseCommission])
+      .mockResolvedValueOnce([baseCommission, commission2, commission3])
+    const listSellers = jest.fn().mockResolvedValue([{ id: "seller_1", name: "Loja Teste" }])
+    const req = {
+      query: { limit: "1" },
+      scope: makeScope({
+        commission: { listCommissions },
+        seller: { listSellers },
+      }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(res._body.totals).toEqual({
+      grossAmount: 10000 + 5000 + 2000,
+      commissionAmount: 1500 + 750 + 300,
+      sellerPayout: 8500 + 4250 + 1700,
+    })
+  })
 })
