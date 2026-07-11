@@ -63,6 +63,35 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
     })
     return commission
   }
+
+  async linkPendingToPayout(
+    sellerId: string,
+    periodStart: Date,
+    periodEnd: Date,
+    payoutId: string
+  ): Promise<void> {
+    const pending = await this.listCommissions({ sellerId, status: "pending" })
+    const inPeriod = pending.filter((c: any) => {
+      const created = new Date(c.created_at)
+      return created >= periodStart && created <= periodEnd
+    })
+    for (const commission of inPeriod) {
+      await this.updateCommissions({
+        selector: { id: commission.id },
+        data: { payoutId },
+      })
+    }
+  }
+
+  async markPaidByPayout(payoutId: string): Promise<void> {
+    const linked = await this.listCommissions({ payoutId })
+    for (const commission of linked) {
+      await this.updateCommissions({
+        selector: { id: commission.id },
+        data: { status: "paid" as const, paidAt: new Date() },
+      })
+    }
+  }
 }
 
 export default CommissionModuleService
