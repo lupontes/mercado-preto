@@ -80,7 +80,12 @@ describe("ProductCard", () => {
   it("renders the formatted BRL price when available", () => {
     render(<ProductCard product={baseProduct} />)
 
-    expect(screen.getByText(formatPrice(4990))).toBeInTheDocument()
+    // formatPrice() returns a non-breaking space (U+00A0) between "R$" and
+    // the amount; the default text normalizer collapses it differently on
+    // each side of the comparison, so disable normalization here.
+    expect(
+      screen.getByText(formatPrice(4990), { normalizer: (text) => text })
+    ).toBeInTheDocument()
   })
 
   it("renders a fallback message when there is no BRL price", () => {
