@@ -64,3 +64,39 @@ Para checar o status da renovação:
 ```bash
 docker compose -f docker-compose.prod.yml logs certbot
 ```
+
+## Painel administrativo (Medusa Admin)
+
+O painel fica em **`https://<domínio>/app`** (não `/api/app`). O admin SPA
+é construído com base path fixo `/app/` e faz suas próprias chamadas de API
+(`/auth/*`, `/admin/*`) sem prefixo — por isso `nginx.conf` precisa de
+`location /app/`, `location /auth/` e `location /admin/` dedicados, além do
+`location /api/` usado pelo storefront. Sem essas três rotas, o painel abre
+em branco ou o login não faz nada (a requisição de login cai no catch-all
+do storefront e retorna 404 silenciosamente).
+
+Criar o usuário admin (uma vez, depois do stack subir):
+
+```bash
+docker compose -f docker-compose.prod.yml exec medusa npx medusa user -e <email> -p <senha>
+```
+
+## Aplicando mudanças no `nginx.conf` depois do deploy inicial
+
+`nginx.conf` é montado como *bind mount de arquivo único*
+(`./nginx/nginx.conf:/etc/nginx/nginx.conf:ro`). Um `git pull` no servidor
+substitui o arquivo via rename, não edição in-place — o container mantém o
+mount preso ao inode antigo, e `nginx -s reload` **não** resolve isso (o
+teste de sintaxe passa, mas o processo continua servindo a config velha).
+
+```bash
+# Depois de git pull trazer um nginx.conf novo:
+docker compose -f docker-compose.prod.yml exec nginx nginx -t   # valida sintaxe
+docker compose -f docker-compose.prod.yml up -d --force-recreate nginx   # recria o container, não só recarrega
+```
+
+Confirmar que pegou a config nova:
+
+```bash
+docker exec mercado-preto-nginx cat /etc/nginx/nginx.conf | grep "location /app"
+```
