@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { PAYOUT_MODULE } from "../../../modules/payout"
+import { COMMISSION_MODULE } from "../../../modules/commission"
 import PayoutModuleService from "../../../modules/payout/service"
+import CommissionModuleService from "../../../modules/commission/service"
 
 const CreatePayoutSchema = z.object({
   sellerId: z.string(),
@@ -31,17 +33,23 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const payoutService: PayoutModuleService = req.scope.resolve(PAYOUT_MODULE)
+  const commissionService: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
 
   const parsed = CreatePayoutSchema.safeParse(req.body)
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
+  const periodStart = new Date(parsed.data.periodStart)
+  const periodEnd = new Date(parsed.data.periodEnd)
+
   const payout = await payoutService.createPayouts({
     ...parsed.data,
-    periodStart: new Date(parsed.data.periodStart),
-    periodEnd: new Date(parsed.data.periodEnd),
+    periodStart,
+    periodEnd,
   })
+
+  await commissionService.linkPendingToPayout(parsed.data.sellerId, periodStart, periodEnd, payout.id)
 
   res.status(201).json({ payout })
 }
