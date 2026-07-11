@@ -59,7 +59,11 @@ services:
     container_name: mercado-preto-api
     environment:
       # --- Infra (geradas pelo compose) ---
-      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      # sslmode=disable: Medusa defaults to requiring SSL for any non-localhost
+      # DATABASE_URL host under NODE_ENV=production, but this Postgres
+      # container doesn't have SSL configured — without this, the client
+      # loops forever renegotiating SSL against a server that replies "N".
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
