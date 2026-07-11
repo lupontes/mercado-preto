@@ -8,7 +8,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const orderService: IOrderModuleService = req.scope.resolve(Modules.ORDER)
   const orders = await orderService.listOrders(
-    { metadata: { seller_id: sellerId } },
+    { metadata: { seller_id: sellerId } } as any,
     {
       take: Number(limit),
       skip: Number(offset),

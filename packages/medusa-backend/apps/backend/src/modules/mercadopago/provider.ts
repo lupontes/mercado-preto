@@ -1,13 +1,26 @@
-import {
-  AbstractPaymentProvider,
-  PaymentSessionStatus,
-  type PaymentProviderError,
-  type PaymentProviderSessionResponse,
-  type CreatePaymentProviderSession,
-  type UpdatePaymentProviderSession,
-  type ProviderWebhookPayload,
-  type WebhookActionResult,
-} from "@medusajs/framework/utils"
+import { AbstractPaymentProvider, PaymentSessionStatus } from "@medusajs/framework/utils"
+import type {
+  InitiatePaymentInput,
+  InitiatePaymentOutput,
+  AuthorizePaymentInput,
+  AuthorizePaymentOutput,
+  CapturePaymentInput,
+  CapturePaymentOutput,
+  CancelPaymentInput,
+  CancelPaymentOutput,
+  RefundPaymentInput,
+  RefundPaymentOutput,
+  RetrievePaymentInput,
+  RetrievePaymentOutput,
+  DeletePaymentInput,
+  DeletePaymentOutput,
+  GetPaymentStatusInput,
+  GetPaymentStatusOutput,
+  UpdatePaymentInput,
+  UpdatePaymentOutput,
+  ProviderWebhookPayload,
+  WebhookActionResult,
+} from "@medusajs/framework/types"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
 
 type MercadoPagoOptions = {
@@ -31,9 +44,7 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
     this.payment = new Payment(this.mp)
   }
 
-  async initiatePayment(
-    data: CreatePaymentProviderSession
-  ): Promise<PaymentProviderError | PaymentProviderSessionResponse> {
+  async initiatePayment(data: InitiatePaymentInput): Promise<InitiatePaymentOutput> {
     const { amount, currency_code, context } = data
 
     try {
@@ -41,11 +52,11 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
         body: {
           items: [
             {
-              id: context.idempotency_key as string,
+              id: (context as any)?.idempotency_key ?? "default",
               title: "Pedido Mercado Preto",
               quantity: 1,
               unit_price: Number(amount) / 100,
-              currency_id: currency_code.toUpperCase(),
+              currency_id: (currency_code ?? "BRL").toUpperCase(),
             },
           ],
           payment_methods: {
@@ -56,9 +67,9 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
             failure: `${process.env.STORE_CORS?.split(",")[0]}/checkout/erro`,
             pending: `${process.env.STORE_CORS?.split(",")[0]}/checkout/pendente`,
           },
-          ...(process.env.STORE_CORS?.split(",")[0]?.startsWith("https") ? { auto_return: "approved" as const } : {}),
-          // marketplace_fee aplicado quando aprovação de marketplace estiver ativa:
-          // marketplace_fee: Math.round(Number(amount) * 0.15),
+          ...(process.env.STORE_CORS?.split(",")[0]?.startsWith("https")
+            ? { auto_return: "approved" as const }
+            : {}),
         },
       })
 
@@ -75,112 +86,110 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
     }
   }
 
-  async authorizePayment(
-    data: Record<string, unknown>
-  ): Promise<PaymentProviderError | { data: Record<string, unknown>; status: PaymentSessionStatus }> {
-    const paymentId = data.payment_id as string
+  async authorizePayment(input: AuthorizePaymentInput): Promise<AuthorizePaymentOutput> {
+    const paymentId = input.data?.payment_id as string
 
     if (!paymentId) {
-      return { data, status: PaymentSessionStatus.PENDING }
+      return { data: (input.data as Record<string, unknown>) ?? {}, status: PaymentSessionStatus.PENDING }
     }
 
     try {
       const payment = await this.payment.get({ id: Number(paymentId) })
-
       const status = this.mapMPStatus(payment.status)
-      return { data: { ...data, payment }, status }
+      return { data: { ...(input.data as Record<string, unknown>), payment }, status }
     } catch (err: unknown) {
       return this.buildError("Erro ao autorizar pagamento MercadoPago", err as Error)
     }
   }
 
-  async capturePayment(
-    data: Record<string, unknown>
-  ): Promise<PaymentProviderError | Record<string, unknown>> {
-    // MercadoPago captura automaticamente — apenas retornamos os dados
-    return data
+  async capturePayment(input: CapturePaymentInput): Promise<CapturePaymentOutput> {
+    const paymentId = input.data?.payment_id as string
+    if (!paymentId) return { data: (input.data as Record<string, unknown>) ?? {} }
+
+    try {
+      const payment = await this.payment.get({ id: Number(paymentId) })
+      if (payment.status === "authorized") {
+        return { data: { ...(input.data as Record<string, unknown>), captured: true, capturedAt: new Date().toISOString() } }
+      }
+      return { data: (input.data as Record<string, unknown>) ?? {} }
+    } catch {
+      return { data: (input.data as Record<string, unknown>) ?? {} }
+    }
   }
 
-  async cancelPayment(
-    data: Record<string, unknown>
-  ): Promise<PaymentProviderError | Record<string, unknown>> {
-    const paymentId = data.payment_id as string
-
-    if (!paymentId) return data
+  async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
+    const paymentId = input.data?.payment_id as string
+    if (!paymentId) return { data: (input.data as Record<string, unknown>) ?? {} }
 
     try {
       await this.payment.cancel({ id: Number(paymentId) })
-      return { ...data, cancelled: true }
+      return { data: { ...(input.data as Record<string, unknown>), cancelled: true } }
     } catch (err: unknown) {
       return this.buildError("Erro ao cancelar pagamento MercadoPago", err as Error)
     }
   }
 
-  async refundPayment(
-    data: Record<string, unknown>,
-    refundAmount: number
-  ): Promise<PaymentProviderError | Record<string, unknown>> {
-    const paymentId = data.payment_id as string
+  async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
+    const paymentId = input.data?.payment_id as string
 
     try {
       const { PaymentRefund } = await import("mercadopago")
       const refund = new PaymentRefund(this.mp)
       await refund.create({
         payment_id: Number(paymentId),
-        body: { amount: refundAmount / 100 },
+        body: { amount: Number(input.amount ?? 0) / 100 },
       })
-      return { ...data, refunded: true, refundAmount }
+      return { data: { ...(input.data as Record<string, unknown>), refunded: true, refundAmount: input.amount } }
     } catch (err: unknown) {
       return this.buildError("Erro ao estornar pagamento MercadoPago", err as Error)
     }
   }
 
-  async retrievePayment(
-    data: Record<string, unknown>
-  ): Promise<PaymentProviderError | Record<string, unknown>> {
-    const paymentId = data.payment_id as string
-
-    if (!paymentId) return data
+  async retrievePayment(input: RetrievePaymentInput): Promise<RetrievePaymentOutput> {
+    const paymentId = input.data?.payment_id as string
+    if (!paymentId) return { data: (input.data as Record<string, unknown>) ?? {} }
 
     try {
       const payment = await this.payment.get({ id: Number(paymentId) })
-      return { ...data, payment }
+      return { data: { ...(input.data as Record<string, unknown>), payment } }
     } catch (err: unknown) {
       return this.buildError("Erro ao recuperar pagamento MercadoPago", err as Error)
     }
   }
 
-  async deletePayment(
-    data: Record<string, unknown>
-  ): Promise<PaymentProviderError | Record<string, unknown>> {
-    return data
+  async deletePayment(input: DeletePaymentInput): Promise<DeletePaymentOutput> {
+    return { data: (input.data as Record<string, unknown>) ?? {} }
   }
 
-  async getPaymentStatus(data: Record<string, unknown>): Promise<PaymentSessionStatus> {
-    const paymentId = data.payment_id as string
-
-    if (!paymentId) return PaymentSessionStatus.PENDING
+  async getPaymentStatus(input: GetPaymentStatusInput): Promise<GetPaymentStatusOutput> {
+    const paymentId = input.data?.payment_id as string
+    if (!paymentId) return { status: PaymentSessionStatus.PENDING }
 
     try {
       const payment = await this.payment.get({ id: Number(paymentId) })
-      return this.mapMPStatus(payment.status)
+      return { status: this.mapMPStatus(payment.status) }
     } catch {
-      return PaymentSessionStatus.ERROR
+      return { status: PaymentSessionStatus.ERROR }
     }
   }
 
-  async getWebhookActionAndData(
-    payload: ProviderWebhookPayload
-  ): Promise<WebhookActionResult> {
-    const { data } = payload.data as { data: { id: string }; type: string }
-    const type = (payload.data as { type: string }).type
+  async updatePayment(input: UpdatePaymentInput): Promise<UpdatePaymentOutput> {
+    return { data: (input.data as Record<string, unknown>) ?? {} }
+  }
 
-    if (type !== "payment") {
+  async getWebhookActionAndData(
+    payload: ProviderWebhookPayload["payload"]
+  ): Promise<WebhookActionResult> {
+    const webhookData = payload.data as Record<string, unknown>
+    const type = webhookData.type as string | undefined
+    const paymentId = (webhookData.data as Record<string, unknown> | undefined)?.id as string | undefined
+
+    if (!type?.startsWith("payment") || !paymentId) {
       return { action: "not_supported" }
     }
 
     try {
-      const payment = await this.payment.get({ id: Number(data.id) })
+      const payment = await this.payment.get({ id: Number(paymentId) })
       const status = this.mapMPStatus(payment.status)
 
       if (status === PaymentSessionStatus.AUTHORIZED) {
@@ -203,7 +212,13 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
         }
       }
 
-      return { action: "failed", data: { session_id: payment.external_reference as string } }
+      return {
+        action: "failed",
+        data: {
+          session_id: payment.external_reference as string,
+          amount: 0,
+        },
+      }
     } catch {
       return { action: "failed" }
     }
@@ -227,7 +242,7 @@ class MercadoPagoPaymentProvider extends AbstractPaymentProvider<MercadoPagoOpti
     }
   }
 
-  private buildError(message: string, err: Error): PaymentProviderError {
+  private buildError(message: string, err: Error): any {
     return {
       error: message,
       code: "MERCADOPAGO_ERROR",

@@ -23,3 +23,9 @@ Thumbs.db
 
 # Uploads locais
 uploads/
+
+# Credenciais locais — nunca commitar
+CREDENTIALS.md
+
+# Certbot runtime state (private keys, account data, ACME challenges)
+infra/nginx/certbot/

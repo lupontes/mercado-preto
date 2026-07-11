@@ -1,8 +1,9 @@
 import crypto from "crypto"
 import { defineMiddlewares } from "@medusajs/framework/http"
+import rateLimit from "express-rate-limit"
 
 function verifySellerToken(token: string) {
-  const secret = process.env.JWT_SECRET || "supersecret"
+  const secret = process.env.JWT_SECRET!
   const parts = token.split(".")
   if (parts.length !== 3) throw new Error("Invalid token format")
   const [header, body, sig] = parts
@@ -43,11 +44,42 @@ function sellerAuth(req: any, res: any, next: any) {
   }
 }
 
+const rateLimitKeyGenerator = (req: any) => {
+  const xff = req.headers["x-forwarded-for"] as string | undefined
+  return xff?.split(",")[0]?.trim() ?? req.ip ?? "unknown"
+}
+
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: { error: "Muitas tentativas. Tente novamente mais tarde." },
+  keyGenerator: rateLimitKeyGenerator,
+})
+
+const registerRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  message: { error: "Muitas tentativas. Tente novamente mais tarde." },
+  keyGenerator: rateLimitKeyGenerator,
+})
+
 export default defineMiddlewares({
   routes: [
     {
       matcher: "/seller",
       middlewares: [sellerCors, sellerAuth],
+    },
+    {
+      matcher: "/store/sellers/login",
+      middlewares: [loginRateLimit],
+    },
+    {
+      matcher: "/store/sellers/register",
+      middlewares: [registerRateLimit],
+    },
+    {
+      matcher: "/store/sellers/set-password",
+      middlewares: [loginRateLimit],
     },
   ],
 })

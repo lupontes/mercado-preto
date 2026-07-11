@@ -48,5 +48,5 @@ export async function productDeleted({ event }: SubscriberArgs<{ id: string }>) 
 export default productCreated
 
 export const config: SubscriberConfig = {
-  event: "product.created",
+  event: ["product.created", "product.updated", "product.deleted"],
 }

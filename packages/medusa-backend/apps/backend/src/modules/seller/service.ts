@@ -18,7 +18,7 @@ function verifyPassword(password: string, stored: string): boolean {
 class SellerModuleService extends MedusaService({ Seller }) {
   static hashPassword = hashPassword
   static verifyPassword = verifyPassword
-  async approveSeller(id: string): Promise<InstanceType<typeof Seller>> {
+  async approveSeller(id: string): Promise<any> {
     const [seller] = await this.updateSellers({
       selector: { id },
       data: { status: "approved" as const, rejectionReason: null },
@@ -26,7 +26,7 @@ class SellerModuleService extends MedusaService({ Seller }) {
     return seller
   }
 
-  async suspendSeller(id: string, reason?: string): Promise<InstanceType<typeof Seller>> {
+  async suspendSeller(id: string, reason?: string): Promise<any> {
     const [seller] = await this.updateSellers({
       selector: { id },
       data: { status: "suspended" as const, rejectionReason: reason ?? null },
@@ -34,7 +34,7 @@ class SellerModuleService extends MedusaService({ Seller }) {
     return seller
   }
 
-  async rejectSeller(id: string, reason: string): Promise<InstanceType<typeof Seller>> {
+  async rejectSeller(id: string, reason: string): Promise<any> {
     const [seller] = await this.updateSellers({
       selector: { id },
       data: { status: "pending" as const, rejectionReason: reason },
@@ -42,7 +42,7 @@ class SellerModuleService extends MedusaService({ Seller }) {
     return seller
   }
 
-  async activateSeller(id: string): Promise<InstanceType<typeof Seller>> {
+  async activateSeller(id: string): Promise<any> {
     const [seller] = await this.updateSellers({
       selector: { id },
       data: { status: "active" as const },

@@ -1,4 +1,5 @@
 const BASE_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
+const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 async function sellerFetch<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -16,15 +17,28 @@ async function sellerFetch<T>(path: string, token: string, init?: RequestInit): 
   return res.json()
 }
 
+// /store/sellers/* routes sit under Medusa's global /store middleware, which
+// requires this header even for the pre-auth login/set-password calls below.
 export async function sellerLogin(email: string, password: string) {
   const res = await fetch(`${BASE_URL}/store/sellers/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
     body: JSON.stringify({ email, password }),
   })
   const body = await res.json()
   if (!res.ok) throw new Error(body?.error ?? 'Erro ao fazer login')
   return body as { token: string; seller: { id: string; name: string; email: string; status: string } }
+}
+
+export async function setSellerPassword(email: string, password: string) {
+  const res = await fetch(`${BASE_URL}/store/sellers/set-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
+    body: JSON.stringify({ email, password }),
+  })
+  const body = await res.json()
+  if (!res.ok) throw new Error(body?.error ?? 'Erro ao configurar senha')
+  return body as { message: string }
 }
 
 export async function getMe(token: string) {
@@ -56,6 +70,10 @@ export async function getSellerProducts(token: string, params?: { limit?: number
     offset: String(params?.offset ?? 0),
   })
   return sellerFetch<{ products: unknown[]; count: number }>(`/seller/products?${qs}`, token)
+}
+
+export async function getSellerProduct(token: string, id: string) {
+  return sellerFetch<{ product: Record<string, unknown> }>(`/seller/products/${id}`, token)
 }
 
 export async function createSellerProduct(token: string, data: Record<string, unknown>) {

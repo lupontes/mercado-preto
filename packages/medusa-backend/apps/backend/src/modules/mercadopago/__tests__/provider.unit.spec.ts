@@ -101,7 +101,7 @@ describe("MercadoPagoPaymentProvider", () => {
     it("returns CAPTURED status for an approved payment", async () => {
       mockPaymentGet.mockResolvedValue({ status: "approved" })
 
-      const result = await provider.authorizePayment({ payment_id: "123" }) as any
+      const result = await provider.authorizePayment({ data: { payment_id: "123" } } as any) as any
 
       expect(result.status).toBe(PaymentSessionStatus.CAPTURED)
     })
@@ -109,13 +109,13 @@ describe("MercadoPagoPaymentProvider", () => {
     it("returns AUTHORIZED status for an authorized payment", async () => {
       mockPaymentGet.mockResolvedValue({ status: "authorized" })
 
-      const result = await provider.authorizePayment({ payment_id: "123" }) as any
+      const result = await provider.authorizePayment({ data: { payment_id: "123" } } as any) as any
 
       expect(result.status).toBe(PaymentSessionStatus.AUTHORIZED)
     })
 
     it("returns PENDING without calling the SDK when payment_id is absent", async () => {
-      const result = await provider.authorizePayment({ payment_id: "" }) as any
+      const result = await provider.authorizePayment({ data: { payment_id: "" } } as any) as any
 
       expect(result.status).toBe(PaymentSessionStatus.PENDING)
       expect(mockPaymentGet).not.toHaveBeenCalled()
@@ -124,7 +124,7 @@ describe("MercadoPagoPaymentProvider", () => {
     it("returns a payment provider error when the MP SDK throws", async () => {
       mockPaymentGet.mockRejectedValue(new Error("Payment not found"))
 
-      const result = await provider.authorizePayment({ payment_id: "123" }) as any
+      const result = await provider.authorizePayment({ data: { payment_id: "123" } } as any) as any
 
       expect(result.code).toBe("MERCADOPAGO_ERROR")
     })
@@ -133,9 +133,9 @@ describe("MercadoPagoPaymentProvider", () => {
   describe("capturePayment", () => {
     it("returns data unchanged because MP captures automatically", async () => {
       const data = { payment_id: "123", extra: "value" }
-      const result = await provider.capturePayment(data)
+      const result = await provider.capturePayment({ data } as any)
 
-      expect(result).toEqual(data)
+      expect(result).toEqual({ data })
     })
   })
 
@@ -143,24 +143,24 @@ describe("MercadoPagoPaymentProvider", () => {
     it("calls MP cancel and returns cancelled: true", async () => {
       mockPaymentCancel.mockResolvedValue({})
 
-      const result = await provider.cancelPayment({ payment_id: "456" }) as any
+      const result = await provider.cancelPayment({ data: { payment_id: "456" } } as any) as any
 
       expect(mockPaymentCancel).toHaveBeenCalledWith({ id: 456 })
-      expect(result.cancelled).toBe(true)
+      expect(result.data.cancelled).toBe(true)
     })
 
     it("returns data unchanged when payment_id is absent", async () => {
       const data = { payment_id: "" }
-      const result = await provider.cancelPayment(data)
+      const result = await provider.cancelPayment({ data } as any)
 
-      expect(result).toEqual(data)
+      expect(result).toEqual({ data })
       expect(mockPaymentCancel).not.toHaveBeenCalled()
     })
 
     it("returns a payment provider error when the MP SDK throws", async () => {
       mockPaymentCancel.mockRejectedValue(new Error("Already cancelled"))
 
-      const result = await provider.cancelPayment({ payment_id: "123" }) as any
+      const result = await provider.cancelPayment({ data: { payment_id: "123" } } as any) as any
 
       expect(result.code).toBe("MERCADOPAGO_ERROR")
     })
@@ -170,14 +170,14 @@ describe("MercadoPagoPaymentProvider", () => {
     it("creates a refund converting the amount from cents to reais", async () => {
       mockRefundCreate.mockResolvedValue({})
 
-      const result = await provider.refundPayment({ payment_id: "123" }, 5000) as any
+      const result = await provider.refundPayment({ data: { payment_id: "123" }, amount: 5000 } as any) as any
 
       expect(mockRefundCreate).toHaveBeenCalledWith({
         payment_id: 123,
         body: { amount: 50 },
       })
-      expect(result.refunded).toBe(true)
-      expect(result.refundAmount).toBe(5000)
+      expect(result.data.refunded).toBe(true)
+      expect(result.data.refundAmount).toBe(5000)
     })
   })
 
@@ -186,17 +186,17 @@ describe("MercadoPagoPaymentProvider", () => {
       const mpPayment = { id: 123, status: "approved" }
       mockPaymentGet.mockResolvedValue(mpPayment)
 
-      const result = await provider.retrievePayment({ payment_id: "123" }) as any
+      const result = await provider.retrievePayment({ data: { payment_id: "123" } } as any) as any
 
-      expect(result.payment).toEqual(mpPayment)
-      expect(result.payment_id).toBe("123")
+      expect(result.data.payment).toEqual(mpPayment)
+      expect(result.data.payment_id).toBe("123")
     })
 
     it("returns data unchanged when payment_id is absent", async () => {
       const data = { payment_id: "" }
-      const result = await provider.retrievePayment(data)
+      const result = await provider.retrievePayment({ data } as any)
 
-      expect(result).toEqual(data)
+      expect(result).toEqual({ data })
       expect(mockPaymentGet).not.toHaveBeenCalled()
     })
   })
@@ -204,9 +204,9 @@ describe("MercadoPagoPaymentProvider", () => {
   describe("deletePayment", () => {
     it("returns data unchanged (no-op)", async () => {
       const data = { payment_id: "123" }
-      const result = await provider.deletePayment(data)
+      const result = await provider.deletePayment({ data } as any)
 
-      expect(result).toEqual(data)
+      expect(result).toEqual({ data })
     })
   })
 
@@ -227,25 +227,25 @@ describe("MercadoPagoPaymentProvider", () => {
       async (mpStatus, expected) => {
         mockPaymentGet.mockResolvedValue({ status: mpStatus })
 
-        const status = await provider.getPaymentStatus({ payment_id: "123" })
+        const result = await provider.getPaymentStatus({ data: { payment_id: "123" } } as any)
 
-        expect(status).toBe(expected)
+        expect(result.status).toBe(expected)
       }
     )
 
     it("returns PENDING when no payment_id is provided", async () => {
-      const status = await provider.getPaymentStatus({ payment_id: "" })
+      const result = await provider.getPaymentStatus({ data: { payment_id: "" } } as any)
 
-      expect(status).toBe(PaymentSessionStatus.PENDING)
+      expect(result.status).toBe(PaymentSessionStatus.PENDING)
       expect(mockPaymentGet).not.toHaveBeenCalled()
     })
 
     it("returns ERROR when the SDK throws", async () => {
       mockPaymentGet.mockRejectedValue(new Error("Network error"))
 
-      const status = await provider.getPaymentStatus({ payment_id: "123" })
+      const result = await provider.getPaymentStatus({ data: { payment_id: "123" } } as any)
 
-      expect(status).toBe(PaymentSessionStatus.ERROR)
+      expect(result.status).toBe(PaymentSessionStatus.ERROR)
     })
   })
 

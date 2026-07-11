@@ -31,9 +31,8 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
     }
   }
 
-  calculate(input: CalculateInput) {
-    const rate = input.commissionRate
-      ?? Number(process.env.MARKETPLACE_COMMISSION_RATE ?? 15)
+  async calculate(input: CalculateInput) {
+    const rate = input.commissionRate ?? await this.getCommissionRate()
 
     const netAmount = input.grossAmount - input.bankingFees
     const commissionAmount = Math.round(netAmount * (rate / 100))
@@ -52,8 +51,8 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
   }
 
   async recordAndCreate(input: CalculateInput) {
-    const calculated = this.calculate(input)
-    const [commission] = await this.createCommissions(calculated)
+    const calculated = await this.calculate(input)
+    const commission = await this.createCommissions(calculated as any)
     return commission
   }
 

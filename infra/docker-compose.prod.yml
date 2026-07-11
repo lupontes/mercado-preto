@@ -77,6 +77,9 @@ services:
       # --- MercadoPago ---
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
 
+      # --- URL pública do backend (webhooks MercadoPago + file module) ---
+      BACKEND_URL: ${BACKEND_URL}
+
       # --- Focus NFe (fiscal) ---
       FOCUS_NFE_TOKEN: ${FOCUS_NFE_TOKEN}
       FOCUS_NFE_SANDBOX: ${FOCUS_NFE_SANDBOX:-false}
@@ -115,6 +118,8 @@ services:
 
     ports:
       - "9000:9000"
+    volumes:
+      - backend_uploads:/app/static
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,12 +137,23 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/certbot/conf:/etc/nginx/ssl:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
     depends_on:
       - medusa
     restart: unless-stopped
+    command: sh -c 'while :; do sleep 6h; nginx -s reload; done & exec nginx -g "daemon off;"'
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: mercado-preto-certbot
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    entrypoint: sh -c 'trap exit TERM; while :; do sleep 12h; certbot renew --webroot -w /var/www/certbot --quiet; done'
 
 volumes:
   postgres_data:
   redis_data:
   meilisearch_data:
+  backend_uploads:

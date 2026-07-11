@@ -1,0 +1,188 @@
+# =============================================================================
+# Mercado Preto — Ambiente de Testes Oracle Cloud (Ambiente B)
+# Servidor: 168.138.148.67 | Portas NSG: 9000, 3000, 8080, 7700
+#
+# Uso:
+#   Subir:    docker compose -f docker-compose.oci.yml --env-file .env.oci up -d
+#   Logs:     docker compose -f docker-compose.oci.yml logs -f
+#   Parar:    docker compose -f docker-compose.oci.yml down
+#   Rebuild:  docker compose -f docker-compose.oci.yml build --no-cache medusa
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — banco principal (interno, sem porta externa)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: mercado-preto-db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis — cache e filas (interno, sem porta externa)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: mercado-preto-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Meilisearch — busca full-text (porta 7700 exposta — NSG aberta)
+  # Diferença do docker-compose.yml local: 7700:7700 em vez de 7701:7700
+  # ---------------------------------------------------------------------------
+  meilisearch:
+    image: getmeili/meilisearch:v1.13
+    container_name: mercado-preto-search
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: development
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch_data:/meili_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Evolution API — gateway WhatsApp (porta 8080 — NSG aberta)
+  # SERVER_URL aponta para o IP público do servidor OCI
+  # ---------------------------------------------------------------------------
+  evolution-api:
+    image: evoapicloud/evolution-api:2.4.0-rc2
+    container_name: mercado-preto-evolution
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://${SERVER_IP}:8080
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      CACHE_REDIS_URI: redis://redis:6379
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_TTL: "604800"
+      QRCODE_LIMIT: "30"
+      QRCODE_COLOR: "#00a884"
+      CONFIG_SESSION_PHONE_VERSION: "2.3000.1035194821"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - evolution_data:/evolution/instances
+
+  # ---------------------------------------------------------------------------
+  # Medusa backend — motor do marketplace (porta 9000 — NSG aberta)
+  # Build: docker build -t mercado-preto-api packages/medusa-backend
+  # ---------------------------------------------------------------------------
+  medusa:
+    build:
+      context: ../packages/medusa-backend
+      dockerfile: Dockerfile
+    image: mercado-preto-api:oci
+    container_name: mercado-preto-api
+    ports:
+      - "9000:9000"
+    environment:
+      # Infra (resolvida dentro da rede Docker)
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
+      NODE_ENV: development
+
+      # Segurança
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+
+      # CORS — apontar para o IP público do servidor OCI
+      STORE_CORS: http://${SERVER_IP}:3000
+      ADMIN_CORS: http://${SERVER_IP}:9000
+      AUTH_CORS: http://${SERVER_IP}:3000,http://${SERVER_IP}:9000
+
+      # MercadoPago
+      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
+      MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET}
+
+      # URL pública do backend (MercadoPago callbacks)
+      # Em testes: IP público. Em produção: domínio HTTPS.
+      BACKEND_URL: http://${SERVER_IP}:9000
+
+      # Melhor Envio
+      MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
+      MELHOR_ENVIO_ORIGIN_CEP: ${MELHOR_ENVIO_ORIGIN_CEP:-44300000}
+
+      # Brevo (e-mail)
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@mercadopreto.com.br}
+
+      # Evolution API (referenciado pelo nome do container na rede interna)
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
+
+      # Focus NFe (fiscal)
+      FOCUS_NFE_TOKEN: ${FOCUS_NFE_TOKEN}
+      FOCUS_NFE_SANDBOX: ${FOCUS_NFE_SANDBOX:-true}
+      FOCUS_NFE_CNPJ: ${FOCUS_NFE_CNPJ}
+      FOCUS_NFE_IE: ${FOCUS_NFE_IE}
+      FOCUS_NFE_ADDRESS_STREET: ${FOCUS_NFE_ADDRESS_STREET}
+      FOCUS_NFE_ADDRESS_NUMBER: ${FOCUS_NFE_ADDRESS_NUMBER}
+      FOCUS_NFE_ADDRESS_DISTRICT: ${FOCUS_NFE_ADDRESS_DISTRICT}
+      FOCUS_NFE_ADDRESS_CITY: ${FOCUS_NFE_ADDRESS_CITY:-Cachoeira}
+      FOCUS_NFE_ADDRESS_STATE: ${FOCUS_NFE_ADDRESS_STATE:-BA}
+      FOCUS_NFE_ADDRESS_ZIP: ${FOCUS_NFE_ADDRESS_ZIP:-44300000}
+
+      # Comissão padrão
+      MARKETPLACE_COMMISSION_RATE: ${MARKETPLACE_COMMISSION_RATE:-15}
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  meilisearch_data:
+  evolution_data:

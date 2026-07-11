@@ -1,30 +1,10 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import NfDocument from "./models/nf-document"
+import { buildNfePayload, getEmitterConfig } from "./helpers"
+
+export type { EmitNfeInput } from "./helpers"
 
 const FOCUS_NFE_BASE = "https://api.focusnfe.com.br/v2"
-
-export interface EmitNfeInput {
-  orderId: string
-  sellerId: string
-  amountCents: number
-  buyerName: string
-  buyerDocument: string
-  buyerEmail: string
-  buyerAddress: {
-    street: string
-    number: string
-    district: string
-    city: string
-    state: string
-    zipCode: string
-  }
-  items: Array<{
-    description: string
-    quantity: number
-    unitPrice: number
-    ncm?: string
-  }>
-}
 
 class FiscalModuleService extends MedusaService({ NfDocument }) {
   private getAuth(): string {
@@ -33,7 +13,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
   }
 
   private isSandbox(): boolean {
-    return process.env.FOCUS_NFE_SANDBOX !== "false"
+    return process.env.FOCUS_NFE_SANDBOX === "true"
   }
 
   private baseUrl(): string {
@@ -42,7 +22,87 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
       : FOCUS_NFE_BASE
   }
 
-  async emitNfe(input: EmitNfeInput): Promise<InstanceType<typeof NfDocument>> {
+  /**
+   * Calls the Focus NFe API and updates the document record with the result.
+   * Shared by emitNfe (new document) and retryNfe (existing document).
+   */
+  private async sendToFocus(
+    docId: string,
+    ref: string,
+    input: import("./helpers").EmitNfeInput
+  ): Promise<any> {
+    if (!process.env.FOCUS_NFE_TOKEN) {
+      return await this.updateNfDocuments({
+        id: docId,
+        status: "error",
+        errorMessage: "FOCUS_NFE_TOKEN não configurado",
+      } as any) as any
+    }
+
+    let payload: Record<string, unknown>
+    try {
+      payload = buildNfePayload(ref, input, getEmitterConfig())
+    } catch (err: any) {
+      return await this.updateNfDocuments({
+        id: docId,
+        status: "error",
+        errorMessage: err?.message,
+      } as any) as any
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl()}/nfe?ref=${ref}`, {
+        method: "POST",
+        headers: {
+          Authorization: this.getAuth(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const rawText = await response.text()
+      let data: any
+      try {
+        data = JSON.parse(rawText)
+      } catch {
+        data = { raw: rawText }
+      }
+
+      if (response.status === 201 || response.status === 200) {
+        return await this.updateNfDocuments({
+          id: docId,
+          status: "issued",
+          focusNfeId: data.id || data.ref,
+          xmlUrl: data.caminho_xml_nota_fiscal,
+          pdfUrl: data.caminho_danfe,
+          series: data.serie,
+          number: data.numero,
+          issuedAt: new Date(),
+          errorMessage: null,
+        } as any) as any
+      }
+
+      return await this.updateNfDocuments({
+        id: docId,
+        status: "error",
+        errorMessage: JSON.stringify(data),
+      } as any) as any
+    } catch (err: any) {
+      return await this.updateNfDocuments({
+        id: docId,
+        status: "error",
+        errorMessage: err?.message,
+      } as any) as any
+    }
+  }
+
+  async emitNfe(
+    input: import("./helpers").EmitNfeInput
+  ): Promise<any> {
+    if (input.amountCents <= 0) {
+      throw new Error("Valor do pedido deve ser maior que zero")
+    }
+
     const ref = `order-${input.orderId}`
 
     const doc = await this.createNfDocuments({
@@ -54,120 +114,31 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
       amountCents: input.amountCents,
     } as any) as any
 
-    if (!process.env.FOCUS_NFE_TOKEN) {
-      return await this.updateNfDocuments(
-        { id: doc.id, status: "error", errorMessage: "FOCUS_NFE_TOKEN não configurado" } as any
-      ) as any
-    }
-
-    const payload = {
-      natureza_operacao: "Venda de mercadoria",
-      data_emissao: new Date().toISOString(),
-      tipo_documento: 1,
-      local_destino: 1,
-      consumidor_final: 1,
-      presenca_comprador: 2,
-      emitente: {
-        cnpj: process.env.FOCUS_NFE_CNPJ || "",
-        nome: "Mercado Preto — Mulheres de Axé do Brasil",
-        ie: process.env.FOCUS_NFE_IE || "",
-        endereco: {
-          logradouro: process.env.FOCUS_NFE_ADDRESS_STREET || "",
-          numero: process.env.FOCUS_NFE_ADDRESS_NUMBER || "S/N",
-          bairro: process.env.FOCUS_NFE_ADDRESS_DISTRICT || "",
-          municipio: process.env.FOCUS_NFE_ADDRESS_CITY || "Cachoeira",
-          uf: process.env.FOCUS_NFE_ADDRESS_STATE || "BA",
-          cep: process.env.FOCUS_NFE_ADDRESS_ZIP || "",
-        },
-      },
-      destinatario: {
-        nome: input.buyerName,
-        email: input.buyerEmail,
-        cpf: input.buyerDocument.replace(/\D/g, "").length === 11
-          ? input.buyerDocument.replace(/\D/g, "")
-          : undefined,
-        cnpj: input.buyerDocument.replace(/\D/g, "").length === 14
-          ? input.buyerDocument.replace(/\D/g, "")
-          : undefined,
-        endereco: {
-          logradouro: input.buyerAddress.street,
-          numero: input.buyerAddress.number,
-          bairro: input.buyerAddress.district,
-          municipio: input.buyerAddress.city,
-          uf: input.buyerAddress.state,
-          cep: input.buyerAddress.zipCode.replace(/\D/g, ""),
-        },
-      },
-      items: input.items.map((item, idx) => ({
-        numero_item: idx + 1,
-        codigo_produto: `PROD-${idx + 1}`,
-        descricao: item.description,
-        quantidade: item.quantity,
-        unidade: "UN",
-        valor_unitario: item.unitPrice / 100,
-        valor_total: (item.unitPrice * item.quantity) / 100,
-        ncm: item.ncm || "44190000",
-        cfop: "6102",
-        origem: 0,
-        icms_situacao_tributaria: "102",
-        pis_situacao_tributaria: "07",
-        cofins_situacao_tributaria: "07",
-      })),
-    }
-
-    try {
-      const response = await fetch(
-        `${this.baseUrl()}/nfe?ref=${ref}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: this.getAuth(),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      )
-
-      const rawText = await response.text()
-      let data: any
-      try { data = JSON.parse(rawText) } catch { data = rawText }
-
-      if (response.status === 201 || response.status === 200) {
-        return await this.updateNfDocuments({
-          id: doc.id,
-          status: "issued",
-          focusNfeId: data.id || data.ref,
-          xmlUrl: data.caminho_xml_nota_fiscal,
-          pdfUrl: data.caminho_danfe,
-          series: data.serie,
-          number: data.numero,
-          issuedAt: new Date(),
-        } as any) as any
-      }
-
-      return await this.updateNfDocuments({
-        id: doc.id,
-        status: "error",
-        errorMessage: JSON.stringify(data).slice(0, 500),
-      } as any) as any
-    } catch (err: any) {
-      return await this.updateNfDocuments({
-        id: doc.id,
-        status: "error",
-        errorMessage: err?.message,
-      } as any) as any
-    }
+    return this.sendToFocus(doc.id, ref, input)
   }
 
-  async retryNfe(id: string): Promise<InstanceType<typeof NfDocument>> {
-    const [doc] = await this.listNfDocuments({ id })
-    if (!doc) throw new Error("Documento não encontrado")
-    if (doc.status !== "error") throw new Error("Apenas documentos com erro podem ser reprocessados")
+  async retryNfe(
+    id: string,
+    input: import("./helpers").EmitNfeInput
+  ): Promise<any> {
+    if (input.amountCents <= 0) {
+      throw new Error("Valor do pedido deve ser maior que zero")
+    }
 
-    const reset = await this.updateNfDocuments(
-      { id, status: "processing", errorMessage: null } as any
-    )
-    return reset as any
+    const [doc] = await this.listNfDocuments({ id } as any)
+    if (!doc) throw new Error("Documento não encontrado")
+    if (doc.status !== "error") {
+      throw new Error("Apenas documentos com erro podem ser reprocessados")
+    }
+
+    await this.updateNfDocuments({
+      id,
+      status: "processing",
+      errorMessage: null,
+    } as any)
+
+    const ref = (doc as any).focusNfeRef || `order-${input.orderId}`
+    return this.sendToFocus(id, ref, input)
   }
 }
 

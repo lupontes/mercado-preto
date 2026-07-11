@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSellerStore } from '@/lib/seller-store'
-import { getSellerProducts, updateSellerProduct } from '@/lib/seller-api'
+import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
+import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 type ProductForm = {
@@ -13,6 +14,7 @@ type ProductForm = {
   status: 'draft' | 'published'
   thumbnail: string
   price: string
+  category_id: string
 }
 
 export default function EditarProdutoPage() {
@@ -26,6 +28,7 @@ export default function EditarProdutoPage() {
     status: 'draft',
     thumbnail: '',
     price: '',
+    category_id: '',
   })
   const [variantId, setVariantId] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
@@ -34,14 +37,9 @@ export default function EditarProdutoPage() {
 
   useEffect(() => {
     if (!token || !id) return
-    getSellerProducts(token)
+    getSellerProduct(token, id)
       .then((data) => {
-        const products = data.products as any[]
-        const product = products.find((p) => p.id === id)
-        if (!product) {
-          router.replace('/painel/produtos')
-          return
-        }
+        const product = data.product as any
         const price = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
         setVariantId(product.variants?.[0]?.id ?? null)
         setForm({
@@ -50,8 +48,10 @@ export default function EditarProdutoPage() {
           status: product.status ?? 'draft',
           thumbnail: product.thumbnail ?? '',
           price: price ? String(price.amount / 100).replace('.', ',') : '',
+          category_id: product.categories?.[0]?.id ?? '',
         })
       })
+      .catch(() => router.replace('/painel/produtos'))
       .finally(() => setLoadingData(false))
   }, [token, id, router])
 
@@ -74,6 +74,7 @@ export default function EditarProdutoPage() {
         description: form.description || undefined,
         status: form.status,
         thumbnail: form.thumbnail || undefined,
+        category_id: form.category_id || null,
         variants: variantId
           ? [{ id: variantId, prices: [{ amount: priceAmount, currency_code: 'brl' }] }]
           : undefined,
@@ -105,12 +106,13 @@ export default function EditarProdutoPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-sand-dark p-6 space-y-5">
-        <Field label="Título do produto" required>
-          <input value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
+        <Field label="Título do produto" htmlFor="title" required>
+          <input id="title" value={form.title} onChange={(e) => set('title', e.target.value)} className="input" required />
         </Field>
 
-        <Field label="Descrição">
+        <Field label="Descrição" htmlFor="description">
           <textarea
+            id="description"
             value={form.description}
             onChange={(e) => set('description', e.target.value)}
             className="input min-h-[100px] resize-y"
@@ -118,8 +120,9 @@ export default function EditarProdutoPage() {
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Preço (R$)" required>
+          <Field label="Preço (R$)" htmlFor="price" required>
             <input
+              id="price"
               type="text"
               inputMode="decimal"
               value={form.price}
@@ -129,16 +132,21 @@ export default function EditarProdutoPage() {
               required
             />
           </Field>
-          <Field label="Visibilidade">
-            <select value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
+          <Field label="Visibilidade" htmlFor="status">
+            <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
               <option value="draft">Rascunho</option>
               <option value="published">Publicado</option>
             </select>
           </Field>
         </div>
 
-        <Field label="URL da imagem principal">
+        <Field label="Categoria" htmlFor="category_id">
+          <CategorySelect id="category_id" value={form.category_id} onChange={(value) => set('category_id', value)} />
+        </Field>
+
+        <Field label="URL da imagem principal" htmlFor="thumbnail">
           <input
+            id="thumbnail"
             type="url"
             value={form.thumbnail}
             onChange={(e) => set('thumbnail', e.target.value)}
@@ -172,10 +180,10 @@ export default function EditarProdutoPage() {
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-onyx/60 mb-1">
+      <label htmlFor={htmlFor} className="block text-xs font-semibold text-onyx/60 mb-1">
         {label} {required && <span className="text-terracotta">*</span>}
       </label>
       {children}

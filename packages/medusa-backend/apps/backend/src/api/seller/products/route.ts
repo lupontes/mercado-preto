@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../modules/seller"
+import { categoryExists } from "./category-validation"
 
 const CreateProductSchema = z.object({
   title: z.string().min(2),
@@ -9,6 +11,7 @@ const CreateProductSchema = z.object({
   handle: z.string().optional(),
   thumbnail: z.string().url().optional(),
   status: z.enum(["draft", "published"]).default("draft"),
+  category_id: z.string().optional(),
   variants: z.array(z.object({
     title: z.string().default("Default"),
     sku: z.string().optional(),
@@ -35,6 +38,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       "products.status",
       "products.description",
       "products.created_at",
+      "products.categories.id",
+      "products.categories.name",
+      "products.variants.id",
+      "products.variants.prices.amount",
+      "products.variants.prices.currency_code",
     ],
     filters: { id: sellerId },
   })
@@ -55,22 +63,39 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const productService = req.scope.resolve(Modules.PRODUCT)
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK)
 
+  if (parsed.data.category_id && !(await categoryExists(productService, parsed.data.category_id))) {
+    return res.status(400).json({ error: "Categoria não encontrada" })
+  }
+
   let product: any
   try {
-    const [created] = await productService.createProducts([{
-      title: parsed.data.title,
-      description: parsed.data.description,
-      handle: parsed.data.handle,
-      thumbnail: parsed.data.thumbnail,
-      status: parsed.data.status as any,
-      variants: parsed.data.variants.map((v: any) => ({
-        title: v.title,
-        ...(v.sku ? { sku: v.sku } : {}),
-      })),
-    }])
+    // productService.createProducts() never touches the Pricing module, so
+    // variant prices would be silently dropped — the workflow orchestrates
+    // both the Product and Pricing modules together.
+    const { result: [created] } = await createProductsWorkflow(req.scope).run({
+      input: {
+        products: [{
+          title: parsed.data.title,
+          description: parsed.data.description,
+          handle: parsed.data.handle,
+          thumbnail: parsed.data.thumbnail,
+          status: parsed.data.status as any,
+          category_ids: parsed.data.category_id ? [parsed.data.category_id] : undefined,
+          // The seller panel only creates single-variant products (no option
+          // picker in the UI), so every variant gets the same fixed option.
+          options: [{ title: "Default", values: ["Default"] }],
+          variants: parsed.data.variants.map((v: any) => ({
+            title: v.title,
+            ...(v.sku ? { sku: v.sku } : {}),
+            prices: v.prices,
+            options: { Default: "Default" },
+          })),
+        }],
+      },
+    })
     product = created
   } catch (err: any) {
-    console.error("[seller/products POST] createProducts error:", err?.message)
+    console.error("[seller/products POST] createProductsWorkflow error:", err?.message)
     return res.status(500).json({ error: "Erro ao criar produto", details: err?.message })
   }
 

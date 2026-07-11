@@ -6,7 +6,13 @@ async function getClient() {
   const apiKey = process.env.MEILISEARCH_API_KEY
   if (!host) return null
 
-  const { MeiliSearch } = await import("meilisearch")
+  const MeiliSearchModule = await import("meilisearch")
+  // meilisearch >= 0.38 exports the class as `Meilisearch`; older versions
+  // used `MeiliSearch`. Accepting both avoids "not a constructor" on upgrade.
+  const MeiliSearch =
+    (MeiliSearchModule as any).Meilisearch ??
+    (MeiliSearchModule as any).MeiliSearch ??
+    (MeiliSearchModule as any).default
   return new MeiliSearch({ host, apiKey })
 }
 

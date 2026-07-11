@@ -12,6 +12,7 @@ type Product = {
   title: string
   status: string
   thumbnail?: string
+  categories?: Array<{ id: string; name: string }>
   variants?: Array<{
     prices?: Array<{ amount: number; currency_code: string }>
   }>
@@ -93,6 +94,7 @@ export default function ProdutosPage() {
             <thead className="bg-sand border-b border-sand-dark">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-onyx/60">Produto</th>
+                <th className="text-left px-4 py-3 font-semibold text-onyx/60 hidden sm:table-cell">Categoria</th>
                 <th className="text-left px-4 py-3 font-semibold text-onyx/60 hidden sm:table-cell">Preço</th>
                 <th className="text-left px-4 py-3 font-semibold text-onyx/60 hidden sm:table-cell">Status</th>
                 <th className="text-right px-4 py-3 font-semibold text-onyx/60">Ações</th>
@@ -105,6 +107,9 @@ export default function ProdutosPage() {
                   <tr key={product.id} className="hover:bg-sand/40 transition-colors">
                     <td className="px-4 py-3">
                       <p className="font-semibold text-onyx line-clamp-1">{product.title}</p>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell text-onyx/70">
+                      {product.categories?.[0]?.name ?? '—'}
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell text-onyx/70">
                       {price ? formatPrice(price.amount) : '—'}
