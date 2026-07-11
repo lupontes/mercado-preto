@@ -9,11 +9,12 @@ import SellerModuleService from "../../../modules/seller/service"
 
 const CreatePayoutSchema = z.object({
   sellerId: z.string(),
-  amount: z.number().int().positive(),
   periodStart: z.string().datetime(),
   periodEnd: z.string().datetime(),
   notes: z.string().optional(),
 })
+
+const MATURATION_WINDOW_DAYS = 5
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const payoutService: PayoutModuleService = req.scope.resolve(PAYOUT_MODULE)
@@ -58,10 +59,28 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const periodStart = new Date(parsed.data.periodStart)
   const periodEnd = new Date(parsed.data.periodEnd)
 
+  const maturationCutoff = new Date(Date.now() - MATURATION_WINDOW_DAYS * 24 * 60 * 60 * 1000)
+  if (periodEnd > maturationCutoff) {
+    return res.status(400).json({
+      error: `O período ainda não maturou. Aguarde ${MATURATION_WINDOW_DAYS} dias após o fim do período para criar o repasse.`,
+    })
+  }
+
+  const { amount } = await commissionService.sumUnlinkedPendingInPeriod(
+    parsed.data.sellerId,
+    periodStart,
+    periodEnd
+  )
+  if (amount <= 0) {
+    return res.status(400).json({ error: "Nenhuma comissão pendente neste período" })
+  }
+
   const payout = await payoutService.createPayouts({
-    ...parsed.data,
+    sellerId: parsed.data.sellerId,
+    amount,
     periodStart,
     periodEnd,
+    notes: parsed.data.notes,
   })
 
   await commissionService.linkPendingToPayout(parsed.data.sellerId, periodStart, periodEnd, payout.id)
