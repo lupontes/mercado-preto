@@ -101,3 +101,17 @@ Hooks novos em `src/admin/hooks/commissions.ts`: `useAdminCommissions(filters)`,
 - Qualquer ação de admin sobre uma comissão individual (a tela é só leitura).
 - Tela de Payouts em si (próximo subprojeto) — só as duas rotas de API do módulo Payout são tocadas, e só para adicionar a chamada de vínculo/marcação.
 - Retrofit de paginação em Vendedores — feito como ajuste separado após esta spec, reaproveitando o componente construído aqui.
+
+## Limitação conhecida: vínculo tardio (aceita por ora)
+
+O vínculo `Commission`↔`Payout` (`linkPendingToPayout`) só acontece em um momento: quando o admin cria um `Payout` (`POST /admin/payouts`), buscando as comissões `pending` já existentes naquele instante para o vendedor/período. É uma via única, não bidirecional.
+
+**Cenário de risco:** uma `Commission` é criada pelo subscriber `commission-on-payment.ts` (que escuta `order.payment_captured`) *depois* que o admin já fechou o `Payout` daquele período — por exemplo, um pagamento via boleto/PIX/análise antifraude que demora alguns dias para confirmar. Essa comissão nunca é vinculada a nenhum payout e fica `"pending"` permanentemente, reproduzindo em miniatura o mesmo problema que esta spec resolve para o caso comum.
+
+**Por que foi aceito por ora:** na prática, o admin tende a fechar payouts de períodos já encerrados há alguns dias, o que reduz bastante a chance de um pagamento ainda estar em trânsito. Resolver de verdade exige mudanças que pertencem ao subsistema de Payouts (ainda não iniciado), então o risco residual foi documentado aqui em vez de expandir o escopo desta spec.
+
+**Mitigações mapeadas para o ciclo de Payouts (brainstorm → spec → plano próprios, ainda não iniciado):**
+1. **Janela de maturação** (prática comum de mercado — ex: Stripe Connect usa `delay_days`): impedir a criação de um `Payout` para um período que ainda não "esfriou" um número mínimo de dias após seu término, dando tempo para pagamentos atrasados confirmarem antes do fechamento. Reduz bastante o risco, mas não o elimina por completo — mudança pequena, validação nova em `POST /admin/payouts`.
+2. **Vínculo bidirecional** (correção estrutural completa): ao criar uma `Commission`, verificar se já existe um `Payout` cobrindo aquele vendedor/período e vinculá-la automaticamente. Fecha a lacuna por completo, mas exige tocar o subscriber `commission-on-payment.ts` — mudança de escopo maior.
+
+Ambos os mecanismos devem ser documentados no manual do administrador quando ele for atualizado, para que quem opera o sistema entenda o comportamento de vínculo de comissões e payouts.
