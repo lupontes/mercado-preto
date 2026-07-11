@@ -95,6 +95,10 @@ describe("SellerDetailPage", () => {
     vi.mocked(sdk.client.fetch)
       .mockResolvedValueOnce({ seller: pendingSeller })
       .mockResolvedValueOnce({ seller: { ...pendingSeller, rejectionReason: "CNPJ inválido" } })
+      // useRejectSeller's onSuccess invalidates ["admin-seller", id], which triggers a
+      // background refetch beyond the two calls above — give it a value too, or
+      // TanStack Query logs a dev-mode "Query data cannot be undefined" console.error.
+      .mockResolvedValue({ seller: { ...pendingSeller, rejectionReason: "CNPJ inválido" } })
     const user = userEvent.setup()
 
     renderDetail()

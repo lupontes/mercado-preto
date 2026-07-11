@@ -761,18 +761,20 @@ const STATUS_COLORS: Record<Seller["status"], "orange" | "blue" | "green" | "red
   suspended: "red",
 }
 
+const ALL_STATUSES = "all"
+
 const STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "pending", label: "Pendentes" },
   { value: "approved", label: "Aprovados" },
   { value: "active", label: "Ativos" },
   { value: "suspended", label: "Suspensos" },
-  { value: "", label: "Todos" },
+  { value: ALL_STATUSES, label: "Todos" },
 ]
 
 function SellersPage() {
   const [status, setStatus] = useState("pending")
   const navigate = useNavigate()
-  const { data, isLoading } = useAdminSellers(status ? { status } : {})
+  const { data, isLoading } = useAdminSellers(status === ALL_STATUSES ? {} : { status })
 
   const sellers = data?.sellers ?? []
 
@@ -970,6 +972,10 @@ describe("SellerDetailPage", () => {
     vi.mocked(sdk.client.fetch)
       .mockResolvedValueOnce({ seller: pendingSeller })
       .mockResolvedValueOnce({ seller: { ...pendingSeller, rejectionReason: "CNPJ inválido" } })
+      // useRejectSeller's onSuccess invalidates ["admin-seller", id], which triggers a
+      // background refetch beyond the two calls above — give it a value too, or
+      // TanStack Query logs a dev-mode "Query data cannot be undefined" console.error.
+      .mockResolvedValue({ seller: { ...pendingSeller, rejectionReason: "CNPJ inválido" } })
     const user = userEvent.setup()
 
     renderDetail()
