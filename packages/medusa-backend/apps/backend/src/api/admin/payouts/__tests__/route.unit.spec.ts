@@ -1,4 +1,4 @@
-import { POST } from "../route"
+import { GET, POST } from "../route"
 
 function makeScope(overrides: Record<string, unknown>) {
   return {
@@ -15,6 +15,72 @@ function makeRes() {
   res.json = (body: unknown) => { res._body = body; return res }
   return res
 }
+
+describe("GET /admin/payouts", () => {
+  it("enriches each payout with the seller's name", async () => {
+    const payout = { id: "payout_1", sellerId: "seller_1", amount: 10000 }
+    const listPayouts = jest.fn()
+      .mockResolvedValueOnce([payout])
+      .mockResolvedValueOnce([payout])
+    const listSellers = jest.fn().mockResolvedValue([{ id: "seller_1", name: "Loja Teste" }])
+    const req = {
+      query: {},
+      scope: makeScope({
+        payout: { listPayouts },
+        seller: { listSellers },
+      }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(listSellers).toHaveBeenCalledWith({ id: ["seller_1"] })
+    expect(res._body.payouts[0].sellerName).toBe("Loja Teste")
+  })
+
+  it("falls back to a placeholder name when the seller no longer exists", async () => {
+    const payout = { id: "payout_1", sellerId: "seller_deleted", amount: 10000 }
+    const listPayouts = jest.fn()
+      .mockResolvedValueOnce([payout])
+      .mockResolvedValueOnce([payout])
+    const listSellers = jest.fn().mockResolvedValue([])
+    const req = {
+      query: {},
+      scope: makeScope({
+        payout: { listPayouts },
+        seller: { listSellers },
+      }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(res._body.payouts[0].sellerName).toBe("Vendedor removido")
+  })
+
+  it("returns the real total and count, not just the current page", async () => {
+    const p1 = { id: "payout_1", sellerId: "seller_1", amount: 10000 }
+    const p2 = { id: "payout_2", sellerId: "seller_1", amount: 5000 }
+    const p3 = { id: "payout_3", sellerId: "seller_1", amount: 5000 }
+    const listPayouts = jest.fn()
+      .mockResolvedValueOnce([p1])
+      .mockResolvedValueOnce([p1, p2, p3])
+    const listSellers = jest.fn().mockResolvedValue([{ id: "seller_1", name: "Loja Teste" }])
+    const req = {
+      query: { limit: "1" },
+      scope: makeScope({
+        payout: { listPayouts },
+        seller: { listSellers },
+      }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(res._body.count).toBe(3)
+    expect(res._body.total).toBe(20000)
+  })
+})
 
 describe("POST /admin/payouts", () => {
   it("creates the payout and links pending commissions in the period", async () => {

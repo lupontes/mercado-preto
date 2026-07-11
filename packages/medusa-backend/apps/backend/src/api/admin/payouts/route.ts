@@ -2,8 +2,10 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { PAYOUT_MODULE } from "../../../modules/payout"
 import { COMMISSION_MODULE } from "../../../modules/commission"
+import { SELLER_MODULE } from "../../../modules/seller"
 import PayoutModuleService from "../../../modules/payout/service"
 import CommissionModuleService from "../../../modules/commission/service"
+import SellerModuleService from "../../../modules/seller/service"
 
 const CreatePayoutSchema = z.object({
   sellerId: z.string(),
@@ -15,6 +17,7 @@ const CreatePayoutSchema = z.object({
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const payoutService: PayoutModuleService = req.scope.resolve(PAYOUT_MODULE)
+  const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
   const { seller_id, status, limit = 20, offset = 0 } = req.query as Record<string, string>
 
   const filters: Record<string, string> = {}
@@ -27,8 +30,20 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     order: { created_at: "DESC" },
   })
 
-  const total = payouts.reduce((acc, p) => acc + Number(p.amount), 0)
-  res.json({ payouts, total, count: payouts.length })
+  const allMatching = await payoutService.listPayouts(filters)
+  const count = allMatching.length
+  const total = allMatching.reduce((acc: number, p: any) => acc + Number(p.amount), 0)
+
+  const sellerIds = [...new Set(payouts.map((p: any) => p.sellerId))]
+  const sellers = sellerIds.length > 0 ? await sellerService.listSellers({ id: sellerIds }) : []
+  const sellerNameById = new Map(sellers.map((s: any) => [s.id, s.name]))
+
+  const enrichedPayouts = payouts.map((p: any) => ({
+    ...p,
+    sellerName: sellerNameById.get(p.sellerId) ?? "Vendedor removido",
+  }))
+
+  res.json({ payouts: enrichedPayouts, total, count, limit: Number(limit), offset: Number(offset) })
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
