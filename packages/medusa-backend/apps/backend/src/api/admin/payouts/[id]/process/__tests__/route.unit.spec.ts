@@ -74,4 +74,23 @@ describe("POST /admin/payouts/:id/process", () => {
     expect(res._status).toBe(409)
     expect(markPaidByPayout).not.toHaveBeenCalled()
   })
+
+  it("returns 409 and does not call markPaidByPayout when payout is cancelled", async () => {
+    const listPayouts = jest.fn().mockResolvedValue([{ id: "payout_1", status: "cancelled" }])
+    const markAsProcessed = jest.fn()
+    const markPaidByPayout = jest.fn()
+    const req = {
+      params: { id: "payout_1" },
+      scope: makeScope({
+        payout: { listPayouts, markAsProcessed },
+        commission: { markPaidByPayout },
+      }),
+    } as any
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(409)
+    expect(markPaidByPayout).not.toHaveBeenCalled()
+  })
 })

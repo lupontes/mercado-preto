@@ -9,6 +9,23 @@ class PayoutModuleService extends MedusaService({ Payout }) {
     })
     return payout
   }
+
+  async cancelPayout(id: string): Promise<any> {
+    const [payout] = await this.updatePayouts({
+      selector: { id },
+      data: { status: "cancelled" as const },
+    })
+    return payout
+  }
+
+  async incrementAmount(id: string, delta: number): Promise<any> {
+    const [current] = await this.listPayouts({ id })
+    const [payout] = await this.updatePayouts({
+      selector: { id },
+      data: { amount: Number(current.amount) + delta },
+    })
+    return payout
+  }
 }
 
 export default PayoutModuleService

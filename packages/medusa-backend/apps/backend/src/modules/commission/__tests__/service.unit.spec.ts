@@ -114,3 +114,82 @@ describe("CommissionModuleService.markPaidByPayout", () => {
     expect(svc.updateCommissions).not.toHaveBeenCalled()
   })
 })
+
+describe("CommissionModuleService.sumUnlinkedPendingInPeriod", () => {
+  it("sums sellerPayout for pending, unlinked commissions within the period", async () => {
+    const svc = makeService()
+    svc.listCommissions.mockResolvedValue([
+      { id: "comm_1", sellerId: "seller_1", sellerPayout: 800, created_at: "2026-07-05T00:00:00.000Z" },
+      { id: "comm_2", sellerId: "seller_1", sellerPayout: 200, created_at: "2026-07-20T00:00:00.000Z" },
+    ])
+
+    const result = await svc.sumUnlinkedPendingInPeriod(
+      "seller_1",
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-10T23:59:59.999Z")
+    )
+
+    expect(svc.listCommissions).toHaveBeenCalledWith({ sellerId: "seller_1", status: "pending", payoutId: null })
+    expect(result).toEqual({ amount: 800, commissionCount: 1 })
+  })
+
+  it("returns zero when there are no pending commissions in the period", async () => {
+    const svc = makeService()
+    svc.listCommissions.mockResolvedValue([])
+
+    const result = await svc.sumUnlinkedPendingInPeriod(
+      "seller_1",
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-10T00:00:00.000Z")
+    )
+
+    expect(result).toEqual({ amount: 0, commissionCount: 0 })
+  })
+})
+
+describe("CommissionModuleService.unlinkByPayout", () => {
+  it("clears payoutId on all commissions linked to the payout", async () => {
+    const svc = makeService()
+    svc.listCommissions.mockResolvedValue([
+      { id: "comm_1", payoutId: "payout_1" },
+      { id: "comm_2", payoutId: "payout_1" },
+    ])
+    svc.updateCommissions.mockResolvedValue([{}])
+
+    await svc.unlinkByPayout("payout_1")
+
+    expect(svc.listCommissions).toHaveBeenCalledWith({ payoutId: "payout_1" })
+    expect(svc.updateCommissions).toHaveBeenCalledTimes(2)
+    expect(svc.updateCommissions).toHaveBeenCalledWith({
+      selector: { id: "comm_1" },
+      data: { payoutId: null },
+    })
+    expect(svc.updateCommissions).toHaveBeenCalledWith({
+      selector: { id: "comm_2" },
+      data: { payoutId: null },
+    })
+  })
+
+  it("does nothing when no commissions are linked to the payout", async () => {
+    const svc = makeService()
+    svc.listCommissions.mockResolvedValue([])
+
+    await svc.unlinkByPayout("payout_empty")
+
+    expect(svc.updateCommissions).not.toHaveBeenCalled()
+  })
+})
+
+describe("CommissionModuleService.linkSingleCommissionToPayout", () => {
+  it("sets payoutId on the given commission", async () => {
+    const svc = makeService()
+    svc.updateCommissions.mockResolvedValue([{}])
+
+    await svc.linkSingleCommissionToPayout("comm_1", "payout_2")
+
+    expect(svc.updateCommissions).toHaveBeenCalledWith({
+      selector: { id: "comm_1" },
+      data: { payoutId: "payout_2" },
+    })
+  })
+})

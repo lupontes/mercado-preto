@@ -64,23 +64,41 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
     return commission
   }
 
+  private async findUnlinkedPendingInPeriod(
+    sellerId: string,
+    periodStart: Date,
+    periodEnd: Date
+  ) {
+    const pending = await this.listCommissions({ sellerId, status: "pending", payoutId: null })
+    return pending.filter((c: any) => {
+      const created = new Date(c.created_at)
+      return created >= periodStart && created <= periodEnd
+    })
+  }
+
   async linkPendingToPayout(
     sellerId: string,
     periodStart: Date,
     periodEnd: Date,
     payoutId: string
   ): Promise<void> {
-    const pending = await this.listCommissions({ sellerId, status: "pending", payoutId: null })
-    const inPeriod = pending.filter((c: any) => {
-      const created = new Date(c.created_at)
-      return created >= periodStart && created <= periodEnd
-    })
+    const inPeriod = await this.findUnlinkedPendingInPeriod(sellerId, periodStart, periodEnd)
     for (const commission of inPeriod) {
       await this.updateCommissions({
         selector: { id: commission.id },
         data: { payoutId },
       })
     }
+  }
+
+  async sumUnlinkedPendingInPeriod(
+    sellerId: string,
+    periodStart: Date,
+    periodEnd: Date
+  ): Promise<{ amount: number; commissionCount: number }> {
+    const inPeriod = await this.findUnlinkedPendingInPeriod(sellerId, periodStart, periodEnd)
+    const amount = inPeriod.reduce((acc: number, c: any) => acc + Number(c.sellerPayout), 0)
+    return { amount, commissionCount: inPeriod.length }
   }
 
   async markPaidByPayout(payoutId: string): Promise<void> {
@@ -91,6 +109,23 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
         data: { status: "paid" as const, paidAt: new Date() },
       })
     }
+  }
+
+  async unlinkByPayout(payoutId: string): Promise<void> {
+    const linked = await this.listCommissions({ payoutId })
+    for (const commission of linked) {
+      await this.updateCommissions({
+        selector: { id: commission.id },
+        data: { payoutId: null },
+      })
+    }
+  }
+
+  async linkSingleCommissionToPayout(commissionId: string, payoutId: string): Promise<void> {
+    await this.updateCommissions({
+      selector: { id: commissionId },
+      data: { payoutId },
+    })
   }
 }
 
