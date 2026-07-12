@@ -11,7 +11,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const [existing] = await payoutService.listPayouts({ id })
   if (!existing) return res.status(404).json({ error: "Repasse não encontrado" })
-  if (existing.status === "completed") {
+  if (existing.status !== "pending") {
     return res.status(409).json({ error: "Repasse já processado" })
   }
 
