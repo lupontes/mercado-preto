@@ -46,9 +46,9 @@ export default async function commissionOnPayment({
   // (ex: pagamento confirmado com atraso, depois que o payout do período já foi
   // criado), vincula agora em vez de deixar a comissão órfã até um payout futuro.
   const pendingPayouts = await payoutService.listPayouts({ sellerId, status: "pending" })
-  const created = new Date((commission as any).created_at)
+  const orderDate = new Date((order as any).created_at)
   const covering = pendingPayouts
-    .filter((p: any) => created >= new Date(p.periodStart) && created <= new Date(p.periodEnd))
+    .filter((p: any) => orderDate >= new Date(p.periodStart) && orderDate <= new Date(p.periodEnd))
     .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
   if (covering[0]) {

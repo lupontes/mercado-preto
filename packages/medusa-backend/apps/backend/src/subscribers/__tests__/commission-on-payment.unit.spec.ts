@@ -14,6 +14,7 @@ const baseOrder = {
   id: "order_1",
   total: 10000,
   metadata: { seller_id: "seller_1" },
+  created_at: "2026-07-05T00:00:00.000Z",
 }
 
 describe("commissionOnPayment", () => {
@@ -39,7 +40,6 @@ describe("commissionOnPayment", () => {
     const listCommissions = jest.fn().mockResolvedValue([])
     const createdCommission = {
       id: "comm_new",
-      created_at: "2026-07-05T00:00:00.000Z",
       sellerPayout: 700,
     }
     const recordAndCreate = jest.fn().mockResolvedValue(createdCommission)
@@ -66,10 +66,13 @@ describe("commissionOnPayment", () => {
     expect(incrementAmount).toHaveBeenCalledWith("payout_1", 700)
   })
 
-  it("does not link when no pending payout covers the commission's date", async () => {
-    const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
+  it("does not link when no pending payout covers the order's date", async () => {
+    const retrieveOrder = jest.fn().mockResolvedValue({
+      ...baseOrder,
+      created_at: "2026-07-15T00:00:00.000Z",
+    })
     const listCommissions = jest.fn().mockResolvedValue([])
-    const createdCommission = { id: "comm_new", created_at: "2026-07-15T00:00:00.000Z", sellerPayout: 700 }
+    const createdCommission = { id: "comm_new", sellerPayout: 700 }
     const recordAndCreate = jest.fn().mockResolvedValue(createdCommission)
     const linkSingleCommissionToPayout = jest.fn()
     const listPayouts = jest.fn().mockResolvedValue([
@@ -93,10 +96,10 @@ describe("commissionOnPayment", () => {
     expect(incrementAmount).not.toHaveBeenCalled()
   })
 
-  it("picks the earliest pending payout when more than one covers the commission's date", async () => {
+  it("picks the earliest pending payout when more than one covers the order's date", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const listCommissions = jest.fn().mockResolvedValue([])
-    const createdCommission = { id: "comm_new", created_at: "2026-07-05T00:00:00.000Z", sellerPayout: 700 }
+    const createdCommission = { id: "comm_new", sellerPayout: 700 }
     const recordAndCreate = jest.fn().mockResolvedValue(createdCommission)
     const linkSingleCommissionToPayout = jest.fn().mockResolvedValue(undefined)
     const listPayouts = jest.fn().mockResolvedValue([
@@ -128,7 +131,7 @@ describe("commissionOnPayment", () => {
   it("does not link when there is no pending payout for the seller", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const listCommissions = jest.fn().mockResolvedValue([])
-    const createdCommission = { id: "comm_new", created_at: "2026-07-05T00:00:00.000Z", sellerPayout: 700 }
+    const createdCommission = { id: "comm_new", sellerPayout: 700 }
     const recordAndCreate = jest.fn().mockResolvedValue(createdCommission)
     const linkSingleCommissionToPayout = jest.fn()
     const listPayouts = jest.fn().mockResolvedValue([])
