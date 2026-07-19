@@ -4,7 +4,7 @@ const makeReq = (query: Record<string, string>, env: Record<string, string> = {}
   Object.assign(process.env, {
     MELHOR_ENVIO_TOKEN: "",
     MELHOR_ENVIO_ORIGIN_CEP: "44300000",
-    NODE_ENV: "development",
+    MARKETPLACE_SANDBOX: "true",
     ...env,
   })
   return { query } as any
@@ -86,25 +86,25 @@ describe("GET /store/shipping/estimate", () => {
   describe("Melhor Envio API (with token)", () => {
     const withToken = { MELHOR_ENVIO_TOKEN: "test-jwt-token" }
 
-    it("calls sandbox URL in development", async () => {
+    it("calls sandbox URL when MARKETPLACE_SANDBOX is true (default)", async () => {
       ;(global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: jest.fn().mockResolvedValue([{ id: 1, name: "PAC", company: { name: "Correios" }, price: "12.50", delivery_time: 7 }]),
       })
 
-      await GET(makeReq({ cep: "01310100" }, { ...withToken, NODE_ENV: "development" }), makeRes())
+      await GET(makeReq({ cep: "01310100" }, withToken), makeRes())
 
       const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
       expect(calledUrl).toContain("sandbox.melhorenvio.com.br")
     })
 
-    it("calls production URL in production", async () => {
+    it("calls production URL when MARKETPLACE_SANDBOX=false", async () => {
       ;(global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: jest.fn().mockResolvedValue([]),
       })
 
-      await GET(makeReq({ cep: "01310100" }, { ...withToken, NODE_ENV: "production" }), makeRes())
+      await GET(makeReq({ cep: "01310100" }, { ...withToken, MARKETPLACE_SANDBOX: "false" }), makeRes())
 
       const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
       expect(calledUrl).toContain("melhorenvio.com.br")

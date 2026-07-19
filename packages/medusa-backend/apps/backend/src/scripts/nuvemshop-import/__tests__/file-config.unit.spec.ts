@@ -7,6 +7,7 @@ describe("medusa-config file module", () => {
     process.env.STORE_CORS = "x"
     process.env.ADMIN_CORS = "x"
     process.env.AUTH_CORS = "x"
+    process.env.CLEARSALE_WEBHOOK_SECRET = "x"
 
     jest.resetModules()
     // medusa-config.ts uses `module.exports = defineConfig(...)`, so requiring

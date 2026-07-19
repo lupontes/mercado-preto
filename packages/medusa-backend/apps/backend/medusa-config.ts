@@ -1,13 +1,9 @@
 import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { validateEnv } from './src/utils/validate-env'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
-const requiredEnvVars = ['JWT_SECRET', 'COOKIE_SECRET', 'DATABASE_URL'] as const
-for (const key of requiredEnvVars) {
-  if (!process.env[key]) {
-    throw new Error(`Missing required environment variable: ${key}. Set it in your .env file.`)
-  }
-}
+validateEnv()
 
 module.exports = defineConfig({
   projectConfig: {

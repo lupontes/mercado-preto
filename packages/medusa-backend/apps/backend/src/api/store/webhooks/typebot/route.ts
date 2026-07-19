@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
+import { sendWhatsApp } from "../../../../utils/whatsapp"
 
 const FAQ: Record<string, string> = {
   "horario": "🕐 Nosso atendimento é de segunda a sexta, das 9h às 18h (horário de Brasília).",
@@ -11,22 +12,6 @@ const FAQ: Record<string, string> = {
   "vendedor": "🛍️ Somos um marketplace de afroemprendedores do Brasil. Cada loja é gerenciada por artesãs e artesãos independentes.",
   "artesanato": "🎨 Todos os produtos são feitos à mão por comunidades afrobrasileiras, principalmente do Recôncavo Baiano.",
   "mab": "🌺 O Mercado Preto é uma iniciativa da MAB — Mulheres de Axé do Brasil, sediada em Cachoeira/BA.",
-}
-
-async function sendEvolutionMessage(phone: string, message: string): Promise<void> {
-  const apiUrl = process.env.EVOLUTION_API_URL
-  const apiKey = process.env.EVOLUTION_API_KEY
-  const instance = process.env.EVOLUTION_API_INSTANCE
-  if (!apiUrl || !apiKey || !instance) return
-
-  const digits = phone.replace(/\D/g, "")
-  const normalized = digits.startsWith("55") ? digits : `55${digits}`
-
-  await fetch(`${apiUrl}/message/sendText/${instance}`, {
-    method: "POST",
-    headers: { apikey: apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ number: normalized, text: message }),
-  }).catch(() => {})
 }
 
 function buildFaqResponse(text: string): string | null {
@@ -59,7 +44,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const faqReply = buildFaqResponse(text)
   if (faqReply) {
-    await sendEvolutionMessage(phone, faqReply)
+    await sendWhatsApp(phone, faqReply)
     return res.status(200).json({ ok: true, replied: true })
   }
 
@@ -75,7 +60,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         .map((s: any) => `• *${s.name}*${s.bio ? ` — ${s.bio.slice(0, 60)}` : ""}`)
         .join("\n")
 
-      await sendEvolutionMessage(
+      await sendWhatsApp(
         phone,
         `🛍️ Confira algumas de nossas lojas:\n\n${list}\n\nVeja todas em: ${storeUrl}/lojas`
       )
@@ -83,7 +68,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }
   }
 
-  await sendEvolutionMessage(
+  await sendWhatsApp(
     phone,
     `Olá! 🌺 Sou o assistente do *Mercado Preto*.\n\n` +
     `Posso te ajudar com:\n` +
