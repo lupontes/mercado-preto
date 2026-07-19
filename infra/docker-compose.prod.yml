@@ -69,6 +69,9 @@ services:
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
       NODE_ENV: production
 
+      # --- Modo sandbox (ver src/utils/sandbox.ts) ---
+      MARKETPLACE_SANDBOX: ${MARKETPLACE_SANDBOX:-true}
+
       # --- Segurança ---
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
@@ -103,12 +106,14 @@ services:
       # --- Brevo (e-mail) ---
       BREVO_API_KEY: ${BREVO_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mercadopreto.com.br}
+      TEST_EMAIL_RECIPIENT: ${TEST_EMAIL_RECIPIENT}
 
       # --- Evolution API (WhatsApp) ---
       EVOLUTION_API_URL: ${EVOLUTION_API_URL}
       EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
       EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE}
       EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
+      TEST_WHATSAPP_RECIPIENT: ${TEST_WHATSAPP_RECIPIENT}
 
       # --- ClearSale (antifraude) ---
       CLEARSALE_WEBHOOK_SECRET: ${CLEARSALE_WEBHOOK_SECRET}
