@@ -1294,6 +1294,6 @@ git commit -m "docs: document MARKETPLACE_SANDBOX and new test-recipient env var
 These steps need real credentials and access to the OCI server, so they cannot be executed as part of this plan:
 
 1. Merge this branch, deploy the rebuilt backend image to `teste.mercadopreto.com.br`.
-2. Update the server's `infra/.env`: `MARKETPLACE_SANDBOX=true`, `MERCADOPAGO_ACCESS_TOKEN` set to the sandbox token already on file in `CREDENTIALS.md` (`TEST-4687726525202189-...`), `FOCUS_NFE_SANDBOX=true`, `TEST_EMAIL_RECIPIENT` and `TEST_WHATSAPP_RECIPIENT` filled in.
+2. Update the server's `infra/.env`: `MARKETPLACE_SANDBOX=true`, `MERCADOPAGO_ACCESS_TOKEN` set to the sandbox token already on file in `CREDENTIALS.md` (`TEST-4687726525202189-...`), `FOCUS_NFE_SANDBOX=true`, `TEST_EMAIL_RECIPIENT` and `TEST_WHATSAPP_RECIPIENT` filled in, `CLEARSALE_WEBHOOK_SECRET` set (now boot-required by this branch, was optional before).
 3. Restart the backend container; confirm it boots (proves the sandbox validation passes with the real config).
 4. Update `docs/qa/2026-07-12-admin-payouts-manual-test.md`: Teste 5 (pagamento) stops being a "falha esperada" — payment should now actually succeed via the sandbox MercadoPago token; unblock Parte 4 (fluxo completo de repasse) since real commissions can now be generated; add a note at the top of the document that it must be kept in sync with environment changes going forward.

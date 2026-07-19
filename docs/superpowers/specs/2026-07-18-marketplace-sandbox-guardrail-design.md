@@ -100,7 +100,7 @@ Adicionadas a `infra/.env.template` (com comentário explicando o propósito) e 
 ## Rollout (fora do plano de implementação de código, mas parte da entrega)
 
 1. Código implementado e mesclado.
-2. `infra/.env` do servidor OCI atualizado manualmente: `MARKETPLACE_SANDBOX=true`, `MERCADOPAGO_ACCESS_TOKEN` trocado para o token `TEST-...` (já documentado em `CREDENTIALS.md`), `FOCUS_NFE_SANDBOX=true`, `TEST_EMAIL_RECIPIENT`/`TEST_WHATSAPP_RECIPIENT` preenchidos.
+2. `infra/.env` do servidor OCI atualizado manualmente: `MARKETPLACE_SANDBOX=true`, `MERCADOPAGO_ACCESS_TOKEN` trocado para o token `TEST-...` (já documentado em `CREDENTIALS.md`), `FOCUS_NFE_SANDBOX=true`, `TEST_EMAIL_RECIPIENT`/`TEST_WHATSAPP_RECIPIENT` preenchidos, `CLEARSALE_WEBHOOK_SECRET` preenchido (agora obrigatório ao boot, era opcional antes).
 3. Backend reiniciado no servidor; validação de startup confirma que subiu sem erro (prova que a configuração bate com o modo sandbox).
 4. `docs/qa/2026-07-12-admin-payouts-manual-test.md` atualizado: Teste 5 deixa de ser "falha esperada" (pagamento funciona de verdade em sandbox), Parte 4 é desbloqueada (comissões reais passam a existir), e uma nota é adicionada no topo do documento deixando explícito que ele deve ser mantido em sincronia com mudanças de ambiente.
 
