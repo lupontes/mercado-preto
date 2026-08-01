@@ -83,6 +83,7 @@ services:
 
       # --- MercadoPago ---
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
+      MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET}
 
       # --- URL pública do backend (webhooks MercadoPago + file module) ---
       BACKEND_URL: ${BACKEND_URL}
