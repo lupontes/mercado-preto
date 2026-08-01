@@ -18,15 +18,21 @@ import { POST } from "../route"
 
 const WEBHOOK_TEST_SECRET = "test-secret"
 
-function makeValidSignature(body: unknown, secret: string) {
+// Mirrors the official signature spec: dataId comes from the query string
+// (lowercased), and any part whose value is absent is omitted entirely.
+function makeValidSignature(dataId: string, secret: string, requestId: string | undefined = "test-request-id") {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const crypto = require("crypto") as typeof import("crypto")
-  const dataId = (body as any)?.data?.id ?? ""
   const ts = "1000000000"
-  const requestId = "test-request-id"
-  const message = `id:${dataId};request-id:${requestId};ts:${ts};`
+  const parts: string[] = []
+  if (dataId) parts.push(`id:${dataId.toLowerCase()}`)
+  if (requestId) parts.push(`request-id:${requestId}`)
+  parts.push(`ts:${ts}`)
+  const message = parts.join(";") + ";"
   const v1 = crypto.createHmac("sha256", secret).update(message).digest("hex")
-  return { "x-signature": `ts=${ts},v1=${v1}`, "x-request-id": requestId }
+  const headers: Record<string, string> = { "x-signature": `ts=${ts},v1=${v1}` }
+  if (requestId) headers["x-request-id"] = requestId
+  return headers
 }
 
 function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
@@ -46,9 +52,12 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
     error: jest.fn(),
   }
 
+  const dataId = (body as any)?.data?.id ?? ""
+
   return {
     body,
-    headers: secret ? makeValidSignature(body, secret) : {},
+    query: { "data.id": dataId },
+    headers: secret ? makeValidSignature(dataId, secret) : {},
     scope: {
       resolve: (key: string) => {
         if (key === "logger") return mockLogger
@@ -263,6 +272,36 @@ describe("POST /webhooks/mercadopago", () => {
   it("returns 401 when signature verification fails", async () => {
     const req = makeReq({ type: "payment", data: { id: "42" } }, "my-secret")
     req.headers = { "x-signature": "ts=123,v1=invalidsig", "x-request-id": "req-1" }
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(401)
+  })
+
+  it("validates signature when x-request-id is absent (manifest omits the segment, doesn't leave it empty)", async () => {
+    mockPaymentGet.mockResolvedValue({ ...approvedPayment, status: "pending" })
+
+    const body = { type: "payment", data: { id: "42" } }
+    const req = makeReq(body, "my-secret")
+    req.headers = makeValidSignature("42", "my-secret", undefined)
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(200)
+  })
+
+  it("rejects a signature computed with the old (buggy) always-include-request-id manifest", async () => {
+    // Regression guard: id:42;request-id:;ts:...; (old bug) must NOT validate
+    // against the correct manifest id:42;ts:...; (request-id omitted).
+    const crypto = require("crypto") as typeof import("crypto")
+    const ts = "1000000000"
+    const buggyMessage = `id:42;request-id:;ts:${ts};`
+    const v1 = crypto.createHmac("sha256", "my-secret").update(buggyMessage).digest("hex")
+
+    const req = makeReq({ type: "payment", data: { id: "42" } }, "my-secret")
+    req.headers = { "x-signature": `ts=${ts},v1=${v1}` }
     const res = makeRes()
 
     await POST(req, res)

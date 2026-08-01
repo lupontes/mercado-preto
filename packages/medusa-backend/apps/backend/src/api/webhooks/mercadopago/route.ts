@@ -9,6 +9,11 @@ type MPWebhookBody = {
   data?: { id?: string }
 }
 
+/**
+ * Signature spec (MercadoPago docs): dataId comes from the `data.id` query
+ * param (not the body), lowercased, and any part whose value is absent is
+ * omitted entirely from the manifest — not left as an empty segment.
+ */
 function verifySignature(req: MedusaRequest, secret: string): boolean {
   const xSignature = req.headers["x-signature"] as string | undefined
   const xRequestId = req.headers["x-request-id"] as string | undefined
@@ -26,8 +31,14 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
 
   if (!ts || !v1) return false
 
-  const dataId = (req.body as MPWebhookBody)?.data?.id ?? ""
-  const message = `id:${dataId};request-id:${xRequestId ?? ""};ts:${ts};`
+  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+
+  const manifestParts: string[] = []
+  if (dataId) manifestParts.push(`id:${dataId}`)
+  if (xRequestId) manifestParts.push(`request-id:${xRequestId}`)
+  manifestParts.push(`ts:${ts}`)
+  const message = manifestParts.join(";") + ";"
+
   const expected = crypto.createHmac("sha256", secret).update(message).digest("hex")
 
   try {
