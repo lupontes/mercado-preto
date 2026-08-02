@@ -13,20 +13,13 @@ type MPWebhookBody = {
  * Signature spec (MercadoPago docs): dataId comes from the `data.id` query
  * param (not the body), lowercased, and any part whose value is absent is
  * omitted entirely from the manifest — not left as an empty segment.
+ * Returns the parsed manifest for logging purposes.
  */
-function verifySignature(req: MedusaRequest, secret: string): boolean {
-  const xSignature = req.headers["x-signature"] as string | undefined
-  const xRequestId = req.headers["x-request-id"] as string | undefined
-
-  if (!xSignature) {
-    logger.warn("[mercadopago/webhook] header x-signature ausente")
-    return false
-  }
-
-  logger.info(`[mercadopago/webhook] x-signature recebido: ${xSignature}`)
-  logger.info(`[mercadopago/webhook] x-request-id recebido: ${xRequestId}`)
-  logger.info(`[mercadopago/webhook] data.id query: ${req.query?.["data.id"]}`)
-
+function buildManifest(
+  xSignature: string,
+  xRequestId: string | undefined,
+  dataId: string,
+): { ts: string; v1: string; message: string } | null {
   const parts = Object.fromEntries(
     xSignature.split(",").flatMap((part) => {
       const [k, ...v] = part.trim().split("=")
@@ -36,9 +29,7 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
   const ts = parts["ts"]
   const v1 = parts["v1"]
 
-  if (!ts || !v1) return false
-
-  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+  if (!ts || !v1) return null
 
   const manifestParts: string[] = []
   if (dataId) manifestParts.push(`id:${dataId}`)
@@ -46,18 +37,28 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
   manifestParts.push(`ts:${ts}`)
   const message = manifestParts.join(";") + ";"
 
-  logger.info(`[mercadopago/webhook] manifest: ${message}`)
-  logger.info(`[mercadopago/webhook] secret (primeiros 8): ${secret.slice(0, 8)}...`)
+  return { ts, v1, message }
+}
+
+function verifySignature(req: MedusaRequest, secret: string): { ok: boolean; reason?: string } {
+  const xSignature = req.headers["x-signature"] as string | undefined
+  const xRequestId = req.headers["x-request-id"] as string | undefined
+
+  if (!xSignature) return { ok: false, reason: "x-signature absent" }
+
+  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+  const parsed = buildManifest(xSignature, xRequestId, dataId)
+
+  if (!parsed) return { ok: false, reason: "malformed x-signature (missing ts or v1)" }
+
+  const { ts, v1, message } = parsed
   const expected = crypto.createHmac("sha256", secret).update(message).digest("hex")
-  logger.info(`[mercadopago/webhook] expected v1 (primeiros 8): ${expected.slice(0, 8)}...`)
 
   try {
     const timingOk = crypto.timingSafeEqual(Buffer.from(v1, "hex"), Buffer.from(expected, "hex"))
-    if (!timingOk) logger.warn(`[mercadopago/webhook] assinatura inválida — v1 recibido (${v1.slice(0,8)}...) != expected (${expected.slice(0,8)}...)`)
-    return timingOk
+    return timingOk ? { ok: true } : { ok: false, reason: `v1 mismatch (got ${v1.slice(0, 8)}...)` }
   } catch {
-    logger.warn("[mercadopago/webhook] assinatura inválida — erro de timingSafeEqual")
-    return false
+    return { ok: false, reason: "timingSafeEqual error" }
   }
 }
 
@@ -71,8 +72,25 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(500).json({ error: "Webhook secret not configured" })
   }
 
-  if (!verifySignature(req, webhookSecret)) {
-    logger.warn("[mercadopago/webhook] assinatura inválida — requisição rejeitada")
+  const xSignature = req.headers["x-signature"] as string | undefined
+  const xRequestId = req.headers["x-request-id"] as string | undefined
+  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+
+  logger.info(`[mercadopago/webhook] x-signature: ${xSignature ?? "ausente"}`)
+  logger.info(`[mercadopago/webhook] x-request-id: ${xRequestId ?? "ausente"}`)
+  logger.info(`[mercadopago/webhook] data.id: ${dataId}`)
+
+  const parsed = buildManifest(xSignature ?? "", xRequestId, dataId)
+  if (parsed) {
+    const expected = crypto.createHmac("sha256", webhookSecret).update(parsed.message).digest("hex")
+    logger.info(`[mercadopago/webhook] manifest: ${parsed.message}`)
+    logger.info(`[mercadopago/webhook] expected v1: ${expected}`)
+    logger.info(`[mercadopago/webhook] received v1: ${parsed.v1}`)
+  }
+
+  const result = verifySignature(req, webhookSecret)
+  if (!result.ok) {
+    logger.warn(`[mercadopago/webhook] assinatura inválida — ${result.reason}`)
     return res.sendStatus(401)
   }
 
