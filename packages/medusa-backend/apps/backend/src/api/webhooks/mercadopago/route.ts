@@ -18,7 +18,14 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
   const xSignature = req.headers["x-signature"] as string | undefined
   const xRequestId = req.headers["x-request-id"] as string | undefined
 
-  if (!xSignature) return false
+  if (!xSignature) {
+    logger.warn("[mercadopago/webhook] header x-signature ausente")
+    return false
+  }
+
+  logger.info(`[mercadopago/webhook] x-signature recebido: ${xSignature}`)
+  logger.info(`[mercadopago/webhook] x-request-id recebido: ${xRequestId}`)
+  logger.info(`[mercadopago/webhook] data.id query: ${req.query?.["data.id"]}`)
 
   const parts = Object.fromEntries(
     xSignature.split(",").flatMap((part) => {
@@ -39,11 +46,17 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
   manifestParts.push(`ts:${ts}`)
   const message = manifestParts.join(";") + ";"
 
+  logger.info(`[mercadopago/webhook] manifest: ${message}`)
+  logger.info(`[mercadopago/webhook] secret (primeiros 8): ${secret.slice(0, 8)}...`)
   const expected = crypto.createHmac("sha256", secret).update(message).digest("hex")
+  logger.info(`[mercadopago/webhook] expected v1 (primeiros 8): ${expected.slice(0, 8)}...`)
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(v1, "hex"), Buffer.from(expected, "hex"))
+    const timingOk = crypto.timingSafeEqual(Buffer.from(v1, "hex"), Buffer.from(expected, "hex"))
+    if (!timingOk) logger.warn(`[mercadopago/webhook] assinatura inválida — v1 recibido (${v1.slice(0,8)}...) != expected (${expected.slice(0,8)}...)`)
+    return timingOk
   } catch {
+    logger.warn("[mercadopago/webhook] assinatura inválida — erro de timingSafeEqual")
     return false
   }
 }
