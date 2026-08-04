@@ -80,40 +80,54 @@ export function buildNfePayload(
   const buyerDoc = validateBuyerDocument(input.buyerDocument)
   const cep = validateCep(input.buyerAddress.zipCode)
 
+  // Build flattened address objects for emitente and destinatario
+  const emitenteAddress = {
+    logradouro_emitente: emitter.street,
+    numero_emitente: emitter.number,
+    bairro_emitente: emitter.district,
+    municipio_emitente: emitter.city,
+    uf_emitente: emitter.state,
+    cep_emitente: emitter.zip.replace(/\D/g, ""),
+  }
+
+  const destinatarioAddress = {
+    logradouro_destinatario: input.buyerAddress.street,
+    numero_destinatario: input.buyerAddress.number,
+    bairro_destinatario: input.buyerAddress.district,
+    municipio_destinatario: input.buyerAddress.city,
+    uf_destinatario: input.buyerAddress.state,
+    cep_destinatario: cep,
+  }
+
+  // Build buyer document fields - cpf or cnpj at root level
+  const buyerDocFields: Record<string, string> = {}
+  if (buyerDoc.cpf) {
+    buyerDocFields.cpf_destinatario = buyerDoc.cpf
+  } else if (buyerDoc.cnpj) {
+    buyerDocFields.cnpj_destinatario = buyerDoc.cnpj
+  }
+
   return {
     natureza_operacao: "Venda de mercadoria",
     data_emissao: new Date().toISOString(),
     tipo_documento: 1,
+    finalidade_emissao: 1,
     local_destino: 1,
     consumidor_final: 1,
     presenca_comprador: 2,
-    emitente: {
-      cnpj: emitter.cnpj,
-      nome: emitter.name,
-      ie: emitter.ie,
-      endereco: {
-        logradouro: emitter.street,
-        numero: emitter.number,
-        bairro: emitter.district,
-        municipio: emitter.city,
-        uf: emitter.state,
-        cep: emitter.zip.replace(/\D/g, ""),
-      },
-    },
-    destinatario: {
-      nome: input.buyerName,
-      email: input.buyerEmail,
-      ...(buyerDoc.cpf ? { cpf: buyerDoc.cpf } : {}),
-      ...(buyerDoc.cnpj ? { cnpj: buyerDoc.cnpj } : {}),
-      endereco: {
-        logradouro: input.buyerAddress.street,
-        numero: input.buyerAddress.number,
-        bairro: input.buyerAddress.district,
-        municipio: input.buyerAddress.city,
-        uf: input.buyerAddress.state,
-        cep,
-      },
-    },
+
+    // Emitente fields at root level
+    cnpj_emitente: emitter.cnpj,
+    nome_emitente: emitter.name,
+    inscricao_estadual_emitente: emitter.ie,
+    ...emitenteAddress,
+
+    // Destinatario fields at root level
+    nome_destinatario: input.buyerName,
+    email_destinatario: input.buyerEmail,
+    ...buyerDocFields,
+    ...destinatarioAddress,
+
     items: input.items.map((item, idx) => ({
       numero_item: idx + 1,
       codigo_produto: `PROD-${idx + 1}`,
