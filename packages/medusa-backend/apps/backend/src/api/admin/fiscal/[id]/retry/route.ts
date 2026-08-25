@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { FISCAL_MODULE } from "../../../../../modules/fiscal"
 import FiscalModuleService from "../../../../../modules/fiscal/service"
-import { resolveNcmForVariant } from "../../../../../modules/fiscal/ncm-resolver"
+import { buildFiscalItems } from "../../../../../modules/fiscal/ncm-resolver"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const fiscalService: FiscalModuleService = req.scope.resolve(FISCAL_MODULE)
@@ -24,21 +24,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     const address = (order as any).shipping_address
 
     const rawItems = (order as any).items ?? []
-    let ncmFallbackUsed = false
-    const items = await Promise.all(
-      rawItems.map(async (item: any) => {
-        const ncm = item.variant_id
-          ? await resolveNcmForVariant(query, item.variant_id)
-          : undefined
-        if (!ncm) ncmFallbackUsed = true
-        return {
-          description: item.title,
-          quantity: item.quantity,
-          unitPrice: Number(item.unit_price ?? 0),
-          ncm,
-        }
-      })
-    )
+    const { items, ncmFallbackUsed } = await buildFiscalItems(query, rawItems)
 
     const input = {
       orderId: (doc as any).orderId,
