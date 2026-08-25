@@ -16,8 +16,10 @@ export default async function orderFiscalEmit({
     relations: ["items", "shipping_address"],
     // "total" must be in select or Medusa never computes order totals
     // (order.total stays undefined, see order-summary decoration logic
-    // in @medusajs/order's shouldIncludeTotals).
-    select: ["total"],
+    // in @medusajs/order's shouldIncludeTotals). Passing `select` makes it
+    // an explicit whitelist, so metadata/email must be listed too or they
+    // silently come back undefined even though the columns exist.
+    select: ["total", "metadata", "email"],
   })
 
   if (!order) return

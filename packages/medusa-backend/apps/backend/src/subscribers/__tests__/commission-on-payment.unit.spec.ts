@@ -35,7 +35,7 @@ describe("commissionOnPayment", () => {
     expect(listPayouts).not.toHaveBeenCalled()
   })
 
-  it("requests 'total' in select, or Medusa never computes order.total (grossAmount would always be 0)", async () => {
+  it("requests total/metadata/created_at in select — select is a whitelist, so any field read from order.* must be listed or comes back undefined", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const container = makeContainer({
       [Modules.ORDER]: { retrieveOrder },
@@ -47,7 +47,9 @@ describe("commissionOnPayment", () => {
 
     expect(retrieveOrder).toHaveBeenCalledWith(
       "order_1",
-      expect.objectContaining({ select: expect.arrayContaining(["total"]) })
+      expect.objectContaining({
+        select: expect.arrayContaining(["total", "metadata", "created_at"]),
+      })
     )
   })
 
