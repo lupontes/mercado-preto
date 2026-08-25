@@ -1754,21 +1754,13 @@ With:
       const data = await patchMe(form)
 ```
 
-- [ ] **Step 8: Update `produtos/novo/__tests__/page.test.tsx` for the new store shape and call signature**
+- [ ] **Step 8: Update `produtos/novo/__tests__/page.test.tsx` for the new call signature**
 
-In `apps/storefront/src/app/painel/produtos/novo/__tests__/page.test.tsx`, replace:
+In `apps/storefront/src/app/painel/produtos/novo/__tests__/page.test.tsx`, after Step 3 the page under test no longer imports or calls `useSellerStore` at all, so remove the mock entirely rather than update its shape. Delete:
 
 ```tsx
 vi.mock("@/lib/seller-store", () => ({
   useSellerStore: () => ({ token: "test-token" }),
-}))
-```
-
-With:
-
-```tsx
-vi.mock("@/lib/seller-store", () => ({
-  useSellerStore: () => ({ seller: { id: "seller_1", name: "Loja Teste", email: "loja@teste.com", status: "approved" } }),
 }))
 ```
 
@@ -1786,21 +1778,13 @@ With:
 
 (These are the two assertions in "converts the price to cents and submits the product, then navigates to the list" and "includes the selected category id in the submitted product".)
 
-- [ ] **Step 9: Update `produtos/[id]/__tests__/page.test.tsx` for the new store shape and call signature**
+- [ ] **Step 9: Update `produtos/[id]/__tests__/page.test.tsx` for the new call signature**
 
-In `apps/storefront/src/app/painel/produtos/[id]/__tests__/page.test.tsx`, replace:
+In `apps/storefront/src/app/painel/produtos/[id]/__tests__/page.test.tsx`, after Step 2 the page under test no longer imports or calls `useSellerStore` at all, so remove the mock entirely rather than update its shape. Delete:
 
 ```tsx
 vi.mock("@/lib/seller-store", () => ({
   useSellerStore: () => ({ token: "test-token" }),
-}))
-```
-
-With:
-
-```tsx
-vi.mock("@/lib/seller-store", () => ({
-  useSellerStore: () => ({ seller: { id: "seller_1", name: "Loja Teste", email: "loja@teste.com", status: "approved" } }),
 }))
 ```
 
