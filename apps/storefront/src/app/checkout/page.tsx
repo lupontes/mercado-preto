@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useCartStore, type ShippingRate } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/api'
+import { maskDocument, validateDocument } from '@/lib/document'
 import { ChevronRight, Loader2, Truck, CreditCard, MapPin } from 'lucide-react'
 
 const MercadoPagoBrick = dynamic(
@@ -23,6 +24,7 @@ type Address = {
   lastName: string
   email: string
   phone: string
+  document: string
   cep: string
   address1: string
   address2: string
@@ -36,7 +38,7 @@ type PreferenceData = {
 }
 
 const EMPTY_ADDRESS: Address = {
-  firstName: '', lastName: '', email: '', phone: '',
+  firstName: '', lastName: '', email: '', phone: '', document: '',
   cep: '', address1: '', address2: '', city: '', state: '',
 }
 
@@ -70,7 +72,7 @@ async function createPreference(
       'Content-Type': 'application/json',
       'x-publishable-api-key': PUB_KEY,
     },
-    body: JSON.stringify({ items, address, shipping, total }),
+    body: JSON.stringify({ items, address, shipping, total, document: address.document }),
   })
 
   if (!res.ok) return null
@@ -120,6 +122,12 @@ export default function CheckoutPage() {
   async function handleAddressSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+
+    if (!validateDocument(address.document).valid) {
+      setError('CPF ou CNPJ inválido. Confira os números digitados.')
+      return
+    }
+
     setLoading(true)
 
     const cep = address.cep.replace(/\D/g, '')
@@ -224,6 +232,18 @@ export default function CheckoutPage() {
                     className="input" required />
                 </Field>
 
+                <Field label="CPF ou CNPJ" required>
+                  <input
+                    value={address.document}
+                    onChange={(e) => setAddress((a) => ({ ...a, document: maskDocument(e.target.value) }))}
+                    className="input"
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                    required
+                  />
+                  <p className="text-xs text-onyx/40 mt-1">Necessário para emissão da nota fiscal.</p>
+                </Field>
+
                 <Field label="Telefone / WhatsApp">
                   <input
                     type="tel"
@@ -287,6 +307,8 @@ export default function CheckoutPage() {
                   <input value={address.address2} onChange={(e) => setAddress((a) => ({ ...a, address2: e.target.value }))}
                     className="input" placeholder="Apto, bloco, referência..." />
                 </Field>
+
+                {error && <p className="text-terracotta text-sm">{error}</p>}
 
                 <button type="submit" disabled={loading}
                   className="w-full rounded-xl bg-amber py-4 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
