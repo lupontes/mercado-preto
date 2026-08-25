@@ -4,12 +4,20 @@ import FiscalModuleService from "../../../modules/fiscal/service"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const fiscalService: FiscalModuleService = req.scope.resolve(FISCAL_MODULE)
-  const { seller_id, status, order_id, limit = 20, offset = 0 } = req.query as Record<string, string>
+  const {
+    seller_id,
+    status,
+    order_id,
+    ncm_fallback_used,
+    limit = 20,
+    offset = 0,
+  } = req.query as Record<string, string>
 
-  const filters: Record<string, string> = {}
+  const filters: Record<string, string | boolean> = {}
   if (seller_id) filters.sellerId = seller_id
   if (status) filters.status = status
   if (order_id) filters.orderId = order_id
+  if (ncm_fallback_used) filters.ncmFallbackUsed = ncm_fallback_used === "true"
 
   const docs = await fiscalService.listNfDocuments(filters, {
     take: Number(limit),

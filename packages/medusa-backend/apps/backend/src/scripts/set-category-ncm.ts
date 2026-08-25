@@ -12,6 +12,11 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
  * Re-run this script any time the mapping changes:
  *   npx medusa exec ./src/scripts/set-category-ncm.ts
  */
+// Keyed by category `name`, which is mutable and admin-editable. Renaming a
+// category in the Medusa admin (e.g. fixing a typo in "SACOLÕES") will
+// silently break its NCM mapping — the category stops matching any key here
+// and falls back to the generic fiscal placeholder — until this map is
+// updated to match the new name.
 const CATEGORY_NCM: Record<string, string> = {
   "BOLSAS": "42029200",
   "SACOLÕES": "42029200",
@@ -32,11 +37,14 @@ export default async function setCategoryNcm({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const productModuleService = container.resolve(Modules.PRODUCT)
 
+  const notFound: string[] = []
+
   for (const [name, ncm] of Object.entries(CATEGORY_NCM)) {
     const categories = await productModuleService.listProductCategories({ name })
 
     if (categories.length === 0) {
       logger.warn(`[set-category-ncm] categoria "${name}" não encontrada — pulando`)
+      notFound.push(name)
       continue
     }
 
@@ -46,6 +54,12 @@ export default async function setCategoryNcm({ container }: ExecArgs) {
       })
       logger.info(`[set-category-ncm] "${name}" (${category.id}) -> NCM ${ncm}`)
     }
+  }
+
+  if (notFound.length > 0) {
+    logger.error(
+      `[set-category-ncm] ${notFound.length} categoria(s) não encontrada(s): ${notFound.join(", ")}`
+    )
   }
 
   logger.info("[set-category-ncm] concluído")
