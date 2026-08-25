@@ -183,6 +183,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           metadata: {
             mercadopago_payment_id: String(payment.id),
             mercadopago_external_reference: payment.external_reference,
+            seller_id: meta?.seller_id,
+            buyer_document: meta?.buyer_document,
           },
         },
       ])
