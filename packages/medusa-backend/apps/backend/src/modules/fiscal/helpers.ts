@@ -19,6 +19,7 @@ export interface EmitNfeInput {
     unitPrice: number
     ncm?: string
   }>
+  ncmFallbackUsed?: boolean
 }
 
 export interface EmitterConfig {
