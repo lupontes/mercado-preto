@@ -85,12 +85,20 @@ Se `metadata.ncm` de uma categoria existir mas não tiver exatamente 8 dígitos,
 | KIT LUMINÁRIA | `9405.50.00` | Média | Mesma lógica de LUMINÁRIAS |
 | KITS PARA COZINHA | `6912.00.00` | **Baixa** | Categoria heterogênea (pode ser cerâmica, madeira, têxtil) — revisar |
 | PETISQUEIRAS | `6912.00.00` | **Baixa** | Idem |
-| KITS PARA BANHEIROS | — | **Baixa, sem proposta** | Muito heterogêneo (toalha? saboneteira? cerâmica? têxtil?) — precisa de olhar humano |
-| DECORAÇÃO | — | **Baixa, sem proposta** | Categoria mais ampla e heterogênea do catálogo — recomendo quebrar em subcategorias antes de tentar um NCM único |
-| MODA AFRICANA | — | **Baixa, sem proposta** | Vestuário varia muito de NCM por tipo de peça e tecido (malha vs. tecido plano) — precisa ver os produtos reais |
-| Roupas Afro | — | **Baixa, sem proposta** | Idem |
-| Roupas Tradicionais | — | **Baixa, sem proposta** | Idem (1 produto só — baixo impacto, pode ficar no fallback por ora) |
+| KITS PARA BANHEIROS | — | **Sem proposta** | Confirmado nos produtos reais: ~metade é cestaria de cipó (capítulo 46) e a outra metade é jogo de crochê tipo tapete de banheiro (capítulo 57) — dois tipos de mercadoria diferentes numa categoria só, não dá pra ter um NCM correto por categoria aqui |
+| DECORAÇÃO | — | **Sem proposta** | A mais heterogênea (48 produtos): maior cluster é cestaria/palha/cipó (~15 produtos), segundo maior é escultura de cerâmica de orixás (7 produtos: Exú, Iemanjá, Oxum, Oxóssi, Xangô), resto é mistura de quadros, madeira, crochê — sem um tipo dominante o suficiente pra justificar um código único |
+| MODA AFRICANA | — | **Sem proposta** | Confirmado nos produtos reais (16 itens): mistura tipo de peça (10 vestidos, 2 saias, 3 conjuntos, 1 calça) — cada tipo tem NCM próprio independente do tecido. E mesmo só entre os 10 vestidos, metade é malha e metade é tecido plano estampado. Não é problema de falta de informação de composição — é que a categoria mistura tipos de mercadoria que a Receita trata como diferentes, então um NCM por categoria não serve aqui |
+| Roupas Afro | — | **Sem proposta** | Mesmos produtos de MODA AFRICANA (categorias sobrepostas), mesmo problema |
+| Roupas Tradicionais | — | **Sem proposta** | Idem (1 produto só — "Calça Saruel" — baixo impacto, fica no fallback por ora) |
 | Produtos MAB | *(não classificar)* | — | Categoria genérica, sempre ignorada na resolução |
+
+### Sobre composição de tecido (contexto pra uma futura reorganização)
+
+O usuário forneceu esse contexto de mercado sobre "tecido africano" — útil se um dia as categorias de vestuário forem divididas por tipo de peça (o que resolveria o problema acima):
+
+> Capulanas e Wax Print (Ankara): 100% algodão de alta densidade, resinado com cera. Kente/Samakaka (impressos modernos): algodão puro ou mistura com poliéster. Imitações de baixo custo: 100% poliéster ou microfibra.
+
+Ou seja, mesmo sabendo isso, ainda seria preciso saber qual desses três tiers cada produto específico usa — não dá pra assumir um só pra toda a categoria. Se MAB algum dia dividir "MODA AFRICANA" em subcategorias por tipo de peça (Vestidos, Saias, Conjuntos, Calças), o próximo passo seria descobrir a composição real de cada uma junto aos fornecedores/costureiras, não estimar.
 
 Categorias sem proposta ficam no fallback genérico (com aviso) até alguém definir o valor real — o sistema já trata esse caso sem quebrar.
 
