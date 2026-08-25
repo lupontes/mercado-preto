@@ -109,6 +109,22 @@ describe("FiscalModuleService.emitNfe", () => {
     )
   })
 
+  it("passes ncmFallbackUsed through to the created document (defaults to false when absent)", async () => {
+    const svc = makeService()
+    await svc.emitNfe(baseInput)
+    expect(svc.createNfDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ ncmFallbackUsed: false })
+    )
+  })
+
+  it("records ncmFallbackUsed: true when the caller flags a fallback", async () => {
+    const svc = makeService()
+    await svc.emitNfe({ ...baseInput, ncmFallbackUsed: true })
+    expect(svc.createNfDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ ncmFallbackUsed: true })
+    )
+  })
+
   it("sets status to issued when Focus NFe returns 201", async () => {
     process.env.FOCUS_NFE_TOKEN = "token-test"
     process.env.FOCUS_NFE_CNPJ = "12345678000195"
@@ -349,5 +365,13 @@ describe("FiscalModuleService.retryNfe", () => {
 
     const calledUrl = (global.fetch as jest.Mock).mock.calls[0][0] as string
     expect(calledUrl).toContain("ref=order-original-ref")
+  })
+
+  it("re-records ncmFallbackUsed on the processing update when retrying", async () => {
+    const svc = makeService()
+    await svc.retryNfe("doc-1", { ...baseInput, ncmFallbackUsed: true })
+    expect(svc.updateNfDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "doc-1", status: "processing", ncmFallbackUsed: true })
+    )
   })
 })

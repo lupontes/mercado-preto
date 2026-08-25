@@ -1,7 +1,8 @@
 import { type SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { FISCAL_MODULE } from "../modules/fiscal"
 import FiscalModuleService from "../modules/fiscal/service"
+import { buildFiscalItems } from "../modules/fiscal/ncm-resolver"
 import { SELLER_MODULE } from "../modules/seller"
 
 export default async function orderFiscalEmit({
@@ -29,6 +30,10 @@ export default async function orderFiscalEmit({
 
   const address = (order as any).shipping_address
 
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const rawItems = (order as any).items ?? []
+  const { items, ncmFallbackUsed } = await buildFiscalItems(query, rawItems)
+
   await fiscalService.emitNfe({
     orderId,
     sellerId: sellerId ?? "unknown",
@@ -46,11 +51,8 @@ export default async function orderFiscalEmit({
       state: address?.province || "BA",
       zipCode: address?.postal_code || "44300000",
     },
-    items: ((order as any).items ?? []).map((item: any) => ({
-      description: item.title,
-      quantity: item.quantity,
-      unitPrice: Number(item.unit_price ?? 0),
-    })),
+    items,
+    ncmFallbackUsed,
   })
 }
 

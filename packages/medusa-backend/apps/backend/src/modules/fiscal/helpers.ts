@@ -19,6 +19,7 @@ export interface EmitNfeInput {
     unitPrice: number
     ncm?: string
   }>
+  ncmFallbackUsed?: boolean
 }
 
 export interface EmitterConfig {
@@ -157,10 +158,10 @@ export function buildNfePayload(
       valor_unitario_comercial: item.unitPrice / 100,
       valor_unitario_tributavel: item.unitPrice / 100,
       valor_bruto: (item.unitPrice * item.quantity) / 100,
-      // TODO: placeholder NCM only — products don't carry a real NCM yet.
-      // Must be replaced with per-category classification before real
-      // (non-homologação) emissions; SEFAZ rejects codes not in its table
-      // (e.g. the old "44190000" default doesn't exist, only "44199000" does).
+      // item.ncm is the real NCM resolved from the sold product's category
+      // (see modules/fiscal/ncm-resolver.ts). "44199000" is the audited
+      // fallback used when no category has an NCM configured yet — see
+      // nf_document.ncmFallbackUsed, which flags exactly this case.
       codigo_ncm: item.ncm || "44199000",
       cfop,
       origem: 0,
