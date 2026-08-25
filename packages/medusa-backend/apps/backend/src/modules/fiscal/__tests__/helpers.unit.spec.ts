@@ -142,25 +142,68 @@ describe("buildNfePayload", () => {
     expect(payload.cep_emitente).toBe("44300000")
   })
 
-  it("converts unit price from cents to reais", () => {
+  it("converts unit price from cents to reais for comercial and tributavel", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].valor_unitario).toBe(25)
+    expect(payload.items[0].valor_unitario_comercial).toBe(25)
+    expect(payload.items[0].valor_unitario_tributavel).toBe(25)
   })
 
-  it("calculates valor_total as quantity × unit price in reais", () => {
+  it("calculates valor_bruto as quantity × unit price in reais", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].valor_total).toBe(50)
+    expect(payload.items[0].valor_bruto).toBe(50)
+  })
+
+  it("sets quantidade_comercial and quantidade_tributavel from item quantity", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.items[0].quantidade_comercial).toBe(2)
+    expect(payload.items[0].quantidade_tributavel).toBe(2)
+  })
+
+  it("sets unidade_comercial and unidade_tributavel to UN", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.items[0].unidade_comercial).toBe("UN")
+    expect(payload.items[0].unidade_tributavel).toBe("UN")
   })
 
   it("uses NCM from item when provided", () => {
     const input = { ...baseInput, items: [{ description: "Produto", quantity: 1, unitPrice: 1000, ncm: "61091000" }] }
     const payload = buildNfePayload("ref-1", input, baseEmitter) as any
-    expect(payload.items[0].ncm).toBe("61091000")
+    expect(payload.items[0].codigo_ncm).toBe("61091000")
   })
 
-  it("defaults NCM to 44190000 when not provided", () => {
+  it("defaults NCM to 44199000 (valid placeholder) when not provided", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].ncm).toBe("44190000")
+    expect(payload.items[0].codigo_ncm).toBe("44199000")
+  })
+
+  it("sets modalidade_frete to 0 (CIF, por conta do emitente)", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.modalidade_frete).toBe(0)
+  })
+
+  it("uses interstate local_destino/cfop when buyer state differs from emitter state", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any // emitter BA, buyer SP
+    expect(payload.local_destino).toBe(2)
+    expect(payload.items[0].cfop).toBe("6102")
+  })
+
+  it("uses internal local_destino/cfop when buyer state matches emitter state", () => {
+    const input = { ...baseInput, buyerAddress: { ...baseInput.buyerAddress, state: "BA" } }
+    const payload = buildNfePayload("ref-1", input, baseEmitter) as any
+    expect(payload.local_destino).toBe(1)
+    expect(payload.items[0].cfop).toBe("5102")
+  })
+
+  it("authorizes SEFAZ-BA's own CNPJ to access the XML when emitter is in BA (rejection 487)", () => {
+    const emitter = { ...baseEmitter, state: "BA" }
+    const payload = buildNfePayload("ref-1", baseInput, emitter) as any
+    expect(payload.pessoas_autorizadas).toEqual([{ cnpj: "13937073000156" }])
+  })
+
+  it("omits pessoas_autorizadas when emitter is outside BA", () => {
+    const emitter = { ...baseEmitter, state: "SP" }
+    const payload = buildNfePayload("ref-1", baseInput, emitter) as any
+    expect(payload.pessoas_autorizadas).toBeUndefined()
   })
 
   it("numbers items starting at 1", () => {

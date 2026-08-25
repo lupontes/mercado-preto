@@ -80,6 +80,13 @@ export function buildNfePayload(
   const buyerDoc = validateBuyerDocument(input.buyerDocument)
   const cep = validateCep(input.buyerAddress.zipCode)
 
+  // idDest/CFOP must agree: same state = operação interna (1/5102),
+  // different state = operação interestadual (2/6102). SEFAZ rejects any
+  // other combination (rejection 732).
+  const isSameState = emitter.state === input.buyerAddress.state
+  const localDestino = isSameState ? 1 : 2
+  const cfop = isSameState ? "5102" : "6102"
+
   // Build flattened address objects for emitente and destinatario
   const emitenteAddress = {
     logradouro_emitente: emitter.street,
@@ -107,14 +114,25 @@ export function buildNfePayload(
     buyerDocFields.cnpj_destinatario = buyerDoc.cnpj
   }
 
+  // SEFAZ-BA rejects (487) emitters without a registered accounting office
+  // unless the XML-access authorization list names SEFAZ-BA's own CNPJ.
+  // We have no accounting office on file, so we use SEFAZ-BA's CNPJ as
+  // instructed by the rejection message itself.
+  const SEFAZ_BA_CNPJ = "13937073000156"
+  const autorizacaoFields =
+    emitter.state === "BA" ? { pessoas_autorizadas: [{ cnpj: SEFAZ_BA_CNPJ }] } : {}
+
   return {
     natureza_operacao: "Venda de mercadoria",
     data_emissao: new Date().toISOString(),
     tipo_documento: 1,
     finalidade_emissao: 1,
-    local_destino: 1,
+    local_destino: localDestino,
     consumidor_final: 1,
     presenca_comprador: 2,
+    // 0 = CIF: emitente contrata o frete e repassa o custo na mesma cobrança do pedido
+    modalidade_frete: 0,
+    ...autorizacaoFields,
 
     // Emitente fields at root level
     cnpj_emitente: emitter.cnpj,
@@ -132,12 +150,19 @@ export function buildNfePayload(
       numero_item: idx + 1,
       codigo_produto: `PROD-${idx + 1}`,
       descricao: item.description,
-      quantidade: item.quantity,
-      unidade: "UN",
-      valor_unitario: item.unitPrice / 100,
-      valor_total: (item.unitPrice * item.quantity) / 100,
-      ncm: item.ncm || "44190000",
-      cfop: "6102",
+      quantidade_comercial: item.quantity,
+      quantidade_tributavel: item.quantity,
+      unidade_comercial: "UN",
+      unidade_tributavel: "UN",
+      valor_unitario_comercial: item.unitPrice / 100,
+      valor_unitario_tributavel: item.unitPrice / 100,
+      valor_bruto: (item.unitPrice * item.quantity) / 100,
+      // TODO: placeholder NCM only — products don't carry a real NCM yet.
+      // Must be replaced with per-category classification before real
+      // (non-homologação) emissions; SEFAZ rejects codes not in its table
+      // (e.g. the old "44190000" default doesn't exist, only "44199000" does).
+      codigo_ncm: item.ncm || "44199000",
+      cfop,
       origem: 0,
       icms_situacao_tributaria: "102",
       pis_situacao_tributaria: "07",
