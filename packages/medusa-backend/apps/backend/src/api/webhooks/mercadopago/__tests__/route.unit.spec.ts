@@ -103,6 +103,7 @@ const preferenceMetadata = {
   items: [{ variant_id: "var-1", title: "Camiseta", quantity: 1, price: 7900 }],
   shipping: { id: "pac", name: "PAC", price: 1500 },
   total: 9400,
+  seller_id: "seller-abc",
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +212,18 @@ describe("POST /webhooks/mercadopago", () => {
     const [createdOrder] = req._orderService.createOrders.mock.calls[0][0]
     expect(createdOrder.shipping_methods[0].amount).toBe(1500)
     expect(createdOrder.shipping_methods[0].amount).not.toBe(15)
+  })
+
+  it("propagates seller_id from preference metadata into the created order's metadata", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    await POST(req, makeRes())
+
+    const [createdOrder] = req._orderService.createOrders.mock.calls[0][0]
+    expect(createdOrder.metadata.seller_id).toBe("seller-abc")
   })
 
   it("creates order with empty items when preference fetch fails", async () => {

@@ -23,6 +23,12 @@ export default async function commissionOnPayment({
 
   const order = await orderService.retrieveOrder(orderId, {
     relations: ["items"],
+    // "total" must be in select or Medusa never computes order totals
+    // (order.total stays undefined, see order-summary decoration logic
+    // in @medusajs/order's shouldIncludeTotals). Passing `select` makes it
+    // an explicit whitelist, so metadata/created_at must be listed too or
+    // they silently come back undefined even though the columns exist.
+    select: ["total", "metadata", "created_at"],
   })
 
   if (!order) return

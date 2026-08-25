@@ -35,6 +35,24 @@ describe("commissionOnPayment", () => {
     expect(listPayouts).not.toHaveBeenCalled()
   })
 
+  it("requests total/metadata/created_at in select — select is a whitelist, so any field read from order.* must be listed or comes back undefined", async () => {
+    const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
+    const container = makeContainer({
+      [Modules.ORDER]: { retrieveOrder },
+      commission: { listCommissions: jest.fn().mockResolvedValue([{ id: "comm_existing" }]), recordAndCreate: jest.fn() },
+      payout: { listPayouts: jest.fn() },
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(retrieveOrder).toHaveBeenCalledWith(
+      "order_1",
+      expect.objectContaining({
+        select: expect.arrayContaining(["total", "metadata", "created_at"]),
+      })
+    )
+  })
+
   it("links the new commission to a pending payout covering its period, and increments the payout amount", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const listCommissions = jest.fn().mockResolvedValue([])
