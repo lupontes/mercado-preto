@@ -14,6 +14,10 @@ export default async function orderFiscalEmit({
   const orderService = container.resolve(Modules.ORDER)
   const order = await orderService.retrieveOrder(orderId, {
     relations: ["items", "shipping_address"],
+    // "total" must be in select or Medusa never computes order totals
+    // (order.total stays undefined, see order-summary decoration logic
+    // in @medusajs/order's shouldIncludeTotals).
+    select: ["total"],
   })
 
   if (!order) return

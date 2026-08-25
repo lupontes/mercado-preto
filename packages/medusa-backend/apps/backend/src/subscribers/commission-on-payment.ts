@@ -23,6 +23,10 @@ export default async function commissionOnPayment({
 
   const order = await orderService.retrieveOrder(orderId, {
     relations: ["items"],
+    // "total" must be in select or Medusa never computes order totals
+    // (order.total stays undefined, see order-summary decoration logic
+    // in @medusajs/order's shouldIncludeTotals).
+    select: ["total"],
   })
 
   if (!order) return

@@ -35,6 +35,22 @@ describe("commissionOnPayment", () => {
     expect(listPayouts).not.toHaveBeenCalled()
   })
 
+  it("requests 'total' in select, or Medusa never computes order.total (grossAmount would always be 0)", async () => {
+    const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
+    const container = makeContainer({
+      [Modules.ORDER]: { retrieveOrder },
+      commission: { listCommissions: jest.fn().mockResolvedValue([{ id: "comm_existing" }]), recordAndCreate: jest.fn() },
+      payout: { listPayouts: jest.fn() },
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(retrieveOrder).toHaveBeenCalledWith(
+      "order_1",
+      expect.objectContaining({ select: expect.arrayContaining(["total"]) })
+    )
+  })
+
   it("links the new commission to a pending payout covering its period, and increments the payout amount", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const listCommissions = jest.fn().mockResolvedValue([])
