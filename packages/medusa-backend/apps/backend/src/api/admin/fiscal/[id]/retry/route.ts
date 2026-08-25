@@ -1,11 +1,13 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { FISCAL_MODULE } from "../../../../../modules/fiscal"
 import FiscalModuleService from "../../../../../modules/fiscal/service"
+import { resolveNcmForVariant } from "../../../../../modules/fiscal/ncm-resolver"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const fiscalService: FiscalModuleService = req.scope.resolve(FISCAL_MODULE)
   const orderService = req.scope.resolve(Modules.ORDER)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { id } = req.params
 
   try {
@@ -14,9 +16,29 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
     const order = await orderService.retrieveOrder((doc as any).orderId, {
       relations: ["items", "shipping_address"],
+      // Same select-whitelist gotcha as order-fiscal-emit.ts: metadata/email
+      // silently come back undefined without this.
+      select: ["metadata", "email"],
     })
 
     const address = (order as any).shipping_address
+
+    const rawItems = (order as any).items ?? []
+    let ncmFallbackUsed = false
+    const items = await Promise.all(
+      rawItems.map(async (item: any) => {
+        const ncm = item.variant_id
+          ? await resolveNcmForVariant(query, item.variant_id)
+          : undefined
+        if (!ncm) ncmFallbackUsed = true
+        return {
+          description: item.title,
+          quantity: item.quantity,
+          unitPrice: Number(item.unit_price ?? 0),
+          ncm,
+        }
+      })
+    )
 
     const input = {
       orderId: (doc as any).orderId,
@@ -35,11 +57,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         state: address?.province || "BA",
         zipCode: address?.postal_code || "44300000",
       },
-      items: ((order as any).items ?? []).map((item: any) => ({
-        description: item.title,
-        quantity: item.quantity,
-        unitPrice: Number(item.unit_price ?? 0),
-      })),
+      items,
+      ncmFallbackUsed,
     }
 
     const updatedDoc = await fiscalService.retryNfe(id, input)
