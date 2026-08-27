@@ -1,8 +1,10 @@
 import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { z } from "zod"
 import { validateDocument } from "../../../../utils/validate-document"
+import { groupItemsBySeller } from "../../../../utils/seller-order-groups"
 
 const schema = z.object({
   items: z.array(
@@ -11,6 +13,7 @@ const schema = z.object({
       quantity: z.number().int().positive(),
       price: z.number().int().positive(),
       variantId: z.string().optional(),
+      productId: z.string(),
     })
   ),
   address: z.object({
@@ -30,7 +33,6 @@ const schema = z.object({
     price: z.number().int().nonnegative(),
   }),
   total: z.number().int().positive(),
-  sellerId: z.string().optional(),
   document: z.string().refine((v) => validateDocument(v).valid, {
     message: "CPF ou CNPJ inválido",
   }),
@@ -47,10 +49,30 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address, shipping, total, sellerId, document } = parsed.data
+  const { items, address, shipping, total, document } = parsed.data
   const { digits: buyerDocument } = validateDocument(document)
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
   const backendUrl = process.env.BACKEND_URL
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const productIds = [...new Set(items.map((i) => i.productId))]
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: ["id", "seller.id"],
+    filters: { id: productIds },
+  })
+  const sellerByProductId: Record<string, string> = {}
+  for (const p of products as any[]) {
+    if (p.seller?.id) sellerByProductId[p.id] = p.seller.id
+  }
+
+  const grouped = groupItemsBySeller(items, sellerByProductId, shipping.price)
+  if ("unresolvedProductId" in grouped) {
+    return res.status(400).json({
+      error: "Produto sem vendedor associado.",
+      productId: grouped.unresolvedProductId,
+    })
+  }
 
   const externalReference = crypto.randomUUID()
 
@@ -107,7 +129,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         ...(backendUrl ? { notification_url: `${backendUrl}/webhooks/mercadopago` } : {}),
         // Snapshot do pedido para rastreabilidade via webhook
         metadata: {
-          seller_id: sellerId,
+          seller_groups: grouped.groups,
           buyer_document: buyerDocument,
           address: {
             first_name: address.firstName,
