@@ -1,13 +1,23 @@
+import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 
+function verifySecret(req: MedusaRequest, secret: string): boolean {
+  const incoming = req.headers["x-clearsale-secret"] as string | undefined
+  if (!incoming) return false
+
+  const incomingBuf = Buffer.from(incoming)
+  const secretBuf = Buffer.from(secret)
+  if (incomingBuf.length !== secretBuf.length) return false
+
+  return crypto.timingSafeEqual(incomingBuf, secretBuf)
+}
+
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
-  const secret = process.env.CLEARSALE_WEBHOOK_SECRET
-  if (secret) {
-    const incomingSecret = req.headers["x-clearsale-secret"] as string | undefined
-    if (incomingSecret !== secret) {
-      return res.status(401).json({ error: "Unauthorized" })
-    }
+  // validateEnv() (src/utils/validate-env.ts) guarantees this is always set at boot.
+  const secret = process.env.CLEARSALE_WEBHOOK_SECRET!
+  if (!verifySecret(req, secret)) {
+    return res.status(401).json({ error: "Unauthorized" })
   }
 
   const { order_id, status, score } = req.body as any

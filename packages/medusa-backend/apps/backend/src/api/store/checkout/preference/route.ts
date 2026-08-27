@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { z } from "zod"
+import { validateDocument } from "../../../../utils/validate-document"
 
 const schema = z.object({
   items: z.array(
@@ -30,6 +31,9 @@ const schema = z.object({
   }),
   total: z.number().int().positive(),
   sellerId: z.string().optional(),
+  document: z.string().refine((v) => validateDocument(v).valid, {
+    message: "CPF ou CNPJ inválido",
+  }),
 })
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -43,7 +47,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address, shipping, total, sellerId } = parsed.data
+  const { items, address, shipping, total, sellerId, document } = parsed.data
+  const { digits: buyerDocument } = validateDocument(document)
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
   const backendUrl = process.env.BACKEND_URL
 
@@ -103,6 +108,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         // Snapshot do pedido para rastreabilidade via webhook
         metadata: {
           seller_id: sellerId,
+          buyer_document: buyerDocument,
           address: {
             first_name: address.firstName,
             last_name: address.lastName,

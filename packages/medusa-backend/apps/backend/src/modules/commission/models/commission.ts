@@ -12,6 +12,7 @@ const Commission = model.define("commission", {
   sellerPayout: model.bigNumber(),
   status: model.enum(["pending", "paid"]).default("pending"),
   paidAt: model.dateTime().nullable(),
+  payoutId: model.text().nullable(),
 })
 
 export default Commission

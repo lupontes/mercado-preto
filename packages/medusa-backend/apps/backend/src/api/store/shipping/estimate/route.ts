@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { isSandboxMode } from "../../../../utils/sandbox"
 
 type ShippingRate = {
   id: string
@@ -22,9 +23,9 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   if (token) {
     try {
-      const baseUrl = process.env.NODE_ENV === "production"
-        ? "https://melhorenvio.com.br"
-        : "https://sandbox.melhorenvio.com.br"
+      const baseUrl = isSandboxMode()
+        ? "https://sandbox.melhorenvio.com.br"
+        : "https://melhorenvio.com.br"
       const response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
         method: "POST",
         headers: {

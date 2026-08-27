@@ -3,6 +3,7 @@ import { z } from "zod"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
 import { createSellerToken } from "../../../../utils/seller-jwt"
+import { buildSetCookie, SELLER_SESSION_COOKIE, SELLER_SESSION_MAX_AGE } from "../../../../utils/cookies"
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -36,8 +37,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const token = createSellerToken(seller.id, seller.email)
+  res.setHeader(
+    "Set-Cookie",
+    buildSetCookie(SELLER_SESSION_COOKIE, token, SELLER_SESSION_MAX_AGE, {
+      secure: process.env.NODE_ENV === "production",
+    })
+  )
   res.json({
-    token,
     seller: { id: seller.id, name: seller.name, email: seller.email, status: seller.status },
   })
 }

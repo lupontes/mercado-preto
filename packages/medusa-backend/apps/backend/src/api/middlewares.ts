@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { defineMiddlewares } from "@medusajs/framework/http"
 import rateLimit from "express-rate-limit"
+import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 
 function verifySellerToken(token: string) {
   const secret = process.env.JWT_SECRET!
@@ -15,7 +16,7 @@ function verifySellerToken(token: string) {
   return payload as { sellerId: string; email: string }
 }
 
-function sellerCors(req: any, res: any, next: any) {
+export function sellerCors(req: any, res: any, next: any) {
   const origin = req.headers.origin as string | undefined
   const allowed = (process.env.STORE_CORS || "").split(",").map((s: string) => s.trim())
   if (origin && allowed.includes(origin)) {
@@ -28,13 +29,12 @@ function sellerCors(req: any, res: any, next: any) {
   next()
 }
 
-function sellerAuth(req: any, res: any, next: any) {
-  const authHeader = req.headers.authorization as string | undefined
-  if (!authHeader?.startsWith("Bearer ")) {
+export function sellerAuth(req: any, res: any, next: any) {
+  const token = parseCookie(req.headers.cookie, SELLER_SESSION_COOKIE)
+  if (!token) {
     return res.status(401).json({ error: "Token do vendedor obrigatório" })
   }
   try {
-    const token = authHeader.slice(7)
     const payload = verifySellerToken(token)
     req.sellerId = payload.sellerId
     req.sellerEmail = payload.email
@@ -80,6 +80,10 @@ export default defineMiddlewares({
     {
       matcher: "/store/sellers/set-password",
       middlewares: [loginRateLimit],
+    },
+    {
+      matcher: "/store/sellers/logout",
+      middlewares: [sellerCors],
     },
   ],
 })

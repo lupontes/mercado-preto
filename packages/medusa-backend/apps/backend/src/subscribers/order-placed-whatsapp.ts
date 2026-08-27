@@ -9,6 +9,12 @@ export default async function orderPlacedWhatsApp({
   const orderService = container.resolve(Modules.ORDER)
   const order = await orderService.retrieveOrder(event.data.id, {
     relations: ["shipping_address"],
+    // "total" must be in select or Medusa never computes order totals
+    // (order.total stays undefined, see order-summary decoration logic
+    // in @medusajs/order's shouldIncludeTotals). Passing `select` makes it
+    // an explicit whitelist, so display_id must be listed too or it
+    // silently comes back undefined even though the column exists.
+    select: ["total", "display_id"],
   })
   if (!order) return
 

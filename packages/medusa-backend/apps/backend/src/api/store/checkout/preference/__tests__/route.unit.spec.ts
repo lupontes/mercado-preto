@@ -40,6 +40,7 @@ const validBody = {
   shipping: { id: "pac", name: "PAC", price: 2500 },
   total: 10400,
   sellerId: "seller-1",
+  document: "111.444.777-35",
 }
 
 describe("POST /store/checkout/preference", () => {
@@ -140,6 +141,41 @@ describe("POST /store/checkout/preference", () => {
 
     expect(res._status).toBe(400)
     expect((res._body as any).error).toBe("Dados inválidos.")
+  })
+
+  it("returns 400 when document is missing", async () => {
+    const { document, ...bodyWithoutDocument } = validBody
+    const res = makeRes()
+    await POST(makeReq(bodyWithoutDocument), res)
+
+    expect(res._status).toBe(400)
+    expect((res._body as any).error).toBe("Dados inválidos.")
+  })
+
+  it("returns 400 when document fails check-digit validation", async () => {
+    const res = makeRes()
+    await POST(makeReq({ ...validBody, document: "111.444.777-36" }), res)
+
+    expect(res._status).toBe(400)
+    expect((res._body as any).error).toBe("Dados inválidos.")
+  })
+
+  it("accepts a valid CNPJ as document", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    const res = makeRes()
+    await POST(makeReq({ ...validBody, document: "11.222.333/0001-81" }), res)
+
+    expect(res._status).toBe(200)
+  })
+
+  it("includes buyer_document (clean digits) in the preference metadata", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    await POST(makeReq(validBody), makeRes())
+
+    const body = mockPreferenceCreate.mock.calls[0][0].body
+    expect(body.metadata.buyer_document).toBe("11144477735")
   })
 
   it("returns 503 when MERCADOPAGO_ACCESS_TOKEN is not set", async () => {

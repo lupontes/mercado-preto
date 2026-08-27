@@ -38,5 +38,4 @@ EXPOSE 9000
 
 ENV NODE_ENV=production
 
-# Run migrations then start the server
-CMD ["sh", "-c", "node_modules/.bin/medusa db:migrate && node_modules/.bin/medusa start"]
+CMD ["sh", "-c", "node_modules/.bin/medusa start"]

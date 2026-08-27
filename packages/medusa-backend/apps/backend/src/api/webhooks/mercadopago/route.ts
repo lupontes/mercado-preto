@@ -9,12 +9,17 @@ type MPWebhookBody = {
   data?: { id?: string }
 }
 
-function verifySignature(req: MedusaRequest, secret: string): boolean {
-  const xSignature = req.headers["x-signature"] as string | undefined
-  const xRequestId = req.headers["x-request-id"] as string | undefined
-
-  if (!xSignature) return false
-
+/**
+ * Signature spec (MercadoPago docs): dataId comes from the `data.id` query
+ * param (not the body), lowercased, and any part whose value is absent is
+ * omitted entirely from the manifest — not left as an empty segment.
+ * Returns the parsed manifest for logging purposes.
+ */
+function buildManifest(
+  xSignature: string,
+  xRequestId: string | undefined,
+  dataId: string,
+): { ts: string; v1: string; message: string } | null {
   const parts = Object.fromEntries(
     xSignature.split(",").flatMap((part) => {
       const [k, ...v] = part.trim().split("=")
@@ -24,16 +29,36 @@ function verifySignature(req: MedusaRequest, secret: string): boolean {
   const ts = parts["ts"]
   const v1 = parts["v1"]
 
-  if (!ts || !v1) return false
+  if (!ts || !v1) return null
 
-  const dataId = (req.body as MPWebhookBody)?.data?.id ?? ""
-  const message = `id:${dataId};request-id:${xRequestId ?? ""};ts:${ts};`
+  const manifestParts: string[] = []
+  if (dataId) manifestParts.push(`id:${dataId}`)
+  if (xRequestId) manifestParts.push(`request-id:${xRequestId}`)
+  manifestParts.push(`ts:${ts}`)
+  const message = manifestParts.join(";") + ";"
+
+  return { ts, v1, message }
+}
+
+function verifySignature(req: MedusaRequest, secret: string): { ok: boolean; reason?: string } {
+  const xSignature = req.headers["x-signature"] as string | undefined
+  const xRequestId = req.headers["x-request-id"] as string | undefined
+
+  if (!xSignature) return { ok: false, reason: "x-signature absent" }
+
+  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+  const parsed = buildManifest(xSignature, xRequestId, dataId)
+
+  if (!parsed) return { ok: false, reason: "malformed x-signature (missing ts or v1)" }
+
+  const { ts, v1, message } = parsed
   const expected = crypto.createHmac("sha256", secret).update(message).digest("hex")
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(v1, "hex"), Buffer.from(expected, "hex"))
+    const timingOk = crypto.timingSafeEqual(Buffer.from(v1, "hex"), Buffer.from(expected, "hex"))
+    return timingOk ? { ok: true } : { ok: false, reason: `v1 mismatch (got ${v1.slice(0, 8)}...)` }
   } catch {
-    return false
+    return { ok: false, reason: "timingSafeEqual error" }
   }
 }
 
@@ -47,8 +72,25 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(500).json({ error: "Webhook secret not configured" })
   }
 
-  if (!verifySignature(req, webhookSecret)) {
-    logger.warn("[mercadopago/webhook] assinatura inválida — requisição rejeitada")
+  const xSignature = req.headers["x-signature"] as string | undefined
+  const xRequestId = req.headers["x-request-id"] as string | undefined
+  const dataId = String(req.query?.["data.id"] ?? "").toLowerCase()
+
+  logger.info(`[mercadopago/webhook] x-signature: ${xSignature ?? "ausente"}`)
+  logger.info(`[mercadopago/webhook] x-request-id: ${xRequestId ?? "ausente"}`)
+  logger.info(`[mercadopago/webhook] data.id: ${dataId}`)
+
+  const parsed = buildManifest(xSignature ?? "", xRequestId, dataId)
+  if (parsed) {
+    const expected = crypto.createHmac("sha256", webhookSecret).update(parsed.message).digest("hex")
+    logger.info(`[mercadopago/webhook] manifest: ${parsed.message}`)
+    logger.info(`[mercadopago/webhook] expected v1: ${expected}`)
+    logger.info(`[mercadopago/webhook] received v1: ${parsed.v1}`)
+  }
+
+  const result = verifySignature(req, webhookSecret)
+  if (!result.ok) {
+    logger.warn(`[mercadopago/webhook] assinatura inválida — ${result.reason}`)
     return res.sendStatus(401)
   }
 
@@ -141,6 +183,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           metadata: {
             mercadopago_payment_id: String(payment.id),
             mercadopago_external_reference: payment.external_reference,
+            seller_id: meta?.seller_id,
+            buyer_document: meta?.buyer_document,
           },
         },
       ])

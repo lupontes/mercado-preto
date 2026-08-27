@@ -6,7 +6,7 @@ const Payout = model.define("payout", {
   amount: model.bigNumber(),
   periodStart: model.dateTime(),
   periodEnd: model.dateTime(),
-  status: model.enum(["pending", "processing", "completed", "failed"]).default("pending"),
+  status: model.enum(["pending", "processing", "completed", "failed", "cancelled"]).default("pending"),
   processedAt: model.dateTime().nullable(),
   notes: model.text().nullable(),
 })

@@ -15,6 +15,7 @@ const NfDocument = model.define("nf_document", {
   issuedAt: model.dateTime().nullable(),
   errorMessage: model.text().nullable(),
   amountCents: model.number(),
+  ncmFallbackUsed: model.boolean().default(false),
 })
 
 export default NfDocument

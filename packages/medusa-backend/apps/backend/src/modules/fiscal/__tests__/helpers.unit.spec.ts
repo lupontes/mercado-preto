@@ -111,56 +111,99 @@ describe("validateCep", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildNfePayload", () => {
-  it("sets CPF on destinatario for 11-digit document", () => {
+  it("sets cpf_destinatario at root level for 11-digit document", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.destinatario.cpf).toBe("12345678909")
-    expect(payload.destinatario.cnpj).toBeUndefined()
+    expect(payload.cpf_destinatario).toBe("12345678909")
+    expect(payload.cnpj_destinatario).toBeUndefined()
   })
 
-  it("sets CNPJ on destinatario for 14-digit document", () => {
+  it("sets cnpj_destinatario at root level for 14-digit document", () => {
     const input = { ...baseInput, buyerDocument: "12.345.678/0001-95" }
     const payload = buildNfePayload("ref-1", input, baseEmitter) as any
-    expect(payload.destinatario.cnpj).toBe("12345678000195")
-    expect(payload.destinatario.cpf).toBeUndefined()
+    expect(payload.cnpj_destinatario).toBe("12345678000195")
+    expect(payload.cpf_destinatario).toBeUndefined()
   })
 
   it("omits CPF and CNPJ for empty document (Consumidor Final)", () => {
     const input = { ...baseInput, buyerDocument: "" }
     const payload = buildNfePayload("ref-1", input, baseEmitter) as any
-    expect(payload.destinatario.cpf).toBeUndefined()
-    expect(payload.destinatario.cnpj).toBeUndefined()
+    expect(payload.cpf_destinatario).toBeUndefined()
+    expect(payload.cnpj_destinatario).toBeUndefined()
   })
 
-  it("normalizes CEP in destinatario address", () => {
+  it("normalizes CEP in destinatario address fields at root level", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.destinatario.endereco.cep).toBe("01310100")
+    expect(payload.cep_destinatario).toBe("01310100")
   })
 
-  it("normalizes CEP in emitter address", () => {
+  it("normalizes CEP in emitter address fields at root level", () => {
     const emitter = { ...baseEmitter, zip: "44300-000" }
     const payload = buildNfePayload("ref-1", baseInput, emitter) as any
-    expect(payload.emitente.endereco.cep).toBe("44300000")
+    expect(payload.cep_emitente).toBe("44300000")
   })
 
-  it("converts unit price from cents to reais", () => {
+  it("converts unit price from cents to reais for comercial and tributavel", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].valor_unitario).toBe(25)
+    expect(payload.items[0].valor_unitario_comercial).toBe(25)
+    expect(payload.items[0].valor_unitario_tributavel).toBe(25)
   })
 
-  it("calculates valor_total as quantity × unit price in reais", () => {
+  it("calculates valor_bruto as quantity × unit price in reais", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].valor_total).toBe(50)
+    expect(payload.items[0].valor_bruto).toBe(50)
+  })
+
+  it("sets quantidade_comercial and quantidade_tributavel from item quantity", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.items[0].quantidade_comercial).toBe(2)
+    expect(payload.items[0].quantidade_tributavel).toBe(2)
+  })
+
+  it("sets unidade_comercial and unidade_tributavel to UN", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.items[0].unidade_comercial).toBe("UN")
+    expect(payload.items[0].unidade_tributavel).toBe("UN")
   })
 
   it("uses NCM from item when provided", () => {
     const input = { ...baseInput, items: [{ description: "Produto", quantity: 1, unitPrice: 1000, ncm: "61091000" }] }
     const payload = buildNfePayload("ref-1", input, baseEmitter) as any
-    expect(payload.items[0].ncm).toBe("61091000")
+    expect(payload.items[0].codigo_ncm).toBe("61091000")
   })
 
-  it("defaults NCM to 44190000 when not provided", () => {
+  it("defaults NCM to 44199000 (valid placeholder) when not provided", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.items[0].ncm).toBe("44190000")
+    expect(payload.items[0].codigo_ncm).toBe("44199000")
+  })
+
+  it("sets modalidade_frete to 0 (CIF, por conta do emitente)", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
+    expect(payload.modalidade_frete).toBe(0)
+  })
+
+  it("uses interstate local_destino/cfop when buyer state differs from emitter state", () => {
+    const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any // emitter BA, buyer SP
+    expect(payload.local_destino).toBe(2)
+    expect(payload.items[0].cfop).toBe("6102")
+  })
+
+  it("uses internal local_destino/cfop when buyer state matches emitter state", () => {
+    const input = { ...baseInput, buyerAddress: { ...baseInput.buyerAddress, state: "BA" } }
+    const payload = buildNfePayload("ref-1", input, baseEmitter) as any
+    expect(payload.local_destino).toBe(1)
+    expect(payload.items[0].cfop).toBe("5102")
+  })
+
+  it("authorizes SEFAZ-BA's own CNPJ to access the XML when emitter is in BA (rejection 487)", () => {
+    const emitter = { ...baseEmitter, state: "BA" }
+    const payload = buildNfePayload("ref-1", baseInput, emitter) as any
+    expect(payload.pessoas_autorizadas).toEqual([{ cnpj: "13937073000156" }])
+  })
+
+  it("omits pessoas_autorizadas when emitter is outside BA", () => {
+    const emitter = { ...baseEmitter, state: "SP" }
+    const payload = buildNfePayload("ref-1", baseInput, emitter) as any
+    expect(payload.pessoas_autorizadas).toBeUndefined()
   })
 
   it("numbers items starting at 1", () => {
@@ -183,11 +226,11 @@ describe("buildNfePayload", () => {
     expect(payload.items[0].cofins_situacao_tributaria).toBe("07")
   })
 
-  it("uses emitter config for emitente block", () => {
+  it("uses emitter config for emitente fields at root level", () => {
     const payload = buildNfePayload("ref-1", baseInput, baseEmitter) as any
-    expect(payload.emitente.cnpj).toBe("12345678000195")
-    expect(payload.emitente.nome).toBe("Empresa Teste")
-    expect(payload.emitente.ie).toBe("123456789")
+    expect(payload.cnpj_emitente).toBe("12345678000195")
+    expect(payload.nome_emitente).toBe("Empresa Teste")
+    expect(payload.inscricao_estadual_emitente).toBe("123456789")
   })
 
   it("throws for invalid buyer document length inside buildNfePayload", () => {

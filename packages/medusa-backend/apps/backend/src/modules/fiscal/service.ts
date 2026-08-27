@@ -112,6 +112,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
       status: "processing",
       focusNfeRef: ref,
       amountCents: input.amountCents,
+      ncmFallbackUsed: input.ncmFallbackUsed ?? false,
     } as any) as any
 
     return this.sendToFocus(doc.id, ref, input)
@@ -135,6 +136,7 @@ class FiscalModuleService extends MedusaService({ NfDocument }) {
       id,
       status: "processing",
       errorMessage: null,
+      ncmFallbackUsed: input.ncmFallbackUsed ?? false,
     } as any)
 
     const ref = (doc as any).focusNfeRef || `order-${input.orderId}`
