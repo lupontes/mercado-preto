@@ -16,8 +16,8 @@ Ou seja: **nenhum vendedor consegue ver nenhum pedido no painel dele hoje**, em 
 
 - **Carrinho** (`apps/storefront/src/lib/cart-store.ts`): `CartItem` guarda `productId`, `variantId`, `title`, `variantTitle`, `thumbnail`, `price`, `quantity`. Não tem noção de vendedor.
 - **Add to cart** (`apps/storefront/src/components/cart/AddToCartButton.tsx`, chamado por `components/product/ProductDetails.tsx`, chamado por `app/produto/[handle]/page.tsx`): recebe `productId` da página do produto, mas nunca resolve nem passa `sellerId`.
-- **Checkout** (`apps/storefront/src/app/checkout/page.tsx:62-81`, função `createPreference`): monta `POST /store/checkout/preference` com `{ items, address, shipping, total, document }` — sem `sellerId`.
-- **Backend, criação da preferência** (`packages/medusa-backend/apps/backend/src/api/store/checkout/preference/route.ts`): schema Zod tem `sellerId: z.string().optional()` (linha 33); grava `metadata.seller_id: sellerId` (linha 110) — sempre `undefined`, já que o frontend nunca envia.
+- **Checkout** (`apps/storefront/src/app/checkout/page.tsx:62-81`, função `createPreference`): monta `POST /store/checkout/preference` com `{ items, address, shipping, total, document }` — sem `sellerId`. O array `items` enviado (linha 149) é montado como `{ title, quantity, price, variantId }` — **`productId` do `CartItem` é descartado antes do fetch**, não chega ao backend hoje.
+- **Backend, criação da preferência** (`packages/medusa-backend/apps/backend/src/api/store/checkout/preference/route.ts`): schema Zod do item tem só `title`, `quantity`, `price`, `variantId?` (linhas 9-14, sem `productId`); schema do body tem `sellerId: z.string().optional()` (linha 33); grava `metadata.seller_id: sellerId` (linha 110) — sempre `undefined`, já que o frontend nunca envia.
 - **Webhook de pagamento aprovado** (`.../api/webhooks/mercadopago/route.ts:150-201`): recupera `metadata` da preferência via `external_reference`, cria **um único pedido** (`orderService.createOrders([...])`, linha 159) com `metadata.seller_id: meta?.seller_id` (linha 186), depois emite `order.placed` e `mercadopago.order_approved` para esse pedido.
 - **Comissão** (`subscribers/commission-on-payment.ts`, evento `order.payment_captured` — emitido internamente pelo Medusa Order module ao criar o pedido, não por código deste repo): lê `order.metadata.seller_id`, fallback `"unknown"` (linha 37).
 - **NF-e** (`subscribers/order-fiscal-emit.ts`, evento `mercadopago.order_approved`): lê `order.metadata.seller_id`, fallback `"unknown"` (linha 28, usado na linha 39).
@@ -41,11 +41,13 @@ Comprador paga **uma vez só** por um carrinho com produtos de vendedores difere
 
 ### Por que resolver o vendedor no backend, não no carrinho
 
-O carrinho é dado do cliente. Se o `sellerId` de cada item fosse decidido no navegador e enviado ao backend, um comprador mal-intencionado poderia adulterar essa informação para desviar comissão/atribuição de pedido para o vendedor errado — um problema de integridade financeira, não só de UX. Resolver o vendedor de cada item no backend, a partir do `productId` (dado que já existe em cada `CartItem` e não pode ser falsificado de forma útil, pois o produto tem que existir de verdade), elimina essa superfície de ataque e evita qualquer mudança em `cart-store.ts` ou nos componentes de carrinho.
+O carrinho é dado do cliente. Se o `sellerId` de cada item fosse decidido no navegador e enviado ao backend, um comprador mal-intencionado poderia adulterar essa informação para desviar comissão/atribuição de pedido para o vendedor errado — um problema de integridade financeira, não só de UX. Resolver o vendedor de cada item no backend, a partir do `productId` (dado que já existe em cada `CartItem` no navegador e não pode ser falsificado de forma útil, pois o produto tem que existir de verdade — o pior que um `productId` adulterado faz é resolver para outro vendedor real, nunca desviar comissão sem associar a um pedido real desse vendedor), elimina essa superfície de ataque de "escolher o vendedor livremente" e evita qualquer mudança na lógica de `cart-store.ts` ou nos componentes de carrinho — só precisa parar de descartar um campo que já existe.
 
-### `checkout/preference/route.ts`
+### `checkout/preference/route.ts` (e o envio do checkout no frontend)
 
-O campo `sellerId: z.string().optional()` sai do schema Zod — nunca foi preenchido pelo frontend e a resolução passa a ser sempre server-side. Resto do schema não muda. Após validar:
+**Frontend** (`apps/storefront/src/app/checkout/page.tsx`): a função `createPreference` (linha 62) passa a aceitar `productId` em cada item de entrada, e o `.map` da linha 149 (chamada em `handlePayment`/equivalente) passa a incluir `productId: i.productId` junto de `title`/`quantity`/`price`/`variantId` — o dado já existe em `CartItem`, só estava sendo descartado antes do fetch.
+
+**Backend**: o item do schema Zod ganha `productId: z.string()` (obrigatório, não mais um dado opcional que fica sem uso). O campo `sellerId: z.string().optional()` do body sai do schema — nunca foi preenchido pelo frontend e a resolução passa a ser sempre server-side. Após validar:
 
 1. Resolve o vendedor de cada item via `query.graph` (mesmo padrão de `ContainerRegistrationKeys.QUERY` já usado em `api/store/sellers/[id]/products/route.ts`), usando o `productId` de cada item contra o link `seller-product` (`entity: "product"`, `fields: ["id", "seller.id"]`, `filters: { id: productIds }`). Nome exato do campo reverso do link (`seller.id` vs. alternativa) a confirmar na primeira rodada de TDD — o link já existe, é questão de sintaxe de query.
 2. Agrupa os itens da requisição por `sellerId` resolvido. Se algum item não tiver produto/vendedor encontrado (produto deletado ou dado inconsistente), a rota responde `400` com uma mensagem clara — em vez de deixar cair em `"unknown"` silenciosamente como acontece hoje.
@@ -78,8 +80,11 @@ Sem mudança. Continua lendo `payment.metadata.items` / `.shipping` / `.total` (
 
 ## Testing
 
+Frontend (`*.test.ts`, Vitest):
+- `checkout/page.tsx` (ou o módulo onde `createPreference` vive, se extraído): o corpo enviado a `POST /store/checkout/preference` inclui `productId` de cada item do carrinho.
+
 Backend (`*.unit.spec.ts`, TDD):
-- `checkout/preference/route.ts`: agrupamento de itens por vendedor resolvido via `query.graph` (mock); cálculo de `subtotal`/`shippingShare` por grupo, incluindo o caso do resto de centavos; `400` quando um item não resolve vendedor; carrinho de vendedor único produz um `seller_groups` com um elemento.
+- `checkout/preference/route.ts`: `400` quando um item chega sem `productId` (schema); agrupamento de itens por vendedor resolvido via `query.graph` (mock); cálculo de `subtotal`/`shippingShare` por grupo, incluindo o caso do resto de centavos; `400` quando um item não resolve vendedor; carrinho de vendedor único produz um `seller_groups` com um elemento.
 - `webhooks/mercadopago/route.ts`: pagamento aprovado com `seller_groups` de 2+ vendedores cria N pedidos, cada um com `seller_id` correto, itens e `shippingShare` corretos; reprocessamento do mesmo webhook com 1 dos N pedidos já existente cria só os que faltam; carrinho de vendedor único continua criando exatamente 1 pedido (teste de regressão — `seller_id` não é mais `"unknown"`); fallback de compatibilidade quando `seller_groups` está ausente.
 - Regressão: `commission-on-payment.ts` e `order-fiscal-emit.ts` não mudam de código, mas os testes existentes que hoje esperam `sellerId "unknown"` como cenário válido devem ser revistos — esse fallback deixa de ser o caminho normal.
 
