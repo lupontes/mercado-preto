@@ -29,3 +29,9 @@ CREDENTIALS.md
 
 # Certbot runtime state (private keys, account data, ACME challenges)
 infra/nginx/certbot/
+
+# Claude Code local settings (contém segredos, por máquina)
+.claude/settings.local.json
+
+# Graphify — saída local do grafo de conhecimento
+graphify-out/
