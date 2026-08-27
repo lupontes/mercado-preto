@@ -59,8 +59,8 @@ async function fetchShippingRates(cep: string): Promise<ShippingRate[]> {
   return rates ?? []
 }
 
-async function createPreference(
-  items: { title: string; quantity: number; price: number; variantId?: string }[],
+export async function createPreference(
+  items: { title: string; quantity: number; price: number; variantId?: string; productId: string }[],
   address: Address,
   shipping: ShippingRate
 ): Promise<PreferenceData | null> {
@@ -146,7 +146,13 @@ export default function CheckoutPage() {
     setLoading(true)
 
     const data = await createPreference(
-      items.map((i) => ({ title: i.title, quantity: i.quantity, price: i.price, variantId: i.variantId })),
+      items.map((i) => ({
+        title: i.title,
+        quantity: i.quantity,
+        price: i.price,
+        variantId: i.variantId,
+        productId: i.productId,
+      })),
       address,
       selectedShipping
     )
