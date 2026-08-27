@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
+import type { SellerGroup } from "../../../utils/seller-order-groups"
 
 type MPWebhookBody = {
   type?: string
@@ -140,24 +141,45 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       }
 
       const addr = meta?.address as Record<string, string> | undefined
-      const mpItems: { variant_id?: string; title: string; quantity: number; price: number }[] =
-        meta?.items ?? []
       const shipping: { name: string; price: number } | undefined = meta?.shipping
+
+      const sellerGroups: SellerGroup[] = Array.isArray(meta?.seller_groups)
+        ? meta.seller_groups
+        : [
+            {
+              sellerId: meta?.seller_id,
+              subtotal: 0,
+              shippingShare: shipping?.price ?? 0,
+              items: meta?.items ?? [],
+            } as SellerGroup,
+          ]
 
       const orderService = req.scope.resolve(Modules.ORDER)
       const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
 
-      const existingOrders = await orderService.listOrders(
-        { metadata: { mercadopago_external_reference: payment.external_reference } } as any,
-        { take: 1 }
-      )
-      if (existingOrders.length > 0) {
-        logger.info(`[mercadopago/webhook] pedido já existe: ${existingOrders[0].id} — ignorando webhook duplicado`)
+      const pendingGroups: SellerGroup[] = []
+      for (const group of sellerGroups) {
+        const existing = await orderService.listOrders(
+          {
+            metadata: {
+              mercadopago_external_reference: payment.external_reference,
+              seller_id: group.sellerId,
+            },
+          } as any,
+          { take: 1 }
+        )
+        if (existing.length === 0) pendingGroups.push(group)
+      }
+
+      if (pendingGroups.length === 0) {
+        logger.info(
+          `[mercadopago/webhook] todos os pedidos já existem para ref ${payment.external_reference} — ignorando webhook duplicado`
+        )
         return res.sendStatus(200)
       }
 
-      const [order] = await orderService.createOrders([
-        {
+      const createdOrders = await orderService.createOrders(
+        pendingGroups.map((group) => ({
           currency_code: "brl",
           email: addr?.email ?? (payment.payer as any)?.email,
           shipping_address: {
@@ -171,34 +193,36 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             country_code: "br",
             postal_code: addr?.postal_code ?? (payment.payer as any)?.address?.zip_code ?? "",
           },
-          items: mpItems.map((i) => ({
+          items: group.items.map((i) => ({
             title: i.title,
             quantity: i.quantity,
             unit_price: i.price,
             ...(i.variant_id ? { variant_id: i.variant_id } : {}),
           })),
-          shipping_methods: shipping
-            ? [{ name: shipping.name, amount: shipping.price }]
-            : [],
+          shipping_methods: shipping ? [{ name: shipping.name, amount: group.shippingShare }] : [],
           metadata: {
             mercadopago_payment_id: String(payment.id),
             mercadopago_external_reference: payment.external_reference,
-            seller_id: meta?.seller_id,
+            seller_id: group.sellerId,
             buyer_document: meta?.buyer_document,
           },
-        },
-      ])
+        }))
+      )
 
-      logger.info(`[mercadopago/webhook] pedido criado: ${order.id}`)
+      logger.info(
+        `[mercadopago/webhook] ${createdOrders.length} pedido(s) criado(s) para ref ${payment.external_reference}`
+      )
 
       // order.placed              → WhatsApp de confirmação
       // mercadopago.order_approved → emissão NF-e (evento customizado para evitar
       //                              conflito com subscriber interno do Medusa para
       //                              order.payment_captured)
-      await eventBusService.emit([
-        { name: "order.placed",               data: { id: order.id } },
-        { name: "mercadopago.order_approved", data: { id: order.id } },
-      ])
+      await eventBusService.emit(
+        createdOrders.flatMap((order: any) => [
+          { name: "order.placed", data: { id: order.id } },
+          { name: "mercadopago.order_approved", data: { id: order.id } },
+        ])
+      )
     }
 
     res.sendStatus(200)
