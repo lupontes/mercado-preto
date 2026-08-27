@@ -1,6 +1,6 @@
 // apps/storefront/src/app/checkout/__tests__/page.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPreference } from '../page'
+import { createPreference } from '../create-preference'
 
 describe('createPreference', () => {
   afterEach(() => {
