@@ -1,5 +1,5 @@
 import { Modules } from "@medusajs/framework/utils"
-import commissionOnPayment from "../commission-on-payment"
+import commissionOnPayment, { config } from "../commission-on-payment"
 
 function makeContainer(overrides: Record<string, unknown>) {
   return {
@@ -18,6 +18,10 @@ const baseOrder = {
 }
 
 describe("commissionOnPayment", () => {
+  it("subscribes to mercadopago.order_approved — the only event the MercadoPago webhook actually emits for created orders; order.payment_captured is never emitted anywhere in this codebase, so subscribing to it means commission is never recorded", () => {
+    expect(config.event).toBe("mercadopago.order_approved")
+  })
+
   it("does nothing when the commission already exists (idempotency)", async () => {
     const retrieveOrder = jest.fn().mockResolvedValue(baseOrder)
     const listCommissions = jest.fn().mockResolvedValue([{ id: "comm_existing" }])
