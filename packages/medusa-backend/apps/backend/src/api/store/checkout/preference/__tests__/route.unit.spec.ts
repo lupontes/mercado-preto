@@ -1,4 +1,5 @@
 import { MercadoPagoConfig, Preference } from "mercadopago"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 jest.mock("mercadopago")
 jest.mock("crypto", () => ({ randomUUID: () => "fixed-uuid-1234" }))
@@ -7,14 +8,34 @@ const MockPreference = Preference as jest.MockedClass<typeof Preference>
 
 import { POST } from "../route"
 
-const makeReq = (body: unknown, env: Record<string, string> = {}) => {
+function makeScope(overrides: Record<string, unknown>) {
+  return {
+    resolve: (key: string) => {
+      if (key in overrides) return overrides[key]
+      throw new Error(`Unexpected resolve: ${String(key)}`)
+    },
+  }
+}
+
+const makeReq = (
+  body: unknown,
+  env: Record<string, string> = {},
+  sellerByProductId: Record<string, string> = { "prod-1": "seller-1" }
+) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
     STORE_CORS: "http://localhost:3000",
     BACKEND_URL: "",
     ...env,
   })
-  return { body } as any
+  const graph = jest.fn().mockResolvedValue({
+    data: Object.entries(sellerByProductId).map(([id, sellerId]) => ({ id, seller: { id: sellerId } })),
+  })
+  return {
+    body,
+    scope: makeScope({ [ContainerRegistrationKeys.QUERY]: { graph } }),
+    _graph: graph,
+  } as any
 }
 
 const makeRes = () => {
@@ -25,7 +46,7 @@ const makeRes = () => {
 }
 
 const validBody = {
-  items: [{ title: "Camiseta", quantity: 1, price: 7900, variantId: "var-1" }],
+  items: [{ title: "Camiseta", quantity: 1, price: 7900, variantId: "var-1", productId: "prod-1" }],
   address: {
     firstName: "João",
     lastName: "Silva",
@@ -39,7 +60,6 @@ const validBody = {
   },
   shipping: { id: "pac", name: "PAC", price: 2500 },
   total: 10400,
-  sellerId: "seller-1",
   document: "111.444.777-35",
 }
 
@@ -193,5 +213,55 @@ describe("POST /store/checkout/preference", () => {
 
     expect(res._status).toBe(500)
     expect((res._body as any).detail).toBe("MP unavailable")
+  })
+
+  it("returns 400 when an item's product has no seller association", async () => {
+    const res = makeRes()
+    await POST(makeReq(validBody, {}, {}), res) // sellerByProductId vazio → prod-1 não resolve
+
+    expect(res._status).toBe(400)
+    expect((res._body as any).error).toBe("Produto sem vendedor associado.")
+  })
+
+  it("writes seller_groups (not seller_id) to the preference metadata", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    await POST(makeReq(validBody), makeRes())
+
+    const body = mockPreferenceCreate.mock.calls[0][0].body
+    expect(body.metadata.seller_id).toBeUndefined()
+    expect(body.metadata.seller_groups).toEqual([
+      expect.objectContaining({ sellerId: "seller-1", subtotal: 7900 }),
+    ])
+  })
+
+  it("splits seller_groups across sellers for a multi-seller cart", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    const body = {
+      ...validBody,
+      items: [
+        { title: "Camiseta", quantity: 1, price: 7500, variantId: "var-1", productId: "prod-1" },
+        { title: "Sabonete", quantity: 1, price: 2500, variantId: "var-2", productId: "prod-2" },
+      ],
+    }
+    await POST(makeReq(body, {}, { "prod-1": "seller-1", "prod-2": "seller-2" }), makeRes())
+
+    const created = mockPreferenceCreate.mock.calls[0][0].body
+    expect(created.metadata.seller_groups).toHaveLength(2)
+    expect(created.metadata.seller_groups.map((g: any) => g.sellerId).sort()).toEqual(["seller-1", "seller-2"])
+  })
+
+  it("still includes the flat items/shipping/total metadata used by the confirmation screen", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    await POST(makeReq(validBody), makeRes())
+
+    const body = mockPreferenceCreate.mock.calls[0][0].body
+    expect(body.metadata.items).toEqual([
+      expect.objectContaining({ variant_id: "var-1", title: "Camiseta", quantity: 1, price: 7900 }),
+    ])
+    expect(body.metadata.shipping).toEqual({ id: "pac", name: "PAC", price: 2500 })
+    expect(body.metadata.total).toBe(10400)
   })
 })

@@ -321,4 +321,108 @@ describe("POST /webhooks/mercadopago", () => {
 
     expect(res._status).toBe(401)
   })
+
+  const twoSellerGroupsMetadata = {
+    address: preferenceMetadata.address,
+    seller_groups: [
+      {
+        sellerId: "seller-a",
+        subtotal: 7500,
+        shippingShare: 1125,
+        items: [{ variant_id: "var-1", title: "Camiseta", quantity: 1, price: 7500 }],
+      },
+      {
+        sellerId: "seller-b",
+        subtotal: 2500,
+        shippingShare: 375,
+        items: [{ variant_id: "var-2", title: "Sabonete", quantity: 1, price: 2500 }],
+      },
+    ],
+    shipping: { id: "pac", name: "PAC", price: 1500 },
+    total: 11500,
+  }
+
+  it("creates one order per seller group when seller_groups is present", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._orderService.createOrders.mockResolvedValue([{ id: "order-a" }, { id: "order-b" }])
+
+    await POST(req, makeRes())
+
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders).toHaveLength(2)
+    expect(createdOrders.map((o: any) => o.metadata.seller_id).sort()).toEqual(["seller-a", "seller-b"])
+    expect(createdOrders.find((o: any) => o.metadata.seller_id === "seller-a").shipping_methods[0].amount).toBe(1125)
+    expect(createdOrders.find((o: any) => o.metadata.seller_id === "seller-b").shipping_methods[0].amount).toBe(375)
+  })
+
+  it("emits order.placed and mercadopago.order_approved once per created order", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._orderService.createOrders.mockResolvedValue([{ id: "order-a" }, { id: "order-b" }])
+
+    await POST(req, makeRes())
+
+    expect(req._eventBusService.emit).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "order.placed", data: { id: "order-a" } }),
+        expect.objectContaining({ name: "mercadopago.order_approved", data: { id: "order-a" } }),
+        expect.objectContaining({ name: "order.placed", data: { id: "order-b" } }),
+        expect.objectContaining({ name: "mercadopago.order_approved", data: { id: "order-b" } }),
+      ])
+    )
+  })
+
+  it("only creates orders for seller groups that don't already exist (partial idempotency)", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._orderService.listOrders.mockImplementation((filter: any) => {
+      const sellerId = filter.metadata.seller_id
+      return Promise.resolve(sellerId === "seller-a" ? [{ id: "order-a-existing" }] : [])
+    })
+    req._orderService.createOrders.mockResolvedValue([{ id: "order-b" }])
+
+    await POST(req, makeRes())
+
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders).toHaveLength(1)
+    expect(createdOrders[0].metadata.seller_id).toBe("seller-b")
+  })
+
+  it("skips order creation entirely when every seller group's order already exists", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._orderService.listOrders.mockResolvedValue([{ id: "existing" }])
+
+    const res = makeRes()
+    await POST(req, res)
+
+    expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    expect(res._status).toBe(200)
+  })
+
+  it("falls back to a single group derived from seller_id/items/shipping when seller_groups is absent", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata }) // sem seller_groups, tem seller_id: "seller-abc"
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    await POST(req, makeRes())
+
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders).toHaveLength(1)
+    expect(createdOrders[0].metadata.seller_id).toBe("seller-abc")
+  })
 })

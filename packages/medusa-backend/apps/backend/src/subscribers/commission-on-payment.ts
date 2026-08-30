@@ -64,5 +64,11 @@ export default async function commissionOnPayment({
 }
 
 export const config: SubscriberConfig = {
-  event: "order.payment_captured",
+  // "order.payment_captured" não é um evento real do Medusa v2 (o evento nativo
+  // de captura é "payment.captured", escopado no pagamento, não no pedido) e
+  // nunca é emitido em lugar nenhum deste código — então esse subscriber nunca
+  // disparava. "mercadopago.order_approved" é o evento que o webhook do
+  // MercadoPago de fato emite pra cada pedido criado (mesmo evento já usado
+  // por order-fiscal-emit.ts para a emissão de NF-e).
+  event: "mercadopago.order_approved",
 }
