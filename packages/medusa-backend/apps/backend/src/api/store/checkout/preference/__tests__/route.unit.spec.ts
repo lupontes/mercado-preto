@@ -1,4 +1,5 @@
 import { MercadoPagoConfig, Preference } from "mercadopago"
+import { CHECKOUT_MODULE } from "../../../../../modules/checkout"
 
 jest.mock("mercadopago")
 jest.mock("crypto", () => ({ randomUUID: () => "fixed-uuid-1234" }))
@@ -7,14 +8,35 @@ const MockPreference = Preference as jest.MockedClass<typeof Preference>
 
 import { POST } from "../route"
 
-const makeReq = (body: unknown, env: Record<string, string> = {}) => {
+const makeReq = (
+  body: unknown,
+  env: Record<string, string> = {},
+  checkoutServiceOverrides: Record<string, unknown> = {}
+) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
     STORE_CORS: "http://localhost:3000",
     BACKEND_URL: "",
     ...env,
   })
-  return { body } as any
+  const mockCheckoutService = {
+    recordSnapshot: jest.fn().mockResolvedValue(undefined),
+    attachPreferenceId: jest.fn().mockResolvedValue(undefined),
+    ...checkoutServiceOverrides,
+  }
+  const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+  return {
+    body,
+    scope: {
+      resolve: (key: string) => {
+        if (key === "logger") return mockLogger
+        if (key === CHECKOUT_MODULE) return mockCheckoutService
+        throw new Error(`Unexpected resolve: ${key}`)
+      },
+    },
+    _checkoutService: mockCheckoutService,
+    _logger: mockLogger,
+  } as any
 }
 
 const makeRes = () => {
@@ -193,5 +215,60 @@ describe("POST /store/checkout/preference", () => {
 
     expect(res._status).toBe(500)
     expect((res._body as any).detail).toBe("MP unavailable")
+  })
+
+  it("writes a checkout snapshot keyed by the generated external_reference before creating the preference", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    const req = makeReq(validBody)
+    await POST(req, makeRes())
+
+    expect(req._checkoutService.recordSnapshot).toHaveBeenCalledWith(
+      "fixed-uuid-1234",
+      expect.objectContaining({
+        seller_id: "seller-1",
+        buyer_document: "11144477735",
+        items: [expect.objectContaining({ title: "Camiseta", quantity: 1, price: 7900 })],
+        shipping: { id: "pac", name: "PAC", price: 2500 },
+        total: 10400,
+      })
+    )
+    const recordCallOrder = req._checkoutService.recordSnapshot.mock.invocationCallOrder[0]
+    const createCallOrder = mockPreferenceCreate.mock.invocationCallOrder[0]
+    expect(recordCallOrder).toBeLessThan(createCallOrder)
+  })
+
+  it("returns 500 and does not call MercadoPago when the snapshot write fails", async () => {
+    const req = makeReq(validBody, {}, {
+      recordSnapshot: jest.fn().mockRejectedValue(new Error("db down")),
+    })
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(500)
+    expect(mockPreferenceCreate).not.toHaveBeenCalled()
+  })
+
+  it("attaches the returned preference_id to the snapshot after creation succeeds", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-xyz" })
+
+    const req = makeReq(validBody)
+    await POST(req, makeRes())
+
+    expect(req._checkoutService.attachPreferenceId).toHaveBeenCalledWith("fixed-uuid-1234", "pref-xyz")
+  })
+
+  it("still responds success when attaching the preference_id to the snapshot fails (best-effort, non-fatal)", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-xyz" })
+    const req = makeReq(validBody, {}, {
+      attachPreferenceId: jest.fn().mockRejectedValue(new Error("db down")),
+    })
+
+    const res = makeRes()
+    await POST(req, res)
+
+    expect(res._status).toBe(200)
+    expect(res._body).toEqual(expect.objectContaining({ preference_id: "pref-xyz" }))
   })
 })

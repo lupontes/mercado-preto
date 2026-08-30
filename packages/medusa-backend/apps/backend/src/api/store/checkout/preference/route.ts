@@ -3,6 +3,8 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { z } from "zod"
 import { validateDocument } from "../../../../utils/validate-document"
+import { CHECKOUT_MODULE } from "../../../../modules/checkout"
+import type CheckoutModuleService from "../../../../modules/checkout/service"
 
 const schema = z.object({
   items: z.array(
@@ -53,6 +55,39 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const backendUrl = process.env.BACKEND_URL
 
   const externalReference = crypto.randomUUID()
+
+  const checkoutSnapshotPayload = {
+    seller_id: sellerId,
+    buyer_document: buyerDocument,
+    address: {
+      first_name: address.firstName,
+      last_name: address.lastName,
+      email: address.email,
+      phone: address.phone ?? "",
+      address_1: address.address1,
+      address_2: address.address2 ?? "",
+      city: address.city,
+      state: address.state,
+      postal_code: address.cep.replace(/\D/g, ""),
+    },
+    items: items.map((i) => ({
+      variant_id: i.variantId,
+      title: i.title,
+      quantity: i.quantity,
+      price: i.price,
+    })),
+    shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
+    total,
+  }
+
+  const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
+
+  try {
+    await checkoutService.recordSnapshot(externalReference, checkoutSnapshotPayload)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : JSON.stringify(err)
+    return res.status(500).json({ error: "Erro ao salvar snapshot do checkout.", detail: msg })
+  }
 
   const mp = new MercadoPagoConfig({ accessToken })
   const preference = new Preference(mp)
@@ -105,32 +140,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         // notification_url só funciona com URL pública (HTTPS). Em desenvolvimento local,
         // configure BACKEND_URL com uma URL de túnel (ex: ngrok) para receber webhooks.
         ...(backendUrl ? { notification_url: `${backendUrl}/webhooks/mercadopago` } : {}),
-        // Snapshot do pedido para rastreabilidade via webhook
-        metadata: {
-          seller_id: sellerId,
-          buyer_document: buyerDocument,
-          address: {
-            first_name: address.firstName,
-            last_name: address.lastName,
-            email: address.email,
-            phone: address.phone ?? "",
-            address_1: address.address1,
-            address_2: address.address2 ?? "",
-            city: address.city,
-            state: address.state,
-            postal_code: address.cep.replace(/\D/g, ""),
-          },
-          items: items.map((i) => ({
-            variant_id: i.variantId,
-            title: i.title,
-            quantity: i.quantity,
-            price: i.price,
-          })),
-          shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
-          total,
-        },
+        // Snapshot do pedido pra rastreabilidade via webhook — mesmo payload
+        // gravado no nosso banco acima (checkoutSnapshotPayload), fonte de
+        // verdade primária caso payment.metadata volte vazio.
+        metadata: checkoutSnapshotPayload,
       },
     })
+
+    try {
+      await checkoutService.attachPreferenceId(externalReference, result.id as string)
+    } catch (attachErr: unknown) {
+      const logger = req.scope.resolve("logger") as { warn: (msg: string) => void }
+      logger.warn(`[checkout/preference] falha ao gravar preferenceId no snapshot: ${attachErr}`)
+    }
 
     res.json({
       preference_id: result.id,
