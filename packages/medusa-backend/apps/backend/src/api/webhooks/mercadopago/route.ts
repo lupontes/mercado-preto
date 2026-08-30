@@ -2,6 +2,8 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
+import { CHECKOUT_MODULE } from "../../../modules/checkout"
+import type CheckoutModuleService from "../../../modules/checkout/service"
 
 type MPWebhookBody = {
   type?: string
@@ -119,23 +121,36 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         `[mercadopago/webhook] pagamento aprovado — R$ ${payment.transaction_amount} | ref: ${payment.external_reference}`
       )
 
+      const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
+
       // MP does not propagate preference.metadata to the payment object.
-      // Fetch the preference by external_reference to recover the order snapshot.
+      // Recupera o snapshot do checkout: prioriza nosso próprio banco (gravado
+      // no momento da criação da preferência, sempre disponível de imediato)
+      // em vez de depender da busca de preferências do MercadoPago, que foi
+      // observada com atraso de indexação de horas (ver
+      // docs/superpowers/specs/2026-08-29-checkout-metadata-persistence-design.md).
       let meta = payment.metadata as Record<string, any> | undefined
       if ((!meta?.items?.length) && payment.external_reference) {
-        try {
-          const prefClient = new Preference(mp)
-          const searchResult = await prefClient.search({
-            options: { external_reference: payment.external_reference },
-          })
-          const prefId = searchResult.elements?.[0]?.id
-          if (prefId) {
-            const pref = await prefClient.get({ preferenceId: prefId })
-            meta = pref.metadata as Record<string, any> | undefined
-            logger.info(`[mercadopago/webhook] metadados recuperados da preferência ${prefId}`)
+        const snapshot = await checkoutService.findByExternalReference(payment.external_reference)
+        if (snapshot) {
+          meta = snapshot.payload as Record<string, any>
+          logger.info(`[mercadopago/webhook] metadados recuperados do snapshot local para ref ${payment.external_reference}`)
+        } else {
+          // Fallback legado: preferências criadas antes deste snapshot existir.
+          try {
+            const prefClient = new Preference(mp)
+            const searchResult = await prefClient.search({
+              options: { external_reference: payment.external_reference },
+            })
+            const prefId = searchResult.elements?.[0]?.id
+            if (prefId) {
+              const pref = await prefClient.get({ preferenceId: prefId })
+              meta = pref.metadata as Record<string, any> | undefined
+              logger.info(`[mercadopago/webhook] metadados recuperados da preferência ${prefId} (fallback legado)`)
+            }
+          } catch (prefErr) {
+            logger.warn(`[mercadopago/webhook] falha ao buscar preferência (fallback legado): ${prefErr}`)
           }
-        } catch (prefErr) {
-          logger.warn(`[mercadopago/webhook] falha ao buscar preferência: ${prefErr}`)
         }
       }
 
@@ -143,6 +158,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       const mpItems: { variant_id?: string; title: string; quantity: number; price: number }[] =
         meta?.items ?? []
       const shipping: { name: string; price: number } | undefined = meta?.shipping
+
+      if (mpItems.length === 0) {
+        logger.error(
+          `[mercadopago/webhook] metadados do checkout não recuperados (payment.metadata vazio, snapshot ausente, busca de preferência sem resultado) — pedido NÃO criado pra ref ${payment.external_reference}, payment ${payment.id}`
+        )
+        return res.sendStatus(200)
+      }
 
       const orderService = req.scope.resolve(Modules.ORDER)
       const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
