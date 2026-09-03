@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { CHECKOUT_MODULE } from "../../../../../modules/checkout"
 
 jest.mock("mercadopago")
 jest.mock("crypto", () => ({ randomUUID: () => "fixed-uuid-1234" }))
@@ -8,19 +9,11 @@ const MockPreference = Preference as jest.MockedClass<typeof Preference>
 
 import { POST } from "../route"
 
-function makeScope(overrides: Record<string, unknown>) {
-  return {
-    resolve: (key: string) => {
-      if (key in overrides) return overrides[key]
-      throw new Error(`Unexpected resolve: ${String(key)}`)
-    },
-  }
-}
-
 const makeReq = (
   body: unknown,
   env: Record<string, string> = {},
-  sellerByProductId: Record<string, string> = { "prod-1": "seller-1" }
+  sellerByProductId: Record<string, string> = { "prod-1": "seller-1" },
+  checkoutServiceOverrides: Record<string, unknown> = {}
 ) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
@@ -31,10 +24,25 @@ const makeReq = (
   const graph = jest.fn().mockResolvedValue({
     data: Object.entries(sellerByProductId).map(([id, sellerId]) => ({ id, seller: { id: sellerId } })),
   })
+  const mockCheckoutService = {
+    recordSnapshot: jest.fn().mockResolvedValue(undefined),
+    attachPreferenceId: jest.fn().mockResolvedValue(undefined),
+    ...checkoutServiceOverrides,
+  }
+  const mockLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
   return {
     body,
-    scope: makeScope({ [ContainerRegistrationKeys.QUERY]: { graph } }),
+    scope: {
+      resolve: (key: string) => {
+        if (key === ContainerRegistrationKeys.QUERY) return { graph }
+        if (key === CHECKOUT_MODULE) return mockCheckoutService
+        if (key === "logger") return mockLogger
+        throw new Error(`Unexpected resolve: ${key}`)
+      },
+    },
     _graph: graph,
+    _checkoutService: mockCheckoutService,
+    _logger: mockLogger,
   } as any
 }
 
@@ -163,6 +171,14 @@ describe("POST /store/checkout/preference", () => {
     expect((res._body as any).error).toBe("Dados inválidos.")
   })
 
+  it("returns 400 when items is an empty array (even with all other fields valid)", async () => {
+    const res = makeRes()
+    await POST(makeReq({ ...validBody, items: [] }), res)
+
+    expect(res._status).toBe(400)
+    expect((res._body as any).error).toBe("Dados inválidos.")
+  })
+
   it("returns 400 when document is missing", async () => {
     const { document, ...bodyWithoutDocument } = validBody
     const res = makeRes()
@@ -263,5 +279,60 @@ describe("POST /store/checkout/preference", () => {
     ])
     expect(body.metadata.shipping).toEqual({ id: "pac", name: "PAC", price: 2500 })
     expect(body.metadata.total).toBe(10400)
+  })
+
+  it("writes a checkout snapshot (with seller_groups) keyed by the generated external_reference before creating the preference", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+
+    const req = makeReq(validBody)
+    await POST(req, makeRes())
+
+    expect(req._checkoutService.recordSnapshot).toHaveBeenCalledWith(
+      "fixed-uuid-1234",
+      expect.objectContaining({
+        seller_groups: expect.arrayContaining([expect.objectContaining({ sellerId: "seller-1" })]),
+        buyer_document: "11144477735",
+        items: [expect.objectContaining({ title: "Camiseta", quantity: 1, price: 7900 })],
+        shipping: { id: "pac", name: "PAC", price: 2500 },
+        total: 10400,
+      })
+    )
+    const recordCallOrder = req._checkoutService.recordSnapshot.mock.invocationCallOrder[0]
+    const createCallOrder = mockPreferenceCreate.mock.invocationCallOrder[0]
+    expect(recordCallOrder).toBeLessThan(createCallOrder)
+  })
+
+  it("returns 500 and does not call MercadoPago when the snapshot write fails", async () => {
+    const req = makeReq(validBody, {}, undefined, {
+      recordSnapshot: jest.fn().mockRejectedValue(new Error("db down")),
+    })
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(500)
+    expect(mockPreferenceCreate).not.toHaveBeenCalled()
+  })
+
+  it("attaches the returned preference_id to the snapshot after creation succeeds", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-xyz" })
+
+    const req = makeReq(validBody)
+    await POST(req, makeRes())
+
+    expect(req._checkoutService.attachPreferenceId).toHaveBeenCalledWith("fixed-uuid-1234", "pref-xyz")
+  })
+
+  it("still responds success when attaching the preference_id to the snapshot fails (best-effort, non-fatal)", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-xyz" })
+    const req = makeReq(validBody, {}, undefined, {
+      attachPreferenceId: jest.fn().mockRejectedValue(new Error("db down")),
+    })
+
+    const res = makeRes()
+    await POST(req, res)
+
+    expect(res._status).toBe(200)
+    expect(res._body).toEqual(expect.objectContaining({ preference_id: "pref-xyz" }))
   })
 })

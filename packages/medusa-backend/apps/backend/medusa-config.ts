@@ -39,6 +39,14 @@ module.exports = defineConfig({
       resolve: "./src/modules/fiscal",
     },
 
+    // Checkout module — persiste um snapshot dos metadados do checkout
+    // (itens, endereço, frete, seller_id) no momento da criação da
+    // preferência MP, pra o webhook não depender da busca de preferências
+    // do MercadoPago (observada com atraso de indexação de horas).
+    {
+      resolve: "./src/modules/checkout",
+    },
+
     // File storage — migrated product images re-hosted locally
     {
       resolve: "@medusajs/medusa/file",

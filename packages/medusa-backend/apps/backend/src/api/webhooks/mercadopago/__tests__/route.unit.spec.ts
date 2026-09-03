@@ -51,6 +51,9 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
     warn: jest.fn(),
     error: jest.fn(),
   }
+  const mockCheckoutService = {
+    findByExternalReference: jest.fn().mockResolvedValue(null),
+  }
 
   const dataId = (body as any)?.data?.id ?? ""
 
@@ -61,6 +64,7 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
     scope: {
       resolve: (key: string) => {
         if (key === "logger") return mockLogger
+        if (key === "checkout") return mockCheckoutService
         if (key.includes("order")) return mockOrderService
         if (key.includes("event")) return mockEventBusService
         return {}
@@ -68,6 +72,7 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
     },
     _orderService: mockOrderService,
     _eventBusService: mockEventBusService,
+    _checkoutService: mockCheckoutService,
   } as any
 }
 
@@ -179,10 +184,51 @@ describe("POST /webhooks/mercadopago", () => {
     await POST(req, makeRes())
 
     expect(mockPrefSearch).not.toHaveBeenCalled()
+    expect(req._checkoutService.findByExternalReference).not.toHaveBeenCalled()
     expect(req._orderService.createOrders).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           items: [expect.objectContaining({ unit_price: 7900 })],
+        }),
+      ])
+    )
+  })
+
+  it("creates order using the local checkout snapshot when payment.metadata has no items (does not call MercadoPago's preference search)", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._checkoutService.findByExternalReference.mockResolvedValue({ payload: preferenceMetadata })
+
+    await POST(req, makeRes())
+
+    expect(mockPrefSearch).not.toHaveBeenCalled()
+    expect(req._orderService.createOrders).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          items: [expect.objectContaining({ title: "Camiseta", quantity: 1, unit_price: 7900 })],
+        }),
+      ])
+    )
+  })
+
+  it("falls through to the legacy MercadoPago preference search when the local snapshot lookup throws (non-fatal)", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._checkoutService.findByExternalReference.mockRejectedValue(new Error("db down"))
+
+    await POST(req, makeRes())
+
+    expect(mockPrefSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ external_reference: "ext-ref-uuid" }) })
+    )
+    expect(req._orderService.createOrders).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          items: [expect.objectContaining({ title: "Camiseta", quantity: 1, unit_price: 7900 })],
         }),
       ])
     )
@@ -226,33 +272,29 @@ describe("POST /webhooks/mercadopago", () => {
     expect(createdOrder.metadata.seller_id).toBe("seller-abc")
   })
 
-  it("creates order with empty items when preference fetch fails", async () => {
+  it("does not create an order when metadata recovery fails via preference search error (refuses instead of creating an empty order)", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockRejectedValue(new Error("MP unavailable"))
 
     const req = makeReq({ type: "payment", data: { id: "42" } })
-    await POST(req, makeRes())
+    const res = makeRes()
+    await POST(req, res)
 
-    expect(req._orderService.createOrders).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ items: [] }),
-      ])
-    )
+    expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    expect(res._status).toBe(200)
   })
 
-  it("creates order with empty items when preference search returns no results", async () => {
+  it("does not create an order when preference search returns no results (refuses instead of creating an empty order)", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockResolvedValue({ elements: [] })
 
     const req = makeReq({ type: "payment", data: { id: "42" } })
-    await POST(req, makeRes())
+    const res = makeRes()
+    await POST(req, res)
 
     expect(mockPrefGet).not.toHaveBeenCalled()
-    expect(req._orderService.createOrders).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ items: [] }),
-      ])
-    )
+    expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    expect(res._status).toBe(200)
   })
 
   it("emits order.placed and mercadopago.order_approved after order creation", async () => {
@@ -324,6 +366,12 @@ describe("POST /webhooks/mercadopago", () => {
 
   const twoSellerGroupsMetadata = {
     address: preferenceMetadata.address,
+    // Flat items list — sempre presente junto de seller_groups num checkoutSnapshotPayload
+    // real (Task 1), é o que o guard de "nada recuperado" do webhook verifica.
+    items: [
+      { variant_id: "var-1", title: "Camiseta", quantity: 1, price: 7500 },
+      { variant_id: "var-2", title: "Sabonete", quantity: 1, price: 2500 },
+    ],
     seller_groups: [
       {
         sellerId: "seller-a",
@@ -342,7 +390,7 @@ describe("POST /webhooks/mercadopago", () => {
     total: 11500,
   }
 
-  it("creates one order per seller group when seller_groups is present", async () => {
+  it("creates one order per seller group when seller_groups is present via the legacy preference-search fallback", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
@@ -357,6 +405,21 @@ describe("POST /webhooks/mercadopago", () => {
     expect(createdOrders.map((o: any) => o.metadata.seller_id).sort()).toEqual(["seller-a", "seller-b"])
     expect(createdOrders.find((o: any) => o.metadata.seller_id === "seller-a").shipping_methods[0].amount).toBe(1125)
     expect(createdOrders.find((o: any) => o.metadata.seller_id === "seller-b").shipping_methods[0].amount).toBe(375)
+  })
+
+  it("creates one order per seller group when the local checkout snapshot contains seller_groups (does not call MercadoPago's preference search)", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._checkoutService.findByExternalReference.mockResolvedValue({ payload: twoSellerGroupsMetadata })
+    req._orderService.createOrders.mockResolvedValue([{ id: "order-a" }, { id: "order-b" }])
+
+    await POST(req, makeRes())
+
+    expect(mockPrefSearch).not.toHaveBeenCalled()
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders).toHaveLength(2)
+    expect(createdOrders.map((o: any) => o.metadata.seller_id).sort()).toEqual(["seller-a", "seller-b"])
   })
 
   it("emits order.placed and mercadopago.order_approved once per created order", async () => {
