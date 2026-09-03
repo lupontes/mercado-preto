@@ -184,10 +184,33 @@ describe("POST /webhooks/mercadopago", () => {
     await POST(req, makeRes())
 
     expect(mockPrefSearch).not.toHaveBeenCalled()
+    expect(req._checkoutService.findByExternalReference).not.toHaveBeenCalled()
     expect(req._orderService.createOrders).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           items: [expect.objectContaining({ unit_price: 7900 })],
+        }),
+      ])
+    )
+  })
+
+  it("falls through to the legacy MercadoPago preference search when the local snapshot lookup throws (non-fatal)", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    req._checkoutService.findByExternalReference.mockRejectedValue(new Error("db down"))
+
+    await POST(req, makeRes())
+
+    expect(mockPrefSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ external_reference: "ext-ref-uuid" }) })
+    )
+    expect(req._orderService.createOrders).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          items: [expect.objectContaining({ title: "Camiseta", quantity: 1, unit_price: 7900 })],
         }),
       ])
     )

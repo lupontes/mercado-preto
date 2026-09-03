@@ -733,7 +733,14 @@ git commit -m "fix(checkout): webhook lê snapshot local antes de depender da bu
 git push origin fix/checkout-metadata-persistence
 ```
 
-Depois, via SSH (`ssh -i ~/.ssh/oci_vms ubuntu@168.138.148.67`, diretório `/home/ubuntu/marketplace`): `git fetch && git checkout fix/checkout-metadata-persistence && git pull`, depois rebuild do container `medusa` (`cd infra && docker compose -f docker-compose.prod.yml build medusa && docker compose -f docker-compose.prod.yml up -d medusa`) e rodar a migration nova dentro do container antes ou depois do restart (`docker exec mercado-preto-api npx medusa db:migrate`).
+Depois, via SSH (`ssh -i ~/.ssh/oci_vms ubuntu@168.138.148.67`, diretório `/home/ubuntu/marketplace`): `git fetch && git checkout fix/checkout-metadata-persistence && git pull`, rebuild do container `medusa` (`cd infra && docker compose -f docker-compose.prod.yml build medusa`).
+
+**Ordem obrigatória (achado da revisão final de branch): rodar a migration usando a imagem NOVA antes dela começar a servir tráfego, nunca depois.** A migration só existe no código da imagem nova (`src/modules/checkout/migrations/...`), então não dá pra rodá-la na imagem antiga — mas também não pode esperar o container novo já estar recebendo webhooks de pagamento, porque até a tabela `checkout_snapshot` existir, toda consulta ao snapshot lança exceção (o fix da revisão final faz isso cair no fallback legado de busca no MercadoPago em vez de derrubar o webhook inteiro, mas ainda assim é melhor não depender disso). Rode a migration como um container avulso da imagem nova, sem publicar as portas, antes do `up -d`:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm medusa npx medusa db:migrate
+docker compose -f docker-compose.prod.yml up -d medusa
+```
 
 **Atenção:** antes de rebuildar, checar `free -h` no servidor — se o `netdata` estiver consumindo muita memória de novo (>5GB), reiniciar com `sudo systemctl restart netdata` antes do build, senão o build trava por horas sem erro (já aconteceu nesta mesma investigação).
 

@@ -121,8 +121,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         `[mercadopago/webhook] pagamento aprovado — R$ ${payment.transaction_amount} | ref: ${payment.external_reference}`
       )
 
-      const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
-
       // MP does not propagate preference.metadata to the payment object.
       // Recupera o snapshot do checkout: prioriza nosso próprio banco (gravado
       // no momento da criação da preferência, sempre disponível de imediato)
@@ -131,12 +129,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       // docs/superpowers/specs/2026-08-29-checkout-metadata-persistence-design.md).
       let meta = payment.metadata as Record<string, any> | undefined
       if ((!meta?.items?.length) && payment.external_reference) {
-        const snapshot = await checkoutService.findByExternalReference(payment.external_reference)
+        const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
+        let snapshot: any = null
+        try {
+          snapshot = await checkoutService.findByExternalReference(payment.external_reference)
+        } catch (snapshotErr) {
+          logger.warn(`[mercadopago/webhook] falha ao consultar snapshot local: ${snapshotErr}`)
+        }
         if (snapshot) {
           meta = snapshot.payload as Record<string, any>
           logger.info(`[mercadopago/webhook] metadados recuperados do snapshot local para ref ${payment.external_reference}`)
         } else {
-          // Fallback legado: preferências criadas antes deste snapshot existir.
+          // Fallback legado: preferências criadas antes deste snapshot existir
+          // (ou consulta ao snapshot local falhou — ver warning acima).
           try {
             const prefClient = new Preference(mp)
             const searchResult = await prefClient.search({

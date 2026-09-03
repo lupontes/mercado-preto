@@ -14,7 +14,7 @@ const schema = z.object({
       price: z.number().int().positive(),
       variantId: z.string().optional(),
     })
-  ),
+  ).min(1),
   address: z.object({
     firstName: z.string(),
     lastName: z.string(),

@@ -165,6 +165,14 @@ describe("POST /store/checkout/preference", () => {
     expect((res._body as any).error).toBe("Dados inválidos.")
   })
 
+  it("returns 400 when items is an empty array (even with all other fields valid)", async () => {
+    const res = makeRes()
+    await POST(makeReq({ ...validBody, items: [] }), res)
+
+    expect(res._status).toBe(400)
+    expect((res._body as any).error).toBe("Dados inválidos.")
+  })
+
   it("returns 400 when document is missing", async () => {
     const { document, ...bodyWithoutDocument } = validBody
     const res = makeRes()
