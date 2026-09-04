@@ -57,5 +57,5 @@ export default async function orderFiscalEmit({
 }
 
 export const config: SubscriberConfig = {
-  event: "mercadopago.order_approved",
+  event: ["mercadopago.order_approved", "marketplace.order_placed"],
 }

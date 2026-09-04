@@ -37,5 +37,5 @@ export default async function orderPlacedWhatsApp({
 }
 
 export const config: SubscriberConfig = {
-  event: "order.placed",
+  event: ["order.placed", "marketplace.order_placed"],
 }

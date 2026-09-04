@@ -165,4 +165,48 @@ describe("commissionOnPayment", () => {
     expect(listPayouts).toHaveBeenCalledWith({ sellerId: "seller_1", status: "pending" })
     expect(linkSingleCommissionToPayout).not.toHaveBeenCalled()
   })
+
+  it("computes bankingFees from the Mercado Livre sale fee (stored on the listing) when the order's channel is mercado_livre, instead of the MercadoPago fee formula", async () => {
+    const retrieveOrder = jest.fn().mockResolvedValue({
+      ...baseOrder,
+      metadata: { seller_id: "seller_1", channel: "mercado_livre", mercadolivre_item_id: "MLB999" },
+    })
+    const channelService = {
+      findListingByExternalItemId: jest.fn().mockResolvedValue({ saleFeePercent: 12.5, saleFeeFixed: 500 }),
+    }
+    const recordAndCreate = jest.fn().mockResolvedValue({ id: "comm_new", sellerPayout: 0 })
+    const container = makeContainer({
+      [Modules.ORDER]: { retrieveOrder },
+      commission: { listCommissions: jest.fn().mockResolvedValue([]), recordAndCreate },
+      payout: { listPayouts: jest.fn().mockResolvedValue([]) },
+      marketplace_channel: channelService,
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    // baseOrder.total = 10000; 10000 * 12.5% = 1250 (arredondado) + 500 fixo = 1750
+    expect(channelService.findListingByExternalItemId).toHaveBeenCalledWith("MLB999")
+    expect(recordAndCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ grossAmount: 10000, bankingFees: 1750 })
+    )
+  })
+
+  it("treats a mercado_livre order with no resolvable listing as zero sale fee, instead of failing", async () => {
+    const retrieveOrder = jest.fn().mockResolvedValue({
+      ...baseOrder,
+      metadata: { seller_id: "seller_1", channel: "mercado_livre", mercadolivre_item_id: "MLB999" },
+    })
+    const channelService = { findListingByExternalItemId: jest.fn().mockResolvedValue(null) }
+    const recordAndCreate = jest.fn().mockResolvedValue({ id: "comm_new", sellerPayout: 0 })
+    const container = makeContainer({
+      [Modules.ORDER]: { retrieveOrder },
+      commission: { listCommissions: jest.fn().mockResolvedValue([]), recordAndCreate },
+      payout: { listPayouts: jest.fn().mockResolvedValue([]) },
+      marketplace_channel: channelService,
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(recordAndCreate).toHaveBeenCalledWith(expect.objectContaining({ bankingFees: 0 }))
+  })
 })
