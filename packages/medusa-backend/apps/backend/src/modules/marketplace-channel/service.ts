@@ -12,6 +12,27 @@ type RecordListingInput = {
   saleFeeFixed: number
 }
 
+type ChannelListing = {
+  id: string
+  productId: string
+  sellerId: string
+  channel: string
+  externalItemId: string | null
+  externalCategoryId: string | null
+  saleFeePercent: number | null
+  saleFeeFixed: number | null
+  status: string
+  lastError: string | null
+}
+
+type ChannelCredential = {
+  id: string
+  channel: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: Date
+}
+
 class MarketplaceChannelModuleService extends MedusaService({ ChannelListing, ChannelCredential }) {
   async recordListing(input: RecordListingInput) {
     return this.createChannelListings({ ...input, status: "published" } as any)
@@ -21,14 +42,14 @@ class MarketplaceChannelModuleService extends MedusaService({ ChannelListing, Ch
     return this.createChannelListings({ productId, sellerId, channel, status: "error", lastError: errorMessage } as any)
   }
 
-  async findListingByExternalItemId(externalItemId: string): Promise<any | null> {
+  async findListingByExternalItemId(externalItemId: string): Promise<ChannelListing | null> {
     const [listing] = await this.listChannelListings({ externalItemId } as any)
-    return listing ?? null
+    return (listing as ChannelListing) ?? null
   }
 
-  async getCredential(channel: string): Promise<any | null> {
+  async getCredential(channel: string): Promise<ChannelCredential | null> {
     const [credential] = await this.listChannelCredentials({ channel } as any)
-    return credential ?? null
+    return (credential as ChannelCredential) ?? null
   }
 
   async saveCredential(channel: string, accessToken: string, refreshToken: string, expiresAt: Date): Promise<void> {

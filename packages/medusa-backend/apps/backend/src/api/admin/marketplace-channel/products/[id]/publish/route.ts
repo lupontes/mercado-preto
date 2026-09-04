@@ -39,17 +39,18 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   if (!sellerId) {
     return res.status(400).json({ error: "Produto sem vendedor associado." })
   }
-  const price = product.variants?.[0]?.prices?.[0]?.amount
-  if (!price) {
+  const priceInCentavos = product.variants?.[0]?.prices?.[0]?.amount
+  if (!priceInCentavos) {
     return res.status(400).json({ error: "Produto sem preço cadastrado." })
   }
+  const priceInReais = priceInCentavos / 100
 
   try {
-    const fee = await getListingFee(credential.accessToken, price, categoryId)
+    const fee = await getListingFee(credential.accessToken, priceInReais, categoryId)
     const { id: externalItemId } = await createItem(credential.accessToken, {
       title: product.title,
       categoryId,
-      price,
+      price: priceInReais,
       availableQuantity: 1,
       pictures: product.thumbnail ? [{ source: product.thumbnail }] : [],
       attributes: attributes.map((a) => ({ id: a.id, value_name: a.valueName })),
@@ -62,7 +63,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       externalItemId,
       externalCategoryId: categoryId,
       saleFeePercent: fee.percentageFee,
-      saleFeeFixed: fee.fixedFee,
+      saleFeeFixed: Math.round(fee.fixedFee * 100),
     })
 
     res.json({ externalItemId, saleFeePercent: fee.percentageFee, saleFeeFixed: fee.fixedFee })

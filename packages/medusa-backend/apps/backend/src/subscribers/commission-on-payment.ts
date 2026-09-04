@@ -48,7 +48,7 @@ export default async function commissionOnPayment({
     const listing = itemId ? await channelService.findListingByExternalItemId(itemId) : null
     const feePercent = Number(listing?.saleFeePercent ?? 0)
     const feeFixed = Number(listing?.saleFeeFixed ?? 0)
-    bankingFees = Math.round(grossAmount * (feePercent / 100)) + feeFixed
+    bankingFees = Math.round(grossAmount * (feePercent / 100) + feeFixed)
   } else {
     bankingFees = estimateBankingFees(grossAmount)
   }

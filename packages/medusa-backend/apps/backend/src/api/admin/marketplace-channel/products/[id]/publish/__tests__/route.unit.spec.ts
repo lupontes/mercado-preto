@@ -88,15 +88,15 @@ describe("POST /admin/marketplace-channel/products/:id/publish", () => {
 
     await POST(req, res)
 
-    expect(getListingFee).toHaveBeenCalledWith("token-abc", 18200, "MLB1000")
-    expect(createItem).toHaveBeenCalledWith("token-abc", expect.objectContaining({ categoryId: "MLB1000", price: 18200 }))
+    expect(getListingFee).toHaveBeenCalledWith("token-abc", 182, "MLB1000")
+    expect(createItem).toHaveBeenCalledWith("token-abc", expect.objectContaining({ categoryId: "MLB1000", price: 182 }))
     expect(channelService.recordListing).toHaveBeenCalledWith(
       expect.objectContaining({
         productId: "prod_1",
         sellerId: "seller_1",
         externalItemId: "MLB999888777",
         saleFeePercent: 12.5,
-        saleFeeFixed: 5,
+        saleFeeFixed: 500,
       })
     )
     expect(res._status).toBe(200)
