@@ -39,8 +39,12 @@ function makeReq(body: unknown, overrides: Record<string, unknown> = {}) {
 }
 
 function makeRes() {
-  const res = { _status: 200 } as any
+  const res = { _status: 200, _body: undefined as unknown } as any
   res.sendStatus = (code: number) => { res._status = code; return res }
+  res.status = (code: number) => {
+    res._status = code
+    return { json: (body: unknown) => { res._body = body; return res } }
+  }
   return res
 }
 
@@ -66,6 +70,19 @@ describe("POST /webhooks/mercadolivre", () => {
 
     expect(res._status).toBe(200)
     expect(req._orderService.createOrders).not.toHaveBeenCalled()
+  })
+
+  it("returns 500 and rejects the webhook when MERCADOLIVRE_WEBHOOK_SECRET is not configured", async () => {
+    delete process.env.MERCADOLIVRE_WEBHOOK_SECRET
+    const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(500)
+    expect(res._body).toEqual({ error: "Webhook secret not configured" })
+    expect(verifyWebhookSignature).not.toHaveBeenCalled()
+    expect(getOrder).not.toHaveBeenCalled()
   })
 
   it("returns 200 without processing when the signature is invalid", async () => {

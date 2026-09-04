@@ -22,13 +22,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     const orderId = body.resource.split("/").pop()
     if (!orderId) return res.sendStatus(200)
 
+    const webhookSecret = process.env.MERCADOLIVRE_WEBHOOK_SECRET
+    if (!webhookSecret) {
+      logger.error("[mercadolivre/webhook] MERCADOLIVRE_WEBHOOK_SECRET não configurado — webhook rejeitado")
+      return res.status(500).json({ error: "Webhook secret not configured" })
+    }
+
     const xSignature = (req.headers["x-signature"] as string) ?? ""
     const xRequestId = (req.headers["x-request-id"] as string) ?? ""
     const isValid = verifyWebhookSignature({
       xSignature,
       xRequestId,
       dataId: orderId,
-      secret: process.env.MERCADOLIVRE_WEBHOOK_SECRET ?? "",
+      secret: webhookSecret,
     })
     if (!isValid) {
       logger.error(`[mercadolivre/webhook] assinatura inválida para o pedido ${orderId} — notificação ignorada`)
