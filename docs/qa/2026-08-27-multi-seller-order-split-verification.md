@@ -109,3 +109,24 @@ Os dois bugs encontrados na revisão final ampla estão corrigidos e confirmados
 | Produto recém-publicado não aparece em `/loja/[id]` | `getSellerProducts()` herdava cache padrão de 60s do `apiFetch` | ✅ Cache removido especificamente para essa chamada; `next build` confirma a página virou totalmente dinâmica (`ƒ`) |
 
 **Nota técnica:** a primeira tentativa de corrigir o item do painel de pedidos (pedir `total` também em `select`) quebrou a rota com erro 500 ("Shipping method version is required to load adjustments") — um comportamento do Medusa ao computar o campo decorado `total` numa consulta de **lista** (`listOrders`, diferente de `retrieveOrder`) para pedidos criados via `orderService.createOrders()` fora do fluxo completo de carrinho/checkout (não preenchem um campo de versionamento interno que esse cálculo espera). Corrigido calculando o total manualmente a partir de `items` (unit_price × quantity) e `shipping_methods` (amount), já carregados via `relations` — mesmo padrão usado com sucesso em `commission-on-payment.ts`. Detectado e corrigido antes de qualquer usuário externo ver o erro.
+
+---
+
+## Reteste 4 — 2026-09-04, consolidação de WhatsApp (commit `776bb6f`)
+
+> A consolidação de WhatsApp (Important #2 da revisão final) só tinha cobertura por teste unitário — o ambiente de teste não tem `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`/`EVOLUTION_API_INSTANCE` configurados, então `sendWhatsApp()` retorna silenciosamente sem log nenhum. Adicionado um log em `order-placed-whatsapp.ts` logo antes do envio (`logger.info`, independente de credenciais), especificamente para tornar esse comportamento observável neste ambiente.
+
+- **payment_id:** `1328050558`
+- **external_reference:** `7f2f0436-116d-4923-b044-10016ba4fb60`
+- **Pedidos gerados:** #19 (LOJA FIX SISTEMAS) e #20 (Mulheres de Axé do Brasil)
+
+**Log observado no servidor** (uma única linha, não duas):
+```
+[order-placed-whatsapp] mensagem preparada para (71) 99999-0000 — pedido(s) #19 e #20, total R$ 207,25
+```
+
+✅ Confirmado: só uma mensagem seria preparada/enviada pro pagamento inteiro (não uma por vendedor), citando os dois números de pedido e o total consolidado (R$207,25, o valor realmente cobrado) — não o total parcial de nenhum dos dois pedidos individualmente. A dedução determinística (só o pedido de menor id dispara o envio) funcionou: nenhuma segunda linha de log apareceu para o pedido #20.
+
+### Conclusão do reteste 4
+
+A consolidação de WhatsApp está confirmada empiricamente, não só por teste unitário. Com isso, todos os achados da revisão final ampla da branch (2 obrigatórios + 1 decisão de negócio) estão resolvidos e verificados: taxa fixa rateada por pagamento, comissão só sobre produtos, e agora WhatsApp consolidado numa única mensagem.
