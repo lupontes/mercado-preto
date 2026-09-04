@@ -4,8 +4,8 @@ const REGION_ID = process.env.NEXT_PUBLIC_REGION_ID ?? ""
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
     next: { revalidate: 60 },
+    ...init,
     headers: {
       "Content-Type": "application/json",
       "x-publishable-api-key": PUB_KEY,
@@ -63,7 +63,12 @@ export async function getSellerProducts(id: string, params?: { limit?: number; o
     limit: String(params?.limit ?? 20),
     offset: String(params?.offset ?? 0),
   })
-  return apiFetch<{ products: Product[] }>(`/store/sellers/${id}/products?${qs}`)
+  // Sem cache: um vendedor que acabou de publicar um produto precisa vê-lo
+  // na própria página da loja na hora, não até 60s depois (cache padrão do
+  // apiFetch) — era a causa do produto "sumir" da loja logo após publicar.
+  return apiFetch<{ products: Product[] }>(`/store/sellers/${id}/products?${qs}`, {
+    next: { revalidate: 0 },
+  })
 }
 
 export async function listProducts(params?: {

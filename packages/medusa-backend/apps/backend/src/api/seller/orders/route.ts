@@ -14,6 +14,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       skip: Number(offset),
       relations: ["items"],
       order: { created_at: "DESC" },
+      // "status"/"total"/"created_at"/"display_id" precisam estar em select ou
+      // vêm undefined mesmo existindo na tabela (mesma pegadinha de whitelist
+      // do "total" documentada em commission-on-payment.ts e
+      // order-fiscal-emit.ts) — sem isso, o painel mostra Total/Status/Data
+      // em branco ("Invalid Date") pro vendedor.
+      select: ["status", "total", "created_at", "display_id"],
     }
   )
 
