@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { z } from "zod"
 import { MARKETPLACE_CHANNEL_MODULE } from "../../../../../../modules/marketplace-channel"
 import type MarketplaceChannelModuleService from "../../../../../../modules/marketplace-channel/service"
-import { getListingFee, createItem } from "../../../../../../utils/mercadolivre-client"
+import { getListingFee, createItem, setItemDescription } from "../../../../../../utils/mercadolivre-client"
 
 const schema = z.object({
   categoryId: z.string(),
@@ -28,7 +28,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: products } = await query.graph({
     entity: "product",
-    fields: ["id", "title", "thumbnail", "seller.id", "variants.prices.amount"],
+    fields: ["id", "title", "description", "thumbnail", "seller.id", "variants.prices.amount"],
     filters: { id: productId },
   })
   const product = (products as any[])[0]
@@ -55,6 +55,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       pictures: product.thumbnail ? [{ source: product.thumbnail }] : [],
       attributes: attributes.map((a) => ({ id: a.id, value_name: a.valueName })),
     })
+
+    if (product.description) {
+      await setItemDescription(credential.accessToken, externalItemId, product.description)
+    }
 
     await channelService.recordListing({
       productId,

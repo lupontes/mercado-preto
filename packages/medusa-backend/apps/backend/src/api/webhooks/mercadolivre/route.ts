@@ -94,6 +94,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           channel: "mercado_livre",
           mercadolivre_order_id: String(mlOrder.id),
           mercadolivre_item_id: firstItemId,
+          mercadolivre_shipment_id: mlOrder.shipping?.id ?? null,
           seller_id: listing.sellerId,
           buyer_document: mlOrder.buyer?.billing_info?.doc_number ?? null,
         },

@@ -2,6 +2,7 @@ import {
   refreshAccessToken,
   getListingFee,
   createItem,
+  setItemDescription,
   getOrder,
   getShipmentLabelUrl,
   verifyWebhookSignature,
@@ -96,6 +97,32 @@ describe("mercadolivre-client", () => {
           pictures: [],
           attributes: [],
         })
+      ).rejects.toThrow("400")
+    })
+  })
+
+  describe("setItemDescription", () => {
+    it("posts to /items/:id/description with plain_text", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({}))
+
+      await setItemDescription("token-abc", "MLB999888777", "Bolsa artesanal feita à mão.")
+
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0]
+      expect(url).toBe("https://api.mercadolibre.com/items/MLB999888777/description")
+      expect(init.method).toBe("POST")
+      expect(init.headers).toEqual(
+        expect.objectContaining({ Authorization: "Bearer token-abc", "Content-Type": "application/json" })
+      )
+      expect(JSON.parse(init.body)).toEqual({ plain_text: "Bolsa artesanal feita à mão." })
+    })
+
+    it("throws with the response detail when the update fails", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(
+        jsonResponse({ message: "descrição inválida" }, false, 400)
+      )
+
+      await expect(
+        setItemDescription("token-abc", "MLB999888777", "descrição ruim")
       ).rejects.toThrow("400")
     })
   })

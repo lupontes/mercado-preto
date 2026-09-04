@@ -1,17 +1,19 @@
 jest.mock("../../../../../../../utils/mercadolivre-client", () => ({
   getListingFee: jest.fn(),
   createItem: jest.fn(),
+  setItemDescription: jest.fn(),
 }))
 
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MARKETPLACE_CHANNEL_MODULE } from "../../../../../../../modules/marketplace-channel"
-import { getListingFee, createItem } from "../../../../../../../utils/mercadolivre-client"
+import { getListingFee, createItem, setItemDescription } from "../../../../../../../utils/mercadolivre-client"
 import { POST } from "../route"
 
 function makeProduct(overrides: Record<string, unknown> = {}) {
   return {
     id: "prod_1",
     title: "Bolsa Africana 2 em 1",
+    description: "Bolsa artesanal feita à mão.",
     thumbnail: "https://example.com/foto.jpg",
     seller: { id: "seller_1" },
     variants: [{ prices: [{ amount: 18200 }] }],
@@ -76,6 +78,7 @@ describe("POST /admin/marketplace-channel/products/:id/publish", () => {
     const graph = jest.fn().mockResolvedValue({ data: [makeProduct()] })
     ;(getListingFee as jest.Mock).mockResolvedValue({ percentageFee: 12.5, fixedFee: 5 })
     ;(createItem as jest.Mock).mockResolvedValue({ id: "MLB999888777" })
+    ;(setItemDescription as jest.Mock).mockResolvedValue(undefined)
     const req = {
       params: { id: "prod_1" },
       body: validBody,
@@ -90,6 +93,7 @@ describe("POST /admin/marketplace-channel/products/:id/publish", () => {
 
     expect(getListingFee).toHaveBeenCalledWith("token-abc", 182, "MLB1000")
     expect(createItem).toHaveBeenCalledWith("token-abc", expect.objectContaining({ categoryId: "MLB1000", price: 182 }))
+    expect(setItemDescription).toHaveBeenCalledWith("token-abc", "MLB999888777", "Bolsa artesanal feita à mão.")
     expect(channelService.recordListing).toHaveBeenCalledWith(
       expect.objectContaining({
         productId: "prod_1",

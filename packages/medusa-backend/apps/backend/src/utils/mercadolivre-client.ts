@@ -86,6 +86,21 @@ export async function createItem(accessToken: string, item: MLItemInput): Promis
   return { id: data.id }
 }
 
+export async function setItemDescription(accessToken: string, itemId: string, description: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/items/${itemId}/description`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ plain_text: description }),
+  })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(`Mercado Livre atualização de descrição falhou (${res.status}): ${detail}`)
+  }
+}
+
 export async function getOrder(accessToken: string, orderId: string): Promise<MLOrder> {
   const res = await fetch(`${API_BASE}/orders/${orderId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
