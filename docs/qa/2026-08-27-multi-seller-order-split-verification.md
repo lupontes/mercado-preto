@@ -95,3 +95,17 @@ O split de pedido em si (criação de N pedidos, itens corretos, frete rateado, 
 ### Conclusão do reteste 2
 
 Os dois bugs encontrados na revisão final ampla estão corrigidos e confirmados no banco com os valores exatos esperados. A regra de negócio "comissão só sobre produtos" está em vigor. A consolidação do WhatsApp fica pendente de confirmação empírica quando houver um ambiente com credenciais reais da Evolution API configuradas — a cobertura de testes unitários é forte, mas não substitui a observação real do comportamento de envio.
+
+---
+
+## Reteste 3 — 2026-09-04, achados secundários do painel (commits `fb775d4` + `b439d3a`)
+
+> Os 3 achados secundários registrados na Task 5 original (não relacionados ao split em si) foram corrigidos e verificados via browser no servidor de teste.
+
+| Achado | Causa raiz | Verificação |
+|---|---|---|
+| `/painel/pedidos` com Total/Status/Data em branco | `listOrders()` não pedia `status`/`created_at`/`display_id` em `select` — mesma pegadinha de whitelist do Medusa já documentada em `commission-on-payment.ts` | ✅ Painel mostrou 3 pedidos (#15, #13, #10) com Total, Status ("Pendente") e Data corretos |
+| Botão "Sair" some em "Meu perfil" | Barra lateral do painel não era `sticky` no desktop — esticava junto com formulários longos, empurrando o botão (no rodapé da barra) pra fora da tela | ✅ Botão "Sair" permaneceu visível mesmo depois de rolar o formulário inteiro de "Meu perfil" até o fim |
+| Produto recém-publicado não aparece em `/loja/[id]` | `getSellerProducts()` herdava cache padrão de 60s do `apiFetch` | ✅ Cache removido especificamente para essa chamada; `next build` confirma a página virou totalmente dinâmica (`ƒ`) |
+
+**Nota técnica:** a primeira tentativa de corrigir o item do painel de pedidos (pedir `total` também em `select`) quebrou a rota com erro 500 ("Shipping method version is required to load adjustments") — um comportamento do Medusa ao computar o campo decorado `total` numa consulta de **lista** (`listOrders`, diferente de `retrieveOrder`) para pedidos criados via `orderService.createOrders()` fora do fluxo completo de carrinho/checkout (não preenchem um campo de versionamento interno que esse cálculo espera). Corrigido calculando o total manualmente a partir de `items` (unit_price × quantity) e `shipping_methods` (amount), já carregados via `relations` — mesmo padrão usado com sucesso em `commission-on-payment.ts`. Detectado e corrigido antes de qualquer usuário externo ver o erro.
