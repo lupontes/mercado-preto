@@ -73,3 +73,25 @@ O split de pedido em si (criação de N pedidos, itens corretos, frete rateado, 
 ### Conclusão do reteste
 
 **Os dois bloqueadores anteriores (comissão ausente, perda de metadata) estão resolvidos.** O fluxo completo — split por vendedor, item correto, frete rateado, comissão, NF-e, painel do vendedor — funciona ponta a ponta no ambiente de teste com o código reconciliado. Ambiente liberado para o Aylton testar. Próximo passo: revisão final ampla da branch inteira antes de seguir pro GitFlow (`develop` → `alpha` → `beta` → `release` → `main`).
+
+---
+
+## Reteste 2 — 2026-09-04, fix de comissão/WhatsApp (commit `d2da7d5`)
+
+> A revisão final ampla da branch (rodada logo após o reteste acima) encontrou 2 bugs que só apareciam com split multi-vendedor + comissão juntos: a taxa fixa do MercadoPago (R$0,39) era cobrada uma vez por pedido em vez de uma vez por pagamento, e o comprador recebia uma confirmação de WhatsApp por vendedor (cada uma com total parcial, parecendo cobrança duplicada). O dono do produto também determinou, nessa mesma revisão, que a comissão deve incidir só sobre o valor dos produtos, nunca sobre o frete. Fix implementado via TDD, revisado (veredito "Yes", sem Critical/Important), deployado e retestado com o mesmo carrinho dos retestes anteriores.
+
+- **payment_id:** `1328049096`
+- **external_reference:** `54afa9a1-fe4d-4cc2-935e-68c1204c25ca`
+
+| Verificação | Resultado |
+|---|---|
+| 2 pedidos criados (display_id 15 e 16), 1 por vendedor | ✅ Confirmado |
+| **Comissão calculada só sobre o valor dos produtos, sem o frete** | ✅ `grossAmount` = 1000 (pedido 15, produto R$10,00) e 18200 (pedido 16, produto R$182,00) — bate exato com o preço do item, sem o frete rateado (R$0,79/R$14,46) somado |
+| **Taxa fixa do MercadoPago (R$0,39) rateada uma vez por pagamento, não por pedido** | ✅ `bankingFees` = 32 (pedido 15: 30 percentual + 2 de taxa fixa rateada) e 581 (pedido 16: 544 percentual + 37 de taxa fixa rateada) — soma da parcela fixa = 2+37 = **39 centavos no total**, não 78 |
+| Frete repassado integralmente ao vendedor, fora do cálculo de comissão | ✅ `sellerPayout` = 902 (968 líquido dos produtos − 145 comissão + 79 de frete) e 16422 (17619 − 2643 + 1446) |
+| Painel do vendedor reflete o valor correto (acumulado dos 2 testes) | ✅ "2 Total de pedidos", "R$ 17,59 A receber" (R$8,57 do reteste 1 + R$9,02 deste) |
+| Consolidação de WhatsApp (1 mensagem por pagamento, não 1 por vendedor) | ⚠️ **Não observável neste ambiente** — `EVOLUTION_API_URL`/`EVOLUTION_API_KEY`/`EVOLUTION_API_INSTANCE` não configurados no servidor de teste, então `sendWhatsApp` retorna silenciosamente antes de qualquer chamada real ou log. Comportamento coberto por 6 testes unitários dedicados (`order-placed-whatsapp.unit.spec.ts`), incluindo o cenário exato deste carrinho (2 pedidos, mensagem única, total consolidado R$207,25) — não confirmado empiricamente em produção/staging real por falta de credenciais no ambiente. |
+
+### Conclusão do reteste 2
+
+Os dois bugs encontrados na revisão final ampla estão corrigidos e confirmados no banco com os valores exatos esperados. A regra de negócio "comissão só sobre produtos" está em vigor. A consolidação do WhatsApp fica pendente de confirmação empírica quando houver um ambiente com credenciais reais da Evolution API configuradas — a cobertura de testes unitários é forte, mas não substitui a observação real do comportamento de envio.
