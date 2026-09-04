@@ -1,0 +1,174 @@
+import {
+  refreshAccessToken,
+  getListingFee,
+  createItem,
+  getOrder,
+  getShipmentLabelUrl,
+  verifyWebhookSignature,
+} from "../mercadolivre-client"
+import { createHmac } from "node:crypto"
+
+function jsonResponse(body: unknown, ok = true, status = 200) {
+  return { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
+}
+
+describe("mercadolivre-client", () => {
+  beforeEach(() => {
+    process.env.MERCADOLIVRE_CLIENT_ID = "client-123"
+    process.env.MERCADOLIVRE_CLIENT_SECRET = "secret-456"
+    global.fetch = jest.fn()
+  })
+
+  describe("refreshAccessToken", () => {
+    it("posts to /oauth/token with grant_type=refresh_token and returns the new tokens", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(
+        jsonResponse({ access_token: "new-access", refresh_token: "new-refresh", expires_in: 21600 })
+      )
+
+      const result = await refreshAccessToken("old-refresh")
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.mercadolibre.com/oauth/token",
+        expect.objectContaining({ method: "POST" })
+      )
+      const body = (global.fetch as jest.Mock).mock.calls[0][1].body as URLSearchParams
+      expect(body.get("grant_type")).toBe("refresh_token")
+      expect(body.get("refresh_token")).toBe("old-refresh")
+      expect(body.get("client_id")).toBe("client-123")
+      expect(result).toEqual({ accessToken: "new-access", refreshToken: "new-refresh", expiresIn: 21600 })
+    })
+
+    it("throws when the refresh request fails", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({}, false, 400))
+
+      await expect(refreshAccessToken("bad-refresh")).rejects.toThrow("400")
+    })
+  })
+
+  describe("getListingFee", () => {
+    it("requests listing_prices with price and category_id, returns percentage and fixed fee", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(
+        jsonResponse({ sale_fee_details: { percentage_fee: 12.5, fixed_fee: 5 } })
+      )
+
+      const result = await getListingFee("token-abc", 7900, "MLB1000")
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.mercadolibre.com/sites/MLB/listing_prices?price=7900&category_id=MLB1000",
+        expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) })
+      )
+      expect(result).toEqual({ percentageFee: 12.5, fixedFee: 5 })
+    })
+  })
+
+  describe("createItem", () => {
+    it("posts to /items with shipping.mode me2 and returns the created item id", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({ id: "MLB999888777" }))
+
+      const result = await createItem("token-abc", {
+        title: "Bolsa Africana 2 em 1",
+        categoryId: "MLB1000",
+        price: 182,
+        availableQuantity: 1,
+        pictures: [{ source: "https://example.com/foto.jpg" }],
+        attributes: [{ id: "BRAND", value_name: "Genérica" }],
+      })
+
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0]
+      expect(url).toBe("https://api.mercadolibre.com/items")
+      const sentBody = JSON.parse(init.body)
+      expect(sentBody.shipping).toEqual({ mode: "me2" })
+      expect(sentBody.category_id).toBe("MLB1000")
+      expect(result).toEqual({ id: "MLB999888777" })
+    })
+
+    it("throws with the response detail when creation fails", async () => {
+      ;(global.fetch as jest.Mock).mockResolvedValue(
+        jsonResponse({ message: "categoria inválida" }, false, 400)
+      )
+
+      await expect(
+        createItem("token-abc", {
+          title: "X",
+          categoryId: "bad",
+          price: 10,
+          availableQuantity: 1,
+          pictures: [],
+          attributes: [],
+        })
+      ).rejects.toThrow("400")
+    })
+  })
+
+  describe("getOrder", () => {
+    it("fetches /orders/:id with the bearer token", async () => {
+      const mlOrder = { id: 123, status: "paid", order_items: [] }
+      ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse(mlOrder))
+
+      const result = await getOrder("token-abc", "123")
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.mercadolibre.com/orders/123",
+        expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) })
+      )
+      expect(result).toEqual(mlOrder)
+    })
+  })
+
+  describe("getShipmentLabelUrl", () => {
+    it("builds the label URL with the shipment id and access token", () => {
+      const url = getShipmentLabelUrl("token-abc", "shipment-1")
+      expect(url).toBe(
+        "https://api.mercadolibre.com/shipment_labels?shipment_ids=shipment-1&response_type=pdf&access_token=token-abc"
+      )
+    })
+  })
+})
+
+describe("verifyWebhookSignature", () => {
+  function sign(dataId: string, requestId: string, ts: string, secret: string) {
+    const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`
+    return createHmac("sha256", secret).update(manifest).digest("hex")
+  }
+
+  it("returns true when the signature matches", () => {
+    const secret = "webhook-secret"
+    const ts = "1700000000"
+    const hash = sign("555", "req-1", ts, secret)
+
+    const result = verifyWebhookSignature({
+      xSignature: `ts=${ts},v1=${hash}`,
+      xRequestId: "req-1",
+      dataId: "555",
+      secret,
+    })
+
+    expect(result).toBe(true)
+  })
+
+  it("returns false when the signature doesn't match", () => {
+    const secret = "webhook-secret"
+    const ts = "1700000000"
+    const hash = sign("555", "req-1", ts, "wrong-secret")
+
+    const result = verifyWebhookSignature({
+      xSignature: `ts=${ts},v1=${hash}`,
+      xRequestId: "req-1",
+      dataId: "555",
+      secret,
+    })
+
+    expect(result).toBe(false)
+  })
+
+  it("returns false when the header is malformed", () => {
+    const result = verifyWebhookSignature({
+      xSignature: "not-a-valid-header",
+      xRequestId: "req-1",
+      dataId: "555",
+      secret: "webhook-secret",
+    })
+
+    expect(result).toBe(false)
+  })
+})
