@@ -1193,10 +1193,24 @@ describe("POST /webhooks/mercadolivre", () => {
       expect.objectContaining({
         channel: "mercado_livre",
         mercadolivre_order_id: "555",
+        mercadolivre_item_id: "MLB999",
         seller_id: "seller_1",
         buyer_document: "12345678900",
       })
     )
+  })
+
+  it("returns 200 without throwing when the body is malformed (resource is not a string, or the body is empty)", async () => {
+    const reqNonStringResource = makeReq({ topic: "orders_v2", resource: 12345 })
+    const resA = makeRes()
+    await expect(POST(reqNonStringResource, resA)).resolves.not.toThrow()
+    expect(resA._status).toBe(200)
+    expect(reqNonStringResource._orderService.createOrders).not.toHaveBeenCalled()
+
+    const reqEmptyBody = makeReq(undefined)
+    const resB = makeRes()
+    await expect(POST(reqEmptyBody, resB)).resolves.not.toThrow()
+    expect(resB._status).toBe(200)
   })
 
   it("stores buyer_document as null when the ML order has no billing info", async () => {
@@ -1281,29 +1295,36 @@ type MLWebhookBody = {
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const logger = req.scope.resolve("logger")
-  const body = req.body as MLWebhookBody
 
-  if (body.topic !== "orders_v2" || !body.resource) {
-    return res.sendStatus(200)
-  }
-
-  const orderId = body.resource.split("/").pop()
-  if (!orderId) return res.sendStatus(200)
-
-  const xSignature = (req.headers["x-signature"] as string) ?? ""
-  const xRequestId = (req.headers["x-request-id"] as string) ?? ""
-  const isValid = verifyWebhookSignature({
-    xSignature,
-    xRequestId,
-    dataId: orderId,
-    secret: process.env.MERCADOLIVRE_WEBHOOK_SECRET ?? "",
-  })
-  if (!isValid) {
-    logger.error(`[mercadolivre/webhook] assinatura inválida para o pedido ${orderId} — notificação ignorada`)
-    return res.sendStatus(200)
-  }
-
+  // Todo o corpo do handler roda dentro deste try — inclusive o parsing do
+  // payload e a checagem de assinatura — porque um payload malformado
+  // (ex.: "resource" não-string, corpo vazio) não pode escapar como exceção
+  // não tratada: o Mercado Livre reenvia indefinidamente um webhook que não
+  // responde 200, e essa é justamente a garantia que este handler precisa dar
+  // mesmo diante de entrada inesperada, não só de erros de rede/API.
   try {
+    const body = req.body as MLWebhookBody
+
+    if (body?.topic !== "orders_v2" || typeof body?.resource !== "string") {
+      return res.sendStatus(200)
+    }
+
+    const orderId = body.resource.split("/").pop()
+    if (!orderId) return res.sendStatus(200)
+
+    const xSignature = (req.headers["x-signature"] as string) ?? ""
+    const xRequestId = (req.headers["x-request-id"] as string) ?? ""
+    const isValid = verifyWebhookSignature({
+      xSignature,
+      xRequestId,
+      dataId: orderId,
+      secret: process.env.MERCADOLIVRE_WEBHOOK_SECRET ?? "",
+    })
+    if (!isValid) {
+      logger.error(`[mercadolivre/webhook] assinatura inválida para o pedido ${orderId} — notificação ignorada`)
+      return res.sendStatus(200)
+    }
+
     const channelService: MarketplaceChannelModuleService = req.scope.resolve(MARKETPLACE_CHANNEL_MODULE)
     const credential = await channelService.getCredential("mercado_livre")
     if (!credential) {
@@ -1368,7 +1389,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 - [ ] **Step 3: Rodar o teste (GREEN)**
 
 Run: `TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules npx jest src/api/webhooks/mercadolivre --runInBand`
-Expected: PASS — 10/10 testes.
+Expected: PASS — 11/11 testes.
 
 - [ ] **Step 4: Rodar a suíte completa e commitar**
 
