@@ -23,7 +23,7 @@ describe("mercadolivreTokenRefresh", () => {
     const channelService = { getCredential: jest.fn().mockResolvedValue(null), saveCredential: jest.fn() }
     const container = makeContainer(channelService)
 
-    await mercadolivreTokenRefresh({ container } as any)
+    await mercadolivreTokenRefresh(container as any)
 
     expect(refreshAccessToken).not.toHaveBeenCalled()
   })
@@ -36,7 +36,7 @@ describe("mercadolivreTokenRefresh", () => {
     }
     const container = makeContainer(channelService)
 
-    await mercadolivreTokenRefresh({ container } as any)
+    await mercadolivreTokenRefresh(container as any)
 
     expect(refreshAccessToken).not.toHaveBeenCalled()
   })
@@ -54,7 +54,7 @@ describe("mercadolivreTokenRefresh", () => {
     })
     const container = makeContainer(channelService)
 
-    await mercadolivreTokenRefresh({ container } as any)
+    await mercadolivreTokenRefresh(container as any)
 
     expect(refreshAccessToken).toHaveBeenCalledWith("old-refresh")
     expect(channelService.saveCredential).toHaveBeenCalledWith(
@@ -75,7 +75,7 @@ describe("mercadolivreTokenRefresh", () => {
     ;(refreshAccessToken as jest.Mock).mockRejectedValue(new Error("network error"))
     const container = makeContainer(channelService, logger)
 
-    await expect(mercadolivreTokenRefresh({ container } as any)).resolves.not.toThrow()
+    await expect(mercadolivreTokenRefresh(container as any)).resolves.not.toThrow()
 
     expect(logger.error).toHaveBeenCalled()
     expect(channelService.saveCredential).not.toHaveBeenCalled()

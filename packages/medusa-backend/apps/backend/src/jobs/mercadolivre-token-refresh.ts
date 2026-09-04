@@ -5,7 +5,7 @@ import { refreshAccessToken } from "../utils/mercadolivre-client"
 
 const REFRESH_MARGIN_MS = 30 * 60 * 1000 // renova com 30min de folga antes de expirar
 
-export default async function mercadolivreTokenRefresh({ container }: { container: MedusaContainer }) {
+export default async function mercadolivreTokenRefresh(container: MedusaContainer) {
   const channelService: MarketplaceChannelModuleService = container.resolve(MARKETPLACE_CHANNEL_MODULE)
   const logger = container.resolve("logger") as { info: (msg: string) => void; error: (msg: string) => void }
 
@@ -29,4 +29,9 @@ export default async function mercadolivreTokenRefresh({ container }: { containe
   } catch (err) {
     logger.error(`[mercadolivre-token-refresh] falha ao renovar token: ${err}`)
   }
+}
+
+export const config = {
+  name: "mercadolivre-token-refresh",
+  schedule: "0 */2 * * *", // a cada 2h — dentro da folga do token, que expira em ~6h
 }
