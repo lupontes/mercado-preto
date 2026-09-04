@@ -29,3 +29,9 @@ CREDENTIALS.md
 
 # Certbot runtime state (private keys, account data, ACME challenges)
 infra/nginx/certbot/
+
+# Graphify knowledge graph output (machine-local)
+graphify-out/
+
+# Git worktrees isolados (superpowers:using-git-worktrees)
+.worktrees/
