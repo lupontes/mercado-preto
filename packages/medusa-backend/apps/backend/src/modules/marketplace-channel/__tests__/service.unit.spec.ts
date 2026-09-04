@@ -10,6 +10,7 @@ jest.mock("@medusajs/framework/utils", () => {
         createChannelCredentials = jest.fn()
         listChannelCredentials = jest.fn()
         updateChannelCredentials = jest.fn()
+        deleteChannelCredentials = jest.fn()
       },
   }
 })
@@ -112,6 +113,26 @@ describe("MarketplaceChannelModuleService", () => {
         expiresAt,
       })
       expect(svc.createChannelCredentials).not.toHaveBeenCalled()
+    })
+  })
+
+  describe("deleteCredential", () => {
+    it("deletes the existing credential for the channel", async () => {
+      const svc = makeService()
+      svc.listChannelCredentials.mockResolvedValue([{ id: "cc_1", channel: "mercado_livre" }])
+
+      await svc.deleteCredential("mercado_livre")
+
+      expect(svc.deleteChannelCredentials).toHaveBeenCalledWith("cc_1")
+    })
+
+    it("does nothing when there is no credential to delete", async () => {
+      const svc = makeService()
+      svc.listChannelCredentials.mockResolvedValue([])
+
+      await svc.deleteCredential("mercado_livre")
+
+      expect(svc.deleteChannelCredentials).not.toHaveBeenCalled()
     })
   })
 })

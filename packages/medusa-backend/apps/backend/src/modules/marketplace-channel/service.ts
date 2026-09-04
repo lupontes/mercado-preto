@@ -60,6 +60,13 @@ class MarketplaceChannelModuleService extends MedusaService({ ChannelListing, Ch
       await this.createChannelCredentials({ channel, accessToken, refreshToken, expiresAt } as any)
     }
   }
+
+  async deleteCredential(channel: string): Promise<void> {
+    const existing = await this.getCredential(channel)
+    if (existing) {
+      await this.deleteChannelCredentials(existing.id)
+    }
+  }
 }
 
 export default MarketplaceChannelModuleService
