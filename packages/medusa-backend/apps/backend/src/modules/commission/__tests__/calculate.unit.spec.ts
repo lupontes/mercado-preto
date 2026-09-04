@@ -8,12 +8,13 @@ function calculate(input: {
   sellerId: string
   grossAmount: number
   bankingFees: number
+  shippingAmount?: number
   commissionRate?: number
 }) {
   const rate = input.commissionRate ?? RATE
   const netAmount = input.grossAmount - input.bankingFees
   const commissionAmount = Math.round(netAmount * (rate / 100))
-  const sellerPayout = netAmount - commissionAmount
+  const sellerPayout = netAmount - commissionAmount + (input.shippingAmount ?? 0)
   return {
     orderId: input.orderId,
     sellerId: input.sellerId,
@@ -79,6 +80,37 @@ describe("commission calculation", () => {
     })
 
     expect(result.sellerPayout + result.commissionAmount).toBe(result.netAmount)
+  })
+
+  it("adds the full shipping amount to sellerPayout, untouched by banking fees or commission", () => {
+    const withoutShipping = calculate({
+      orderId: "order-5",
+      sellerId: "seller-5",
+      grossAmount: 10000,
+      bankingFees: 300,
+    })
+    const withShipping = calculate({
+      orderId: "order-5",
+      sellerId: "seller-5",
+      grossAmount: 10000,
+      bankingFees: 300,
+      shippingAmount: 1500,
+    })
+
+    expect(withShipping.netAmount).toBe(withoutShipping.netAmount)
+    expect(withShipping.commissionAmount).toBe(withoutShipping.commissionAmount)
+    expect(withShipping.sellerPayout).toBe(withoutShipping.sellerPayout + 1500)
+  })
+
+  it("defaults shippingAmount to 0 when not provided", () => {
+    const result = calculate({
+      orderId: "order-6",
+      sellerId: "seller-6",
+      grossAmount: 10000,
+      bankingFees: 300,
+    })
+
+    expect(result.sellerPayout).toBe(result.netAmount - result.commissionAmount)
   })
 
   it("preserves orderId and sellerId in result", () => {
