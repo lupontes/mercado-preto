@@ -12,6 +12,12 @@ type MLWebhookBody = {
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const logger = req.scope.resolve("logger")
 
+  // Todo o corpo do handler roda dentro deste try — inclusive o parsing do
+  // payload e a checagem de assinatura — porque um payload malformado
+  // (ex.: "resource" não-string, corpo vazio) não pode escapar como exceção
+  // não tratada: o Mercado Livre reenvia indefinidamente um webhook que não
+  // responde 200, e essa é justamente a garantia que este handler precisa dar
+  // mesmo diante de entrada inesperada, não só de erros de rede/API.
   try {
     const body = req.body as MLWebhookBody | undefined
 
@@ -66,6 +72,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }
 
     const firstItemId = mlOrder.order_items[0]?.item.id
+    if (mlOrder.order_items.length > 1) {
+      logger.warn(`[mercadolivre/webhook] pedido ${mlOrder.id} tem ${mlOrder.order_items.length} itens — comissão/vendedor atribuídos apenas ao primeiro item`)
+    }
     const listing = firstItemId ? await channelService.findListingByExternalItemId(firstItemId) : null
     if (!listing) {
       logger.error(`[mercadolivre/webhook] anúncio ${firstItemId} não encontrado nos registros locais — pedido ${mlOrder.id} não criado`)

@@ -28,6 +28,16 @@ export default async function orderFiscalEmit({
   const sellerId: string | undefined = (order.metadata as any)?.seller_id
   const amountCents = Number(order.total ?? 0)
 
+  // ATENÇÃO — pedidos do canal Mercado Livre (metadata.channel === "mercado_livre",
+  // criados pelo webhook em src/api/webhooks/mercadolivre/route.ts) NUNCA recebem
+  // shipping_address: essa é uma decisão de design do Task 5, não um bug de dados
+  // ausentes. Por isso, TODOS os fallbacks abaixo ("Não informado", o CEP/cidade/UF
+  // padrão da própria plataforma em Cachoeira/BA etc.) disparam para esses pedidos,
+  // e a NF-e emitida hoje mostra um endereço fabricado, não o do comprador real do
+  // Mercado Livre. Isso precisa ser resolvido — buscando e persistindo o endereço
+  // real do comprador via GET /shipments/:id da API do Mercado Livre (usando o
+  // mercadolivre_shipment_id já capturado no metadata do pedido) — antes de habilitar
+  // a emissão fiscal real para pedidos do Mercado Livre em produção.
   const address = (order as any).shipping_address
 
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
