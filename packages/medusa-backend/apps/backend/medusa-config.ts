@@ -39,6 +39,12 @@ module.exports = defineConfig({
       resolve: "./src/modules/fiscal",
     },
 
+    // Marketplace channel — publicação de produtos e recebimento de
+    // pedidos de canais de venda externos (Mercado Livre)
+    {
+      resolve: "./src/modules/marketplace-channel",
+    },
+
     // File storage — migrated product images re-hosted locally
     {
       resolve: "@medusajs/medusa/file",
