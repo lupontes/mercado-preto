@@ -6,8 +6,11 @@ import {
   getOrder,
   getShipmentLabelUrl,
   verifyWebhookSignature,
+  generatePkcePair,
+  buildAuthorizationUrl,
+  exchangeAuthorizationCode,
 } from "../mercadolivre-client"
-import { createHmac } from "node:crypto"
+import { createHmac, createHash } from "node:crypto"
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
@@ -197,5 +200,77 @@ describe("verifyWebhookSignature", () => {
     })
 
     expect(result).toBe(false)
+  })
+})
+
+describe("generatePkcePair", () => {
+  it("returns a code_verifier and a matching S256 code_challenge", () => {
+    const { codeVerifier, codeChallenge } = generatePkcePair()
+
+    expect(typeof codeVerifier).toBe("string")
+    expect(codeVerifier.length).toBeGreaterThanOrEqual(43)
+    const expectedChallenge = createHash("sha256").update(codeVerifier).digest("base64url")
+    expect(codeChallenge).toBe(expectedChallenge)
+  })
+
+  it("returns a different pair on every call", () => {
+    const first = generatePkcePair()
+    const second = generatePkcePair()
+
+    expect(first.codeVerifier).not.toBe(second.codeVerifier)
+  })
+})
+
+describe("buildAuthorizationUrl", () => {
+  it("builds the Mercado Livre authorization URL with PKCE and state", () => {
+    const url = buildAuthorizationUrl({
+      redirectUri: "https://example.com/admin/marketplace-channel/callback",
+      state: "state-abc",
+      codeChallenge: "challenge-xyz",
+    })
+
+    const parsed = new URL(url)
+    expect(parsed.origin + parsed.pathname).toBe("https://auth.mercadolivre.com.br/authorization")
+    expect(parsed.searchParams.get("response_type")).toBe("code")
+    expect(parsed.searchParams.get("client_id")).toBe("client-123")
+    expect(parsed.searchParams.get("redirect_uri")).toBe("https://example.com/admin/marketplace-channel/callback")
+    expect(parsed.searchParams.get("state")).toBe("state-abc")
+    expect(parsed.searchParams.get("code_challenge")).toBe("challenge-xyz")
+    expect(parsed.searchParams.get("code_challenge_method")).toBe("S256")
+  })
+})
+
+describe("exchangeAuthorizationCode", () => {
+  it("posts to /oauth/token with grant_type=authorization_code and returns the new tokens", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ access_token: "first-access", refresh_token: "first-refresh", expires_in: 21600 })
+    )
+
+    const result = await exchangeAuthorizationCode({
+      code: "auth-code-1",
+      redirectUri: "https://example.com/admin/marketplace-channel/callback",
+      codeVerifier: "verifier-1",
+    })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.mercadolibre.com/oauth/token",
+      expect.objectContaining({ method: "POST" })
+    )
+    const body = (global.fetch as jest.Mock).mock.calls[0][1].body as URLSearchParams
+    expect(body.get("grant_type")).toBe("authorization_code")
+    expect(body.get("client_id")).toBe("client-123")
+    expect(body.get("client_secret")).toBe("secret-456")
+    expect(body.get("code")).toBe("auth-code-1")
+    expect(body.get("redirect_uri")).toBe("https://example.com/admin/marketplace-channel/callback")
+    expect(body.get("code_verifier")).toBe("verifier-1")
+    expect(result).toEqual({ accessToken: "first-access", refreshToken: "first-refresh", expiresIn: 21600 })
+  })
+
+  it("throws when the code exchange fails", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({}, false, 400))
+
+    await expect(
+      exchangeAuthorizationCode({ code: "bad-code", redirectUri: "https://example.com/callback", codeVerifier: "v" })
+    ).rejects.toThrow("400")
   })
 })

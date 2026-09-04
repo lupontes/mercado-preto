@@ -1,6 +1,7 @@
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto"
 
 const API_BASE = "https://api.mercadolibre.com"
+const AUTH_BASE = "https://auth.mercadolivre.com.br"
 const SITE_ID = "MLB"
 
 export type MLListingFee = { percentageFee: number; fixedFee: number }
@@ -42,6 +43,49 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     }),
   })
   if (!res.ok) throw new Error(`Mercado Livre OAuth refresh falhou: ${res.status}`)
+  const data = await res.json()
+  return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in }
+}
+
+// PKCE (RFC 7636) — na Mercado Livre é opcional por aplicação, mas gerar o
+// par sempre é seguro pra qualquer configuração (fluxos que não exigem PKCE
+// simplesmente ignoram code_challenge/code_challenge_method).
+export function generatePkcePair(): { codeVerifier: string; codeChallenge: string } {
+  const codeVerifier = randomBytes(32).toString("base64url")
+  const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url")
+  return { codeVerifier, codeChallenge }
+}
+
+export function buildAuthorizationUrl(params: { redirectUri: string; state: string; codeChallenge: string }): string {
+  const query = new URLSearchParams({
+    response_type: "code",
+    client_id: process.env.MERCADOLIVRE_CLIENT_ID ?? "",
+    redirect_uri: params.redirectUri,
+    state: params.state,
+    code_challenge: params.codeChallenge,
+    code_challenge_method: "S256",
+  })
+  return `${AUTH_BASE}/authorization?${query.toString()}`
+}
+
+export async function exchangeAuthorizationCode(params: {
+  code: string
+  redirectUri: string
+  codeVerifier: string
+}): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+  const res = await fetch(`${API_BASE}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: process.env.MERCADOLIVRE_CLIENT_ID ?? "",
+      client_secret: process.env.MERCADOLIVRE_CLIENT_SECRET ?? "",
+      code: params.code,
+      redirect_uri: params.redirectUri,
+      code_verifier: params.codeVerifier,
+    }),
+  })
+  if (!res.ok) throw new Error(`Mercado Livre troca de código OAuth falhou: ${res.status}`)
   const data = await res.json()
   return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresIn: data.expires_in }
 }
