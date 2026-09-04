@@ -35,7 +35,7 @@
 - Modify: `packages/medusa-backend/apps/backend/medusa-config.ts`
 
 **Interfaces:**
-- Produces: `MARKETPLACE_CHANNEL_MODULE` (string `"marketplace_channel"`); `MarketplaceChannelModuleService` com métodos `recordListing(input)`, `recordListingError(productId, channel, errorMessage)`, `findListingByExternalItemId(externalItemId): Promise<{id, productId, sellerId, channel, externalItemId, saleFeePercent, saleFeeFixed, status} | null>`, `getCredential(channel): Promise<{id, channel, accessToken, refreshToken, expiresAt} | null>`, `saveCredential(channel, accessToken, refreshToken, expiresAt)`. Todas as tasks seguintes consomem esse service pelo `MARKETPLACE_CHANNEL_MODULE`.
+- Produces: `MARKETPLACE_CHANNEL_MODULE` (string `"marketplace_channel"`); `MarketplaceChannelModuleService` com métodos `recordListing(input)`, `recordListingError(productId, sellerId, channel, errorMessage)`, `findListingByExternalItemId(externalItemId): Promise<{id, productId, sellerId, channel, externalItemId, saleFeePercent, saleFeeFixed, status} | null>`, `getCredential(channel): Promise<{id, channel, accessToken, refreshToken, expiresAt} | null>`, `saveCredential(channel, accessToken, refreshToken, expiresAt)`. Todas as tasks seguintes consomem esse service pelo `MARKETPLACE_CHANNEL_MODULE`.
 
 - [ ] **Step 1: Escrever os models**
 
@@ -50,8 +50,8 @@ const ChannelListing = model.define("channel_listing", {
   channel: model.enum(["mercado_livre"]),
   externalItemId: model.text().nullable(),
   externalCategoryId: model.text().nullable(),
-  saleFeePercent: model.number().nullable(),
-  saleFeeFixed: model.number().nullable(),
+  saleFeePercent: model.float().nullable(),
+  saleFeeFixed: model.float().nullable(),
   status: model.enum(["draft", "published", "paused", "error"]).default("draft"),
   lastError: model.text().nullable(),
 })
@@ -132,10 +132,10 @@ describe("MarketplaceChannelModuleService", () => {
       const svc = makeService()
       svc.createChannelListings.mockResolvedValue({ id: "cl_1" })
 
-      await svc.recordListingError("prod_1", "mercado_livre", "categoria inválida")
+      await svc.recordListingError("prod_1", "seller_1", "mercado_livre", "categoria inválida")
 
       expect(svc.createChannelListings).toHaveBeenCalledWith(
-        expect.objectContaining({ productId: "prod_1", status: "error", lastError: "categoria inválida" })
+        expect.objectContaining({ productId: "prod_1", sellerId: "seller_1", status: "error", lastError: "categoria inválida" })
       )
     })
   })
@@ -223,8 +223,8 @@ class MarketplaceChannelModuleService extends MedusaService({ ChannelListing, Ch
     return this.createChannelListings({ ...input, status: "published" } as any)
   }
 
-  async recordListingError(productId: string, channel: string, errorMessage: string) {
-    return this.createChannelListings({ productId, channel, status: "error", lastError: errorMessage } as any)
+  async recordListingError(productId: string, sellerId: string, channel: string, errorMessage: string) {
+    return this.createChannelListings({ productId, sellerId, channel, status: "error", lastError: errorMessage } as any)
   }
 
   async findListingByExternalItemId(externalItemId: string): Promise<any | null> {
@@ -971,7 +971,7 @@ describe("POST /admin/marketplace-channel/products/:id/publish", () => {
 
     await POST(req, res)
 
-    expect(channelService.recordListingError).toHaveBeenCalledWith("prod_1", "mercado_livre", expect.any(String))
+    expect(channelService.recordListingError).toHaveBeenCalledWith("prod_1", "seller_1", "mercado_livre", expect.any(String))
     expect(res._status).toBe(502)
   })
 })
@@ -1053,7 +1053,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     res.json({ externalItemId, saleFeePercent: fee.percentageFee, saleFeeFixed: fee.fixedFee })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
-    await channelService.recordListingError(productId, "mercado_livre", msg)
+    await channelService.recordListingError(productId, sellerId, "mercado_livre", msg)
     res.status(502).json({ error: "Erro ao publicar no Mercado Livre.", detail: msg })
   }
 }
