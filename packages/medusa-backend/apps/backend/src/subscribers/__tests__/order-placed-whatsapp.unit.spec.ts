@@ -1,11 +1,16 @@
 jest.mock("../../utils/whatsapp", () => ({ sendWhatsApp: jest.fn() }))
 
+import { Modules } from "@medusajs/framework/utils"
 import { sendWhatsApp } from "../../utils/whatsapp"
 import orderPlacedWhatsApp, { config } from "../order-placed-whatsapp"
 
-function makeContainer(orderService: unknown) {
+function makeContainer(orderService: unknown, logger: unknown = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }) {
   return {
-    resolve: () => orderService,
+    resolve: (key: string) => {
+      if (key === Modules.ORDER) return orderService
+      if (key === "logger") return logger
+      throw new Error(`Unexpected resolve: ${key}`)
+    },
   }
 }
 
@@ -119,10 +124,45 @@ describe("orderPlacedWhatsApp", () => {
       retrieveOrder: jest.fn().mockResolvedValue(orderB), // processando o pedido "B" desta vez
       listOrders: jest.fn().mockResolvedValue([orderA, orderB]),
     }
-    const container = makeContainer(orderService)
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    const container = makeContainer(orderService, logger)
 
     await orderPlacedWhatsApp({ event: { data: { id: "order_b" } }, container } as any)
 
     expect(sendWhatsApp).not.toHaveBeenCalled()
+    // o pedido não-designado não deve nem logar tentativa de envio
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it("logs the prepared message (recipient, order label, total) right before sending — the only way to verify the consolidation in an environment without Evolution API credentials configured (sendWhatsApp itself no-ops silently there)", async () => {
+    const orderA = {
+      id: "order_a",
+      display_id: 13,
+      total: 1079,
+      metadata: { mercadopago_external_reference: "ext-1" },
+      shipping_address: { phone: "71999990000", first_name: "João" },
+    }
+    const orderB = {
+      id: "order_b",
+      display_id: 14,
+      total: 19646,
+      metadata: { mercadopago_external_reference: "ext-1" },
+      shipping_address: { phone: "71999990000", first_name: "João" },
+    }
+    const orderService = {
+      retrieveOrder: jest.fn().mockResolvedValue(orderA),
+      listOrders: jest.fn().mockResolvedValue([orderA, orderB]),
+    }
+    const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    const container = makeContainer(orderService, logger)
+
+    await orderPlacedWhatsApp({ event: { data: { id: "order_a" } }, container } as any)
+
+    expect(logger.info).toHaveBeenCalledTimes(1)
+    const [logLine] = logger.info.mock.calls[0]
+    expect(logLine).toContain("71999990000")
+    expect(logLine).toContain("#13")
+    expect(logLine).toContain("#14")
+    expect(logLine).toMatch(/R\$\s*207,25/)
   })
 })

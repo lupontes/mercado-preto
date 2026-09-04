@@ -17,6 +17,7 @@ export default async function orderPlacedWhatsApp({
   container,
 }: SubscriberArgs<{ id: string }>) {
   const orderService = container.resolve(Modules.ORDER)
+  const logger = container.resolve("logger") as { info: (msg: string) => void }
   const order = await orderService.retrieveOrder(event.data.id, {
     relations: ["shipping_address"],
     // "total" must be in select or Medusa never computes order totals
@@ -61,6 +62,16 @@ export default async function orderPlacedWhatsApp({
   })
   const possessiveAndWord = displayIds.length > 1 ? "Seus pedidos" : "Seu pedido"
   const verb = displayIds.length > 1 ? "foram recebidos" : "foi recebido"
+
+  // Log deliberado antes do envio: em ambientes sem EVOLUTION_API_URL/KEY/
+  // INSTANCE configurados, sendWhatsApp() retorna silenciosamente sem
+  // logar nada (ver utils/whatsapp.ts) — sem esta linha, não haveria
+  // nenhuma forma de confirmar que a consolidação (1 mensagem por
+  // pagamento, não 1 por vendedor) está funcionando de fato num ambiente
+  // de teste sem credenciais reais de WhatsApp.
+  logger.info(
+    `[order-placed-whatsapp] mensagem preparada para ${phone} — pedido(s) ${formatOrderLabel(displayIds)}, total ${formattedTotal}`
+  )
 
   await sendWhatsApp(
     phone,
