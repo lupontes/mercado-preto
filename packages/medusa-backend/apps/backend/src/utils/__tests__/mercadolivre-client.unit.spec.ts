@@ -7,6 +7,7 @@ import {
   getShipmentLabelUrl,
   verifyWebhookSignature,
   generatePkcePair,
+  buildCallbackRedirectUri,
   buildAuthorizationUrl,
   exchangeAuthorizationCode,
 } from "../mercadolivre-client"
@@ -218,6 +219,14 @@ describe("generatePkcePair", () => {
     const second = generatePkcePair()
 
     expect(first.codeVerifier).not.toBe(second.codeVerifier)
+  })
+})
+
+describe("buildCallbackRedirectUri", () => {
+  it("builds the callback URL from BACKEND_URL, the single source of truth for both OAuth steps", () => {
+    process.env.BACKEND_URL = "https://example.com/api"
+
+    expect(buildCallbackRedirectUri()).toBe("https://example.com/api/admin/marketplace-channel/callback")
   })
 })
 

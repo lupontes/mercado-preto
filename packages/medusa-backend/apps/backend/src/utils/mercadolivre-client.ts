@@ -56,6 +56,14 @@ export function generatePkcePair(): { codeVerifier: string; codeChallenge: strin
   return { codeVerifier, codeChallenge }
 }
 
+// Única fonte de verdade pro redirect_uri: a Mercado Livre exige que a URL
+// enviada na autorização e na troca de código sejam idênticas byte a byte —
+// duas montagens independentes desse valor divergiriam silenciosamente sem
+// nenhum teste local pegar isso.
+export function buildCallbackRedirectUri(): string {
+  return `${process.env.BACKEND_URL}/admin/marketplace-channel/callback`
+}
+
 export function buildAuthorizationUrl(params: { redirectUri: string; state: string; codeChallenge: string }): string {
   const query = new URLSearchParams({
     response_type: "code",

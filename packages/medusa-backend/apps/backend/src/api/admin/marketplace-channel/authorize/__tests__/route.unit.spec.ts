@@ -1,6 +1,7 @@
 jest.mock("../../../../../utils/mercadolivre-client", () => ({
   generatePkcePair: jest.fn(),
   buildAuthorizationUrl: jest.fn(),
+  buildCallbackRedirectUri: jest.fn(),
 }))
 jest.mock("node:crypto", () => ({
   ...jest.requireActual("node:crypto"),
@@ -8,7 +9,7 @@ jest.mock("node:crypto", () => ({
 }))
 
 import { randomBytes } from "node:crypto"
-import { generatePkcePair, buildAuthorizationUrl } from "../../../../../utils/mercadolivre-client"
+import { generatePkcePair, buildAuthorizationUrl, buildCallbackRedirectUri } from "../../../../../utils/mercadolivre-client"
 import { GET } from "../route"
 
 function makeReq() {
@@ -34,6 +35,7 @@ describe("GET /admin/marketplace-channel/authorize", () => {
     process.env.BACKEND_URL = "https://example.com/api"
     ;(generatePkcePair as jest.Mock).mockReturnValue({ codeVerifier: "verifier-1", codeChallenge: "challenge-1" })
     ;(buildAuthorizationUrl as jest.Mock).mockReturnValue("https://auth.mercadolivre.com.br/authorization?mocked=1")
+    ;(buildCallbackRedirectUri as jest.Mock).mockReturnValue("https://example.com/api/admin/marketplace-channel/callback")
     ;(randomBytes as jest.Mock).mockReturnValue({ toString: () => "state-abc" })
   })
 

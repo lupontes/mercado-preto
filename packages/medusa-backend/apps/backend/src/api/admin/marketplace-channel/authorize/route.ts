@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { generatePkcePair, buildAuthorizationUrl } from "../../../../utils/mercadolivre-client"
+import { generatePkcePair, buildAuthorizationUrl, buildCallbackRedirectUri } from "../../../../utils/mercadolivre-client"
 
 const STATE_COOKIE = "ml_oauth_state"
 const VERIFIER_COOKIE = "ml_oauth_verifier"
@@ -9,7 +9,7 @@ const COOKIE_MAX_AGE_MS = 5 * 60 * 1000
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { codeVerifier, codeChallenge } = generatePkcePair()
   const state = randomBytes(16).toString("hex")
-  const redirectUri = `${process.env.BACKEND_URL}/admin/marketplace-channel/callback`
+  const redirectUri = buildCallbackRedirectUri()
 
   const cookieOptions = {
     httpOnly: true,

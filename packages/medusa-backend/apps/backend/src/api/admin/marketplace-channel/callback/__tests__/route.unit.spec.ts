@@ -1,9 +1,10 @@
 jest.mock("../../../../../utils/mercadolivre-client", () => ({
   exchangeAuthorizationCode: jest.fn(),
+  buildCallbackRedirectUri: jest.fn(),
 }))
 
 import { MARKETPLACE_CHANNEL_MODULE } from "../../../../../modules/marketplace-channel"
-import { exchangeAuthorizationCode } from "../../../../../utils/mercadolivre-client"
+import { exchangeAuthorizationCode, buildCallbackRedirectUri } from "../../../../../utils/mercadolivre-client"
 import { GET } from "../route"
 
 function makeReq(overrides: Record<string, unknown> = {}) {
@@ -37,6 +38,7 @@ describe("GET /admin/marketplace-channel/callback", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     process.env.BACKEND_URL = "https://example.com/api"
+    ;(buildCallbackRedirectUri as jest.Mock).mockReturnValue("https://example.com/api/admin/marketplace-channel/callback")
   })
 
   it("exchanges the code, saves the credential, and clears the OAuth cookies", async () => {
@@ -67,6 +69,16 @@ describe("GET /admin/marketplace-channel/callback", () => {
 
   it("returns 400 without exchanging anything when the state doesn't match the cookie", async () => {
     const req = makeReq({ query: { code: "auth-code-1", state: "wrong-state" } })
+    const res = makeRes()
+
+    await GET(req, res)
+
+    expect(exchangeAuthorizationCode).not.toHaveBeenCalled()
+    expect(res._status).toBe(400)
+  })
+
+  it("returns 400 when only the verifier cookie is missing, even though the state matches", async () => {
+    const req = makeReq({ headers: { cookie: "ml_oauth_state=state-abc" } })
     const res = makeRes()
 
     await GET(req, res)
