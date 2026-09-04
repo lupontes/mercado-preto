@@ -102,6 +102,7 @@ describe("POST /webhooks/mercadolivre", () => {
       expect.objectContaining({
         channel: "mercado_livre",
         mercadolivre_order_id: "555",
+        mercadolivre_item_id: "MLB999",
         seller_id: "seller_1",
         buyer_document: "12345678900",
       })
@@ -167,5 +168,18 @@ describe("POST /webhooks/mercadolivre", () => {
     await POST(req, res)
 
     expect(res._status).toBe(200)
+  })
+
+  it("returns 200 without throwing when the body is malformed (resource is not a string, or the body is empty)", async () => {
+    const reqNonStringResource = makeReq({ topic: "orders_v2", resource: 12345 })
+    const resA = makeRes()
+    await expect(POST(reqNonStringResource, resA)).resolves.not.toThrow()
+    expect(resA._status).toBe(200)
+    expect(reqNonStringResource._orderService.createOrders).not.toHaveBeenCalled()
+
+    const reqEmptyBody = makeReq(undefined)
+    const resB = makeRes()
+    await expect(POST(reqEmptyBody, resB)).resolves.not.toThrow()
+    expect(resB._status).toBe(200)
   })
 })

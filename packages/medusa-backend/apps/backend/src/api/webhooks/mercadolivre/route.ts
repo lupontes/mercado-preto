@@ -11,29 +11,30 @@ type MLWebhookBody = {
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const logger = req.scope.resolve("logger")
-  const body = req.body as MLWebhookBody
-
-  if (body.topic !== "orders_v2" || !body.resource) {
-    return res.sendStatus(200)
-  }
-
-  const orderId = body.resource.split("/").pop()
-  if (!orderId) return res.sendStatus(200)
-
-  const xSignature = (req.headers["x-signature"] as string) ?? ""
-  const xRequestId = (req.headers["x-request-id"] as string) ?? ""
-  const isValid = verifyWebhookSignature({
-    xSignature,
-    xRequestId,
-    dataId: orderId,
-    secret: process.env.MERCADOLIVRE_WEBHOOK_SECRET ?? "",
-  })
-  if (!isValid) {
-    logger.error(`[mercadolivre/webhook] assinatura inválida para o pedido ${orderId} — notificação ignorada`)
-    return res.sendStatus(200)
-  }
 
   try {
+    const body = req.body as MLWebhookBody | undefined
+
+    if (body?.topic !== "orders_v2" || typeof body?.resource !== "string") {
+      return res.sendStatus(200)
+    }
+
+    const orderId = body.resource.split("/").pop()
+    if (!orderId) return res.sendStatus(200)
+
+    const xSignature = (req.headers["x-signature"] as string) ?? ""
+    const xRequestId = (req.headers["x-request-id"] as string) ?? ""
+    const isValid = verifyWebhookSignature({
+      xSignature,
+      xRequestId,
+      dataId: orderId,
+      secret: process.env.MERCADOLIVRE_WEBHOOK_SECRET ?? "",
+    })
+    if (!isValid) {
+      logger.error(`[mercadolivre/webhook] assinatura inválida para o pedido ${orderId} — notificação ignorada`)
+      return res.sendStatus(200)
+    }
+
     const channelService: MarketplaceChannelModuleService = req.scope.resolve(MARKETPLACE_CHANNEL_MODULE)
     const credential = await channelService.getCredential("mercado_livre")
     if (!credential) {
