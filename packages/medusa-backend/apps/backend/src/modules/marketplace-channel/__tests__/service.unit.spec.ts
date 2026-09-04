@@ -52,10 +52,10 @@ describe("MarketplaceChannelModuleService", () => {
       const svc = makeService()
       svc.createChannelListings.mockResolvedValue({ id: "cl_1" })
 
-      await svc.recordListingError("prod_1", "mercado_livre", "categoria inválida")
+      await svc.recordListingError("prod_1", "seller_1", "mercado_livre", "categoria inválida")
 
       expect(svc.createChannelListings).toHaveBeenCalledWith(
-        expect.objectContaining({ productId: "prod_1", status: "error", lastError: "categoria inválida" })
+        expect.objectContaining({ productId: "prod_1", sellerId: "seller_1", status: "error", lastError: "categoria inválida" })
       )
     })
   })

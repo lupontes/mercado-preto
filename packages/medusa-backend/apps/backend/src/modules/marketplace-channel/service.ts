@@ -17,8 +17,8 @@ class MarketplaceChannelModuleService extends MedusaService({ ChannelListing, Ch
     return this.createChannelListings({ ...input, status: "published" } as any)
   }
 
-  async recordListingError(productId: string, channel: string, errorMessage: string) {
-    return this.createChannelListings({ productId, channel, status: "error", lastError: errorMessage } as any)
+  async recordListingError(productId: string, sellerId: string, channel: string, errorMessage: string) {
+    return this.createChannelListings({ productId, sellerId, channel, status: "error", lastError: errorMessage } as any)
   }
 
   async findListingByExternalItemId(externalItemId: string): Promise<any | null> {

@@ -7,8 +7,8 @@ const ChannelListing = model.define("channel_listing", {
   channel: model.enum(["mercado_livre"]),
   externalItemId: model.text().nullable(),
   externalCategoryId: model.text().nullable(),
-  saleFeePercent: model.number().nullable(),
-  saleFeeFixed: model.number().nullable(),
+  saleFeePercent: model.float().nullable(),
+  saleFeeFixed: model.float().nullable(),
   status: model.enum(["draft", "published", "paused", "error"]).default("draft"),
   lastError: model.text().nullable(),
 })
