@@ -53,10 +53,9 @@ function makeRes() {
 const paidMlOrder = {
   id: 555,
   status: "paid",
-  buyer: { id: 1, nickname: "comprador1" },
+  buyer: { id: 1, nickname: "comprador1", billing_info: { id: "billing-1" } },
   order_items: [{ item: { id: "MLB999", title: "Bolsa Africana 2 em 1" }, quantity: 1, unit_price: 182 }],
   shipping: { id: 999 },
-  billing_info: { id: "billing-1" },
 }
 
 const shipmentAddress = {
@@ -145,7 +144,10 @@ describe("POST /webhooks/mercadolivre", () => {
   })
 
   it("stores buyer_document as null and never calls getBillingInfo when the ML order has no billing_info reference", async () => {
-    ;(getOrder as jest.Mock).mockResolvedValue({ ...paidMlOrder, billing_info: undefined })
+    ;(getOrder as jest.Mock).mockResolvedValue({
+      ...paidMlOrder,
+      buyer: { id: 1, nickname: "comprador1" },
+    })
     const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
 
     await POST(req, makeRes())

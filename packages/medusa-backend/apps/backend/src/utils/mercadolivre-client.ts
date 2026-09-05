@@ -22,13 +22,17 @@ export type MLOrder = {
   id: number
   status: string
   total_amount?: number
-  buyer?: { id: number; nickname: string }
+  buyer?: {
+    id: number
+    nickname: string
+    // Referência ao registro fiscal do pedido (buyer.billing_info.id,
+    // confirmado na documentação oficial) — os dados de verdade (CPF, nome)
+    // só vêm buscando GET /orders/billing-info/{site}/{billing_info.id}
+    // separadamente, não estão embutidos aqui.
+    billing_info?: { id: string }
+  }
   order_items: Array<{ item: { id: string; title: string }; quantity: number; unit_price: number }>
   shipping?: { id: number }
-  // Referência ao registro fiscal do pedido — os dados de verdade (CPF, nome)
-  // só vêm buscando GET /orders/billing-info/{site}/{billing_info.id}
-  // separadamente, não estão embutidos aqui.
-  billing_info?: { id: string }
 }
 
 export type MLShipmentAddress = {
@@ -198,8 +202,9 @@ export async function getShipment(accessToken: string, shipmentId: string): Prom
 }
 
 // Os dados fiscais do comprador (CPF, nome) não vêm no GET /orders/:id —
-// exigem uma chamada separada usando o billing_info.id que o pedido traz
-// como referência. Confirmado via documentação oficial: GET
+// exigem uma chamada separada usando buyer.billing_info.id (referência que
+// o pedido traz nesse campo, aninhado dentro de buyer, não no nível raiz).
+// Confirmado via documentação oficial: GET
 // /orders/billing-info/{site_id}/{billing_info_id}.
 export async function getBillingInfo(accessToken: string, billingInfoId: string): Promise<MLBillingInfo> {
   const res = await fetch(`${API_BASE}/orders/billing-info/${SITE_ID}/${billingInfoId}`, {

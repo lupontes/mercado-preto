@@ -88,9 +88,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     let buyerDocument: string | null = null
     let buyerFirstName: string | undefined
     let buyerLastName: string | undefined
-    if (mlOrder.billing_info?.id) {
+    if (mlOrder.buyer?.billing_info?.id) {
       try {
-        const billing = await getBillingInfo(credential.accessToken, mlOrder.billing_info.id)
+        const billing = await getBillingInfo(credential.accessToken, mlOrder.buyer.billing_info.id)
         buyerDocument = billing.docNumber || null
         buyerFirstName = billing.name || undefined
         buyerLastName = billing.lastName || undefined
@@ -103,6 +103,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     if (mlOrder.shipping?.id) {
       try {
         const shipment = await getShipment(credential.accessToken, String(mlOrder.shipping.id))
+        // O ML não expõe um nome de destinatário separado do envio — reaproveita
+        // o nome do faturamento (ou o nickname, se não houver dados fiscais) como
+        // first_name/last_name do shipping_address.
         shippingAddress = {
           first_name: buyerFirstName ?? mlOrder.buyer?.nickname ?? "Comprador",
           last_name: buyerLastName ?? "",
