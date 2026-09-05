@@ -22,9 +22,27 @@ export type MLOrder = {
   id: number
   status: string
   total_amount?: number
-  buyer?: { id: number; nickname: string; billing_info?: { doc_number?: string; doc_type?: string } }
+  buyer?: { id: number; nickname: string }
   order_items: Array<{ item: { id: string; title: string }; quantity: number; unit_price: number }>
   shipping?: { id: number }
+  // Referência ao registro fiscal do pedido — os dados de verdade (CPF, nome)
+  // só vêm buscando GET /orders/billing-info/{site}/{billing_info.id}
+  // separadamente, não estão embutidos aqui.
+  billing_info?: { id: string }
+}
+
+export type MLShipmentAddress = {
+  addressLine: string
+  zipCode: string
+  cityName: string
+  stateName: string
+  stateCode: string
+}
+
+export type MLBillingInfo = {
+  docNumber: string
+  name: string
+  lastName: string
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<{
@@ -159,6 +177,42 @@ export async function getOrder(accessToken: string, orderId: string): Promise<ML
   })
   if (!res.ok) throw new Error(`Mercado Livre busca de pedido falhou: ${res.status}`)
   return res.json()
+}
+
+export async function getShipment(accessToken: string, shipmentId: string): Promise<MLShipmentAddress> {
+  const res = await fetch(`${API_BASE}/shipments/${shipmentId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Mercado Livre busca de envio falhou: ${res.status}`)
+  const data = await res.json()
+  const addr = data.receiver_address ?? {}
+  // O UF (state.id) vem como "BR-SC" — a Mercado Livre prefixa com o país.
+  const stateCode = String(addr.state?.id ?? "").split("-").pop() ?? ""
+  return {
+    addressLine: addr.address_line ?? "",
+    zipCode: addr.zip_code ?? "",
+    cityName: addr.city?.name ?? "",
+    stateName: addr.state?.name ?? "",
+    stateCode,
+  }
+}
+
+// Os dados fiscais do comprador (CPF, nome) não vêm no GET /orders/:id —
+// exigem uma chamada separada usando o billing_info.id que o pedido traz
+// como referência. Confirmado via documentação oficial: GET
+// /orders/billing-info/{site_id}/{billing_info_id}.
+export async function getBillingInfo(accessToken: string, billingInfoId: string): Promise<MLBillingInfo> {
+  const res = await fetch(`${API_BASE}/orders/billing-info/${SITE_ID}/${billingInfoId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error(`Mercado Livre busca de dados fiscais falhou: ${res.status}`)
+  const data = await res.json()
+  const billing = data.buyer?.billing_info ?? {}
+  return {
+    docNumber: billing.doc_number ?? billing.identification?.number ?? "",
+    name: billing.name ?? "",
+    lastName: billing.last_name ?? "",
+  }
 }
 
 export function getShipmentLabelUrl(accessToken: string, shipmentId: string): string {

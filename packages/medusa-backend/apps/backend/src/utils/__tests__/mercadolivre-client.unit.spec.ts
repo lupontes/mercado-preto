@@ -10,6 +10,8 @@ import {
   buildCallbackRedirectUri,
   buildAuthorizationUrl,
   exchangeAuthorizationCode,
+  getShipment,
+  getBillingInfo,
 } from "../mercadolivre-client"
 import { createHmac, createHash } from "node:crypto"
 
@@ -281,5 +283,88 @@ describe("exchangeAuthorizationCode", () => {
     await expect(
       exchangeAuthorizationCode({ code: "bad-code", redirectUri: "https://example.com/callback", codeVerifier: "v" })
     ).rejects.toThrow("400")
+  })
+})
+
+describe("getShipment", () => {
+  it("fetches /shipments/:id and returns the normalized receiver address", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({
+        receiver_address: {
+          address_line: "Estrada Geral Cachoeira de Fátima 77",
+          zip_code: "88990000",
+          city: { name: "Praia Grande" },
+          state: { id: "BR-SC", name: "Santa Catarina" },
+        },
+      })
+    )
+
+    const result = await getShipment("token-abc", "shipment-1")
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.mercadolibre.com/shipments/shipment-1",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) })
+    )
+    expect(result).toEqual({
+      addressLine: "Estrada Geral Cachoeira de Fátima 77",
+      zipCode: "88990000",
+      cityName: "Praia Grande",
+      stateName: "Santa Catarina",
+      stateCode: "SC",
+    })
+  })
+
+  it("throws when the shipment lookup fails", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({}, false, 404))
+
+    await expect(getShipment("token-abc", "missing")).rejects.toThrow("404")
+  })
+})
+
+describe("getBillingInfo", () => {
+  it("fetches /orders/billing-info/MLB/:id and returns the buyer's document and name", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({
+        buyer: {
+          billing_info: {
+            name: "Juan",
+            last_name: "Sanchez",
+            doc_number: "12345678900",
+          },
+        },
+      })
+    )
+
+    const result = await getBillingInfo("token-abc", "billing-1")
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.mercadolibre.com/orders/billing-info/MLB/billing-1",
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-abc" }) })
+    )
+    expect(result).toEqual({ docNumber: "12345678900", name: "Juan", lastName: "Sanchez" })
+  })
+
+  it("falls back to identification.number when doc_number isn't present", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({
+        buyer: {
+          billing_info: {
+            name: "Juan",
+            last_name: "Sanchez",
+            identification: { type: "CPF", number: "98765432100" },
+          },
+        },
+      })
+    )
+
+    const result = await getBillingInfo("token-abc", "billing-1")
+
+    expect(result.docNumber).toBe("98765432100")
+  })
+
+  it("throws when the billing info lookup fails", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue(jsonResponse({}, false, 404))
+
+    await expect(getBillingInfo("token-abc", "missing")).rejects.toThrow("404")
   })
 })
