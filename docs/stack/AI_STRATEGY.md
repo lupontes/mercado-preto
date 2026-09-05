@@ -151,7 +151,7 @@ Fluxo n8n: `product.created` webhook → gerar 3 variações de copy para Instag
 
 ### 1.6 Detecção de Fraude
 
-**Estado atual:** Rota `POST /admin/webhooks/clearsale` existe mas ClearSale não está configurado.
+**Estado atual:** Rota `POST /webhooks/clearsale` existe mas ClearSale não está configurado.
 
 **Avaliação honesta:** Com menos de 100 vendedores e tráfego inicial baixo, ML de fraude próprio não é viável — não há volume de dados para treinar modelos. O ClearSale tem base de dados pré-treinada do mercado brasileiro (R$0,10/transação).
 
