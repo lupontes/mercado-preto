@@ -33,5 +33,8 @@ infra/nginx/certbot/
 # Claude Code local settings (contém segredos, por máquina)
 .claude/settings.local.json
 
-# Graphify — saída local do grafo de conhecimento
+# Graphify — saída local do grafo de conhecimento (machine-local)
 graphify-out/
+
+# Git worktrees isolados (superpowers:using-git-worktrees)
+.worktrees/

@@ -7,6 +7,10 @@ type CalculateInput = {
   sellerId: string
   grossAmount: number
   bankingFees: number
+  // Frete é repassado integralmente ao vendedor — não sofre desconto de taxa
+  // bancária nem de comissão da plataforma (comissão incide só sobre o valor
+  // dos produtos, nunca sobre o frete).
+  shippingAmount?: number
   commissionRate?: number
 }
 
@@ -36,7 +40,7 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
 
     const netAmount = input.grossAmount - input.bankingFees
     const commissionAmount = Math.round(netAmount * (rate / 100))
-    const sellerPayout = netAmount - commissionAmount
+    const sellerPayout = netAmount - commissionAmount + (input.shippingAmount ?? 0)
 
     return {
       orderId: input.orderId,
