@@ -125,7 +125,7 @@
 | Melhor Envio — testes de integração | 🔧 | Validar cálculo de frete com token real |
 | Focus NFe — ativação em produção | 🔧 | Inserir CNPJ emitente + IE e desabilitar sandbox |
 | Brevo — verificação de domínio | 🔧 | Configurar SPF/DKIM/DMARC para mercadopreto.com.br |
-| Storefront — testes unitários | 📋 | Criar testes React para componentes críticos |
+| Storefront — testes unitários | ✅ | CategorySelect e formulários de produto do lojista cobertos (RTL + jsdom) |
 | Typebot → LLM upgrade | 📋 | Substituir dicionário por Ollama/OpenAI |
 | Chatwoot — ativação | 📋 | Configurar inbox + variáveis de ambiente |
 | ClearSale — ativação | 📋 | Ativar quando volume de pedidos justificar |
