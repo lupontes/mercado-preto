@@ -12,11 +12,18 @@ export default async function orderPlacedWhatsApp({
     // "total" must be in select or Medusa never computes order totals
     // (order.total stays undefined, see order-summary decoration logic
     // in @medusajs/order's shouldIncludeTotals). Passing `select` makes it
-    // an explicit whitelist, so display_id must be listed too or it
-    // silently comes back undefined even though the column exists.
-    select: ["total", "display_id"],
+    // an explicit whitelist, so display_id/metadata must be listed too or
+    // they silently come back undefined even though the columns exist.
+    select: ["total", "display_id", "metadata"],
   })
   if (!order) return
+
+  // Pedidos do Mercado Livre nunca disparam WhatsApp — o próprio ML já
+  // notifica o comprador pelo app dele. Checagem explícita por canal em vez
+  // de depender da ausência de shipping_address: desde que o webhook do ML
+  // passou a gravar o endereço real do envio (ver api/webhooks/mercadolivre),
+  // esses pedidos podem ter shipping_address/telefone preenchidos.
+  if ((order.metadata as any)?.channel === "mercado_livre") return
 
   const phone = (order as any).shipping_address?.phone
   if (!phone) return
