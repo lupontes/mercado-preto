@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MARKETPLACE_CHANNEL_MODULE } from "../../../modules/marketplace-channel"
 import type MarketplaceChannelModuleService from "../../../modules/marketplace-channel/service"
-import { getOrder, verifyWebhookSignature } from "../../../utils/mercadolivre-client"
+import { getOrder, verifyWebhookSignature, getShipment, getBillingInfo } from "../../../utils/mercadolivre-client"
 
 type MLWebhookBody = {
   topic?: string
@@ -81,6 +81,42 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       return res.sendStatus(200)
     }
 
+    // Dados fiscais e endereço reais são melhor-esforço: se a busca falhar,
+    // o pedido ainda é criado (não perdemos um pedido pago por causa de uma
+    // chamada secundária) e os fallbacks de order-fiscal-emit.ts entram em
+    // ação como acontecia antes desta busca existir.
+    let buyerDocument: string | null = null
+    let buyerFirstName: string | undefined
+    let buyerLastName: string | undefined
+    if (mlOrder.billing_info?.id) {
+      try {
+        const billing = await getBillingInfo(credential.accessToken, mlOrder.billing_info.id)
+        buyerDocument = billing.docNumber || null
+        buyerFirstName = billing.name || undefined
+        buyerLastName = billing.lastName || undefined
+      } catch (err) {
+        logger.warn(`[mercadolivre/webhook] falha ao buscar dados fiscais do pedido ${mlOrder.id}: ${err}`)
+      }
+    }
+
+    let shippingAddress: Record<string, unknown> | undefined
+    if (mlOrder.shipping?.id) {
+      try {
+        const shipment = await getShipment(credential.accessToken, String(mlOrder.shipping.id))
+        shippingAddress = {
+          first_name: buyerFirstName ?? mlOrder.buyer?.nickname ?? "Comprador",
+          last_name: buyerLastName ?? "",
+          address_1: shipment.addressLine,
+          city: shipment.cityName,
+          province: shipment.stateCode,
+          postal_code: shipment.zipCode,
+          country_code: "br",
+        }
+      } catch (err) {
+        logger.warn(`[mercadolivre/webhook] falha ao buscar endereço de envio do pedido ${mlOrder.id}: ${err}`)
+      }
+    }
+
     const [order] = await orderService.createOrders([
       {
         currency_code: "brl",
@@ -90,13 +126,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           quantity: i.quantity,
           unit_price: Math.round(i.unit_price * 100),
         })),
+        ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
         metadata: {
           channel: "mercado_livre",
           mercadolivre_order_id: String(mlOrder.id),
           mercadolivre_item_id: firstItemId,
           mercadolivre_shipment_id: mlOrder.shipping?.id ?? null,
           seller_id: listing.sellerId,
-          buyer_document: mlOrder.buyer?.billing_info?.doc_number ?? null,
+          buyer_document: buyerDocument,
         },
       },
     ])

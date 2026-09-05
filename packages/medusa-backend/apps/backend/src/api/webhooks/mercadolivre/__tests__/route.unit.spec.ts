@@ -1,11 +1,13 @@
 jest.mock("../../../../utils/mercadolivre-client", () => ({
   getOrder: jest.fn(),
   verifyWebhookSignature: jest.fn(),
+  getShipment: jest.fn(),
+  getBillingInfo: jest.fn(),
 }))
 
 import { Modules } from "@medusajs/framework/utils"
 import { MARKETPLACE_CHANNEL_MODULE } from "../../../../modules/marketplace-channel"
-import { getOrder, verifyWebhookSignature } from "../../../../utils/mercadolivre-client"
+import { getOrder, verifyWebhookSignature, getShipment, getBillingInfo } from "../../../../utils/mercadolivre-client"
 import { POST } from "../route"
 
 function makeReq(body: unknown, overrides: Record<string, unknown> = {}) {
@@ -51,15 +53,29 @@ function makeRes() {
 const paidMlOrder = {
   id: 555,
   status: "paid",
-  buyer: { id: 1, nickname: "comprador1", billing_info: { doc_number: "12345678900", doc_type: "CPF" } },
+  buyer: { id: 1, nickname: "comprador1" },
   order_items: [{ item: { id: "MLB999", title: "Bolsa Africana 2 em 1" }, quantity: 1, unit_price: 182 }],
+  shipping: { id: 999 },
+  billing_info: { id: "billing-1" },
 }
+
+const shipmentAddress = {
+  addressLine: "Estrada Geral Cachoeira de Fátima 77",
+  zipCode: "88990000",
+  cityName: "Praia Grande",
+  stateName: "Santa Catarina",
+  stateCode: "SC",
+}
+
+const billingInfo = { docNumber: "12345678900", name: "Juan", lastName: "Sanchez" }
 
 describe("POST /webhooks/mercadolivre", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     process.env.MERCADOLIVRE_WEBHOOK_SECRET = "webhook-secret"
     ;(verifyWebhookSignature as jest.Mock).mockReturnValue(true)
+    ;(getShipment as jest.Mock).mockResolvedValue(shipmentAddress)
+    ;(getBillingInfo as jest.Mock).mockResolvedValue(billingInfo)
   })
 
   it("returns 200 without processing when the topic isn't orders_v2", async () => {
@@ -107,33 +123,91 @@ describe("POST /webhooks/mercadolivre", () => {
     expect(req._orderService.createOrders).not.toHaveBeenCalled()
   })
 
-  it("creates an order tagged with channel mercado_livre, the resolved seller_id, and the buyer's document", async () => {
+  it("creates an order tagged with channel mercado_livre, the resolved seller_id, and the buyer's real document", async () => {
     ;(getOrder as jest.Mock).mockResolvedValue(paidMlOrder)
     const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
 
     await POST(req, makeRes())
 
     expect(req._channelService.findListingByExternalItemId).toHaveBeenCalledWith("MLB999")
+    expect(getBillingInfo).toHaveBeenCalledWith("token-abc", "billing-1")
     const [createdOrders] = req._orderService.createOrders.mock.calls[0]
     expect(createdOrders[0].metadata).toEqual(
       expect.objectContaining({
         channel: "mercado_livre",
         mercadolivre_order_id: "555",
         mercadolivre_item_id: "MLB999",
+        mercadolivre_shipment_id: 999,
         seller_id: "seller_1",
         buyer_document: "12345678900",
       })
     )
   })
 
-  it("stores buyer_document as null when the ML order has no billing info", async () => {
-    ;(getOrder as jest.Mock).mockResolvedValue({ ...paidMlOrder, buyer: { id: 1, nickname: "comprador1" } })
+  it("stores buyer_document as null and never calls getBillingInfo when the ML order has no billing_info reference", async () => {
+    ;(getOrder as jest.Mock).mockResolvedValue({ ...paidMlOrder, billing_info: undefined })
+    const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
+
+    await POST(req, makeRes())
+
+    expect(getBillingInfo).not.toHaveBeenCalled()
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders[0].metadata.buyer_document).toBeNull()
+  })
+
+  it("still creates the order without a document when fetching billing info fails", async () => {
+    ;(getOrder as jest.Mock).mockResolvedValue(paidMlOrder)
+    ;(getBillingInfo as jest.Mock).mockRejectedValue(new Error("Mercado Livre busca de dados fiscais falhou: 404"))
+    const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
+
+    await POST(req, makeRes())
+
+    expect(req._orderService.createOrders).toHaveBeenCalled()
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders[0].metadata.buyer_document).toBeNull()
+  })
+
+  it("attaches a real shipping_address built from the shipment's receiver address", async () => {
+    ;(getOrder as jest.Mock).mockResolvedValue(paidMlOrder)
+    const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
+
+    await POST(req, makeRes())
+
+    expect(getShipment).toHaveBeenCalledWith("token-abc", "999")
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders[0].shipping_address).toEqual(
+      expect.objectContaining({
+        first_name: "Juan",
+        last_name: "Sanchez",
+        address_1: "Estrada Geral Cachoeira de Fátima 77",
+        city: "Praia Grande",
+        province: "SC",
+        postal_code: "88990000",
+        country_code: "br",
+      })
+    )
+  })
+
+  it("still creates the order without a shipping_address when fetching the shipment fails", async () => {
+    ;(getOrder as jest.Mock).mockResolvedValue(paidMlOrder)
+    ;(getShipment as jest.Mock).mockRejectedValue(new Error("Mercado Livre busca de envio falhou: 404"))
     const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
 
     await POST(req, makeRes())
 
     const [createdOrders] = req._orderService.createOrders.mock.calls[0]
-    expect(createdOrders[0].metadata.buyer_document).toBeNull()
+    expect(createdOrders[0].shipping_address).toBeUndefined()
+  })
+
+  it("never fetches the shipment when the ML order carries no shipping id", async () => {
+    ;(getOrder as jest.Mock).mockResolvedValue({ ...paidMlOrder, shipping: undefined })
+    const req = makeReq({ topic: "orders_v2", resource: "/orders/555" })
+
+    await POST(req, makeRes())
+
+    expect(getShipment).not.toHaveBeenCalled()
+    const [createdOrders] = req._orderService.createOrders.mock.calls[0]
+    expect(createdOrders[0].metadata.mercadolivre_shipment_id).toBeNull()
   })
 
   it("stores unit_price in centavos (no /100 conversion)", async () => {
