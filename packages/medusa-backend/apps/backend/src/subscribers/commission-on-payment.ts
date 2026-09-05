@@ -79,7 +79,12 @@ export default async function commissionOnPayment({
 }
 
 export const config: SubscriberConfig = {
-  // Escuta tanto pedidos vindos do checkout próprio (MercadoPago) quanto de
-  // canais de venda externos (Mercado Livre) — ver marketplace-channel.
-  event: ["order.payment_captured", "marketplace.order_placed"],
+  // "order.payment_captured" não é um evento real do Medusa v2 (o evento nativo
+  // de captura é "payment.captured", escopado no pagamento, não no pedido) e
+  // nunca é emitido em lugar nenhum deste código — então esse subscriber nunca
+  // disparava pro checkout próprio. "mercadopago.order_approved" é o evento que
+  // o webhook do MercadoPago de fato emite pra cada pedido criado (mesmo evento
+  // já usado por order-fiscal-emit.ts). Escuta também canais de venda externos
+  // (Mercado Livre) — ver marketplace-channel.
+  event: ["mercadopago.order_approved", "marketplace.order_placed"],
 }
