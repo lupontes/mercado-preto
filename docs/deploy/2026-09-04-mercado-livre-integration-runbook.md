@@ -150,12 +150,13 @@ Depois, repita o passo 4 para conectar uma conta nova.
 
 ## 8. Limitações conhecidas antes de ir para produção
 
-- **Endereço da NF-e é melhor-esforço.** O webhook de pedidos busca o
-  endereço real do comprador na API do Mercado Livre (`GET
-  /shipments/:id`) na hora da criação do pedido. Se essa busca falhar, o
-  pedido ainda é criado, mas a NF-e cai no endereço padrão da própria
-  plataforma (Cachoeira/BA) como rede de segurança — não é o comportamento
-  normal esperado, mas pode acontecer.
+- **Endereço e CPF da NF-e são melhor-esforço.** O webhook de pedidos busca
+  o endereço real do comprador (`GET /shipments/:id`) e o CPF real (`GET
+  /orders/billing-info/{site}/{billing_info_id}`) na API do Mercado Livre,
+  na hora da criação do pedido. Se qualquer uma dessas buscas falhar, o
+  pedido ainda é criado, mas a NF-e cai nos fallbacks da plataforma —
+  endereço padrão (Cachoeira/BA) e/ou `buyer_document: null` — como rede de
+  segurança. Não é o comportamento normal esperado, mas pode acontecer.
 - Só produtos de variante única.
 - Frete só via Mercado Envios (não há suporte a frete próprio pra pedidos
   vindos do ML).

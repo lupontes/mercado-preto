@@ -3,6 +3,8 @@
 > Gerado em: 2026-06-29
 > Projeto: Mercado Preto Marketplace
 
+> **⚠️ Snapshot desatualizado (verificado em 2026-09-06)** — este documento reflete o estado em 29/06 e **não deve ser usado como referência do que já foi feito**. Duas imprecisões já confirmadas: HTTPS/TLS (linha "Planejado" abaixo) já está em produção via Let's Encrypt/certbot com renovação automática (ver `docs/DEPLOY_PROD.md`); ClearSale (linha "Planejado" abaixo) já é variável de ambiente **obrigatória** (`CLEARSALE_WEBHOOK_SECRET` — o backend recusa subir sem ela) e teve sua rota corrigida. O documento também não menciona nada shippado depois de 29/06: integração com Mercado Livre, split de pedido multi-vendedor, sessão do vendedor via cookie HttpOnly, persistência de metadados do checkout, coleta de CPF/CNPJ do comprador, classificação de NCM. Pra estado atual, ver `HANDOFF.md` na raiz do repo.
+
 ---
 
 ## Stack Tecnológica
