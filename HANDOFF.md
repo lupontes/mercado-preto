@@ -30,8 +30,13 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
 
 - Validação jurídica/contábil do modelo de consignação — memo já preparado
   (Artifact privado, fora do repo), sem registro de resolução ainda.
-- Ativar a integração com o Mercado Livre de verdade (cadastro do app,
-  variáveis de ambiente, primeira autorização OAuth) — ver o runbook.
+- **Ativação do Mercado Livre pausada deliberadamente em 2026-09-06** —
+  usuário decidiu não cadastrar a empresa Mercado Preto (CNPJ) como app/
+  vendedor real no ML antes da validação jurídica acima ser resolvida.
+  Nada foi cadastrado no painel do ML. Retomar pelo runbook
+  (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`) depois
+  que a validação sair. Ambiente de dev (backend local + túnel) também não
+  chegou a subir nesta sessão.
 - Lacunas de cobertura de teste identificadas no Raio-X, não atacadas ainda:
   4 subscribers, 4 scripts (um é migração de dados real — `import-mab-catalog.ts`),
   ~22 rotas de API, 14 páginas do storefront sem teste.
