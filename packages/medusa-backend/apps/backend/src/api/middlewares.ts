@@ -1,20 +1,7 @@
-import crypto from "crypto"
 import { defineMiddlewares } from "@medusajs/framework/http"
 import rateLimit from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
-
-function verifySellerToken(token: string) {
-  const secret = process.env.JWT_SECRET!
-  const parts = token.split(".")
-  if (parts.length !== 3) throw new Error("Invalid token format")
-  const [header, body, sig] = parts
-  const expected = crypto.createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url")
-  if (sig !== expected) throw new Error("Invalid signature")
-  const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"))
-  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error("Token expired")
-  if (payload.type !== "seller") throw new Error("Invalid token type")
-  return payload as { sellerId: string; email: string }
-}
+import { verifySellerToken } from "../utils/seller-jwt"
 
 export function sellerCors(req: any, res: any, next: any) {
   const origin = req.headers.origin as string | undefined
