@@ -1,4 +1,4 @@
-import { NuvemshopClient } from "../client"
+import { NuvemshopClient, NuvemshopProduct } from "../client"
 
 function mockFetchSequence(responses: Array<{ ok: boolean; status?: number; json: any }>) {
   const fetchMock = jest.fn()
@@ -63,7 +63,7 @@ describe("NuvemshopClient", () => {
     const fetchMock = mockFetchSequence([{ ok: true, json: page1 }, { ok: true, json: [] }])
 
     const client = new NuvemshopClient({ storeId: "3779773", accessToken: "tok_123" })
-    const pages = []
+    const pages: NuvemshopProduct[][] = []
     for await (const page of client.iterateProducts()) {
       pages.push(page)
     }
