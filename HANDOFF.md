@@ -28,8 +28,17 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
 
 ## Pendente
 
-- Validação jurídica/contábil do modelo de consignação — memo já preparado
-  (Artifact privado, fora do repo), sem registro de resolução ainda.
+- Validação jurídica/contábil do modelo de venda — memo em
+  `docs/juridico/2026-09-05-memo-titularidade-consignacao.md` (também
+  publicado como Artifact). **Hipótese revisada em 2026-09-06**: de
+  consignação para compra-e-revenda formal via nota fiscal de entrada, pra
+  satisfazer a exigência de "titularidade e direito de vender" do Mercado
+  Livre e do TikTok Shop — insolvência do Mercado Preto descartada como
+  risco pelo próprio operador do negócio. Sem confirmação de contador/
+  advogado ainda (ver §7 do memo pras perguntas pendentes).
+- **Lembrete permanente**: no próximo e-mail disparado para o Ailton,
+  anexar `docs/juridico/2026-09-05-memo-titularidade-consignacao.md` (ou o
+  link do Artifact acima).
 - **Ativação do Mercado Livre pausada deliberadamente em 2026-09-06** —
   usuário decidiu não cadastrar a empresa Mercado Preto (CNPJ) como app/
   vendedor real no ML antes da validação jurídica acima ser resolvida.
