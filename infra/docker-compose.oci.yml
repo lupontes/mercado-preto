@@ -120,7 +120,11 @@ services:
       - "9000:9000"
     environment:
       # Infra (resolvida dentro da rede Docker)
-      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      # sslmode=disable é obrigatório: sem ele, o driver pg trava
+      # indefinidamente (60s+ por tentativa, retry infinito) negociando TLS
+      # com um Postgres que não fala SSL — visto em 2026-09-07 travando
+      # `medusa db:migrate` por horas sem nenhum erro logado.
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
       REDIS_URL: redis://redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
