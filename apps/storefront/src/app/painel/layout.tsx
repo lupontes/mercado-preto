@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useSellerStore } from '@/lib/seller-store'
+import { useSellerStore, type SellerProfile } from '@/lib/seller-store'
+import { getMe, sellerLogout } from '@/lib/seller-api'
 import {
   LayoutDashboard,
   Package,
@@ -24,31 +25,37 @@ const navItems = [
 ]
 
 export default function PainelLayout({ children }: { children: React.ReactNode }) {
-  const { seller, token, logout, isAuthenticated } = useSellerStore()
+  const { seller, setSeller, clearSeller } = useSellerStore()
   const router = useRouter()
   const pathname = usePathname()
-  const [hydrated, setHydrated] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    useSellerStore.persist.rehydrate()
-    setHydrated(true)
-  }, [])
-
-  useEffect(() => {
-    if (hydrated && !isAuthenticated() && pathname !== '/painel/login') {
-      router.replace('/painel/login')
+    if (pathname === '/painel/login') {
+      setChecking(false)
+      return
     }
-  }, [hydrated, pathname, isAuthenticated, router])
-
-  if (!hydrated) return null
-
-  if (!isAuthenticated() && pathname !== '/painel/login') return null
+    getMe()
+      .then((data) => setSeller(data.seller as SellerProfile))
+      .catch(() => {
+        clearSeller()
+        router.replace('/painel/login')
+      })
+      .finally(() => setChecking(false))
+    // Runs once per layout mount — navigating between /painel/* pages does not
+    // remount this layout, so re-running per pathname change would needlessly
+    // re-check the session on every click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (pathname === '/painel/login') return <>{children}</>
 
-  function handleLogout() {
-    logout()
+  if (checking || !seller) return null
+
+  async function handleLogout() {
+    await sellerLogout()
+    clearSeller()
     router.push('/painel/login')
   }
 
