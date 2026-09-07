@@ -55,6 +55,13 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
 
 ## Pendente
 
+- **Programa de fidelidade (pontos) — só desenho registrado, sem
+  implementação.** Spec em `docs/superpowers/specs/2026-09-07-loyalty-points-design.md`:
+  programa único da plataforma, saldo identificado por CPF/CNPJ (já
+  coletado no checkout, sem exigir conta), ganho automático em
+  `order.completed`, resgate como desconto direto na rota de checkout
+  (sem usar o módulo Promotions do Medusa). Retomar via
+  `superpowers:writing-plans` quando priorizado.
 - Validação jurídica/contábil do modelo de venda — memo em
   `docs/juridico/2026-09-05-memo-titularidade-consignacao.md` (também
   publicado como Artifact). **Hipótese revisada em 2026-09-06**: de
