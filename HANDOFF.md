@@ -53,6 +53,36 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
 - Raio-X de completude do projeto publicado (Artifact) — cobre cobertura de
   teste por módulo/rota/página, pendências documentadas, prontidão de deploy.
 
+## Deploy de teste — 2026-09-07
+
+Sistema de avaliação de produtos e botão "Falar com o vendedor" (WhatsApp)
+publicados no servidor de teste OCI (`168.138.148.67`). Backend com as
+migrações novas aplicadas (`channel_credential`, `channel_listing`,
+`review`), storefront reconstruído e servindo via PM2. Ambos respondendo
+200 no health check.
+
+**Bug de infra root-caused e corrigido nesta sessão**: `DATABASE_URL` sem
+`?sslmode=disable` fazia o driver `pg` travar indefinidamente (retry mudo
+a cada 60s) negociando TLS com um Postgres sem SSL — travava
+`medusa db:migrate` por horas sem nenhum erro logado. Corrigido em
+`infra/docker-compose.oci.yml`; documentado em `docs/DEPLOY_OCI.md`.
+
+**Achados à parte, não corrigidos ainda:**
+- `express-rate-limit` loga um `ValidationError` (`ERR_ERL_KEY_GEN_IPV6`)
+  na subida do backend — keyGenerator customizado em `api/middlewares.ts:46`
+  não usa o helper `ipKeyGenerator` pra IPv6. Não impede o servidor de
+  subir, mas vale corrigir.
+- PM2 do storefront loga `"next start" does not work with "output: standalone"`
+  e alguns ciclos de `[ELIFECYCLE] Command failed` no histórico — parece
+  pré-existente (config do `next.config` usa `output: standalone` mas o
+  `pm2` chama `next start` em vez de `node .next/standalone/server.js`).
+  Instância atual está estável (sem restart desde o deploy de hoje), mas é
+  provável causa de instabilidades esporádicas já vistas antes.
+- Manual do sistema atualizado (`docs/manual/manual-mercado-preto.html`,
+  também publicado como Artifact) com as duas funcionalidades novas,
+  seguindo o padrão de destaque "novidade" (badge no índice + moldura na
+  seção) — **convenção a reaplicar em toda atualização futura de manual**.
+
 ## Pendente
 
 - **Programa de fidelidade (pontos) — só desenho registrado, sem
