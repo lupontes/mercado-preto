@@ -53,6 +53,11 @@ module.exports = defineConfig({
       resolve: "./src/modules/checkout",
     },
 
+    // Avaliação de produtos — vinculada a pedido concluído, via link assinado
+    {
+      resolve: "./src/modules/review",
+    },
+
     // File storage — migrated product images re-hosted locally
     {
       resolve: "@medusajs/medusa/file",
