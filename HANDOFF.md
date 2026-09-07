@@ -6,6 +6,20 @@
 
 Todas as pendências conhecidas foram reconciliadas em `develop`:
 
+- **Sistema de avaliação de produtos** (módulo `review`, 10 tasks via SDD +
+  1 leva de fix da revisão final): comprador recebe e-mail (Brevo) com link
+  assinado (JWT, 30 dias) quando o pedido é concluído, avalia cada produto
+  do pedido em `/avaliar/{token}` sem precisar de conta, avaliação fica
+  `pending` até o vendedor aprovar na aba nova "Avaliações" do painel, só
+  então aparece na página do produto (nota média + comentários, nome
+  truncado por privacidade). Achado crítico da revisão final e já corrigido
+  antes do merge: `POST /store/reviews` não conferia se o `productId`
+  pertencia ao pedido do token — um comprador podia avaliar produto de
+  vendedor diferente do seu; corrigido com um helper compartilhado
+  (`utils/order-review-helpers.ts`) usado também pela rota de convite.
+  Achado à parte, fora do escopo: 170 erros de `tsc` pré-existentes no
+  backend (`admin/routes/*`, incompatibilidade React 19 com o UI kit do
+  Medusa admin) — confirmados anteriores a esta branch, não é regressão.
 - Botão "Falar com o vendedor" (WhatsApp) na página do produto — reaproveita
   o campo `phone` já existente no cadastro do vendedor, sem migração nova.
 - **Bug crítico corrigido: painel do vendedor estava com login quebrado desde
@@ -62,3 +76,10 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
 - Lacunas de cobertura de teste identificadas no Raio-X, não atacadas ainda:
   4 subscribers, 4 scripts (um é migração de dados real — `import-mab-catalog.ts`),
   ~22 rotas de API, 14 páginas do storefront sem teste.
+- **170 erros de `tsc` pré-existentes no backend** (`packages/medusa-backend/apps/backend`),
+  todos em `src/admin/routes/{sellers,payouts,commissions}/*` — incompatibilidade
+  de tipos JSX entre React 19 e o UI kit do Medusa admin (`error TS2786`).
+  Confirmados anteriores à branch do sistema de avaliação (verificado num
+  worktree descartável no commit-base) — não é regressão de nenhum trabalho
+  recente, mas nunca foi corrigido. Não afeta o funcionamento em runtime, só
+  o typecheck.
