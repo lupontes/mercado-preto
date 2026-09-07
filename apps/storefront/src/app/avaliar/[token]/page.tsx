@@ -61,12 +61,16 @@ function ReviewCard({
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSubmit() {
+    setError('')
     setSaving(true)
     try {
       await submitReview({ token, productId: item.productId, rating, comment: comment || undefined })
       onSubmitted()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao enviar avaliação')
     } finally {
       setSaving(false)
     }
@@ -107,6 +111,9 @@ function ReviewCard({
         className="input min-h-[80px]"
         maxLength={1000}
       />
+      {error && (
+        <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
+      )}
       <button
         type="button"
         disabled={rating === 0 || saving}

@@ -21,7 +21,12 @@ describe("orderReviewInviteEmail", () => {
   it("sends a review invite email when the order has a buyer email", async () => {
     ;(createReviewToken as jest.Mock).mockReturnValue("signed-token")
     ;(sendBrevoEmail as jest.Mock).mockResolvedValue(undefined)
-    const container = buildContainer({ id: "order_1", email: "cliente@teste.com", display_id: 42 })
+    const container = buildContainer({
+      id: "order_1",
+      email: "cliente@teste.com",
+      display_id: 42,
+      metadata: { seller_id: "seller_1" },
+    })
 
     await orderReviewInviteEmail({ event: { data: { id: "order_1" } }, container } as any)
 
@@ -30,6 +35,20 @@ describe("orderReviewInviteEmail", () => {
       expect.any(String),
       expect.stringContaining("signed-token")
     )
+  })
+
+  it("does nothing when the order has no seller_id in metadata (legacy pre-split order)", async () => {
+    ;(sendBrevoEmail as jest.Mock).mockResolvedValue(undefined)
+    const container = buildContainer({
+      id: "order_1",
+      email: "cliente@teste.com",
+      display_id: 42,
+      metadata: {},
+    })
+
+    await orderReviewInviteEmail({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(sendBrevoEmail).not.toHaveBeenCalled()
   })
 
   it("does nothing when the order has no buyer email", async () => {

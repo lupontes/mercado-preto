@@ -9,12 +9,17 @@ export default async function orderReviewInviteEmail({
 }: SubscriberArgs<{ id: string }>) {
   const orderService = container.resolve(Modules.ORDER)
   const order = await orderService.retrieveOrder(event.data.id, {
-    select: ["email", "display_id"],
+    select: ["email", "display_id", "metadata"],
   })
   if (!order) return
 
   const email = (order as any).email
   if (!email) return
+
+  // Orders created before the multi-seller order-split feature landed have
+  // no seller_id in their metadata — POST /store/reviews can't accept a
+  // review for them, so don't invite a review the buyer could never submit.
+  if (!(order.metadata as any)?.seller_id) return
 
   const token = createReviewToken(order.id)
   const baseUrl = process.env.STORE_CORS?.split(",")[0] || "http://localhost:3000"

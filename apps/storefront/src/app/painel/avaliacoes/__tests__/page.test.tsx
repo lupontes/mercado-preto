@@ -28,4 +28,21 @@ describe("AvaliacoesPage", () => {
 
     expect(await screen.findByText(/Nenhuma avaliação pendente/)).toBeInTheDocument()
   })
+
+  it("shows an error message when approving a review fails", async () => {
+    vi.spyOn(sellerApi, "getSellerReviews").mockResolvedValue({
+      reviews: [{ id: "r1", productId: "prod_1", rating: 5, comment: "Ótimo", reviewerName: "Maria S.", created_at: "2026-09-01" }],
+      count: 1,
+    })
+    vi.spyOn(sellerApi, "updateReviewStatus").mockRejectedValue(new Error("Erro ao atualizar avaliação"))
+
+    render(<AvaliacoesPage />)
+
+    expect(await screen.findByText("Ótimo")).toBeInTheDocument()
+    const user = (await import("@testing-library/user-event")).default.setup()
+    await user.click(screen.getByRole("button", { name: "Aprovar" }))
+
+    expect(await screen.findByText("Erro ao atualizar avaliação")).toBeInTheDocument()
+    expect(screen.getByText("Ótimo")).toBeInTheDocument()
+  })
 })

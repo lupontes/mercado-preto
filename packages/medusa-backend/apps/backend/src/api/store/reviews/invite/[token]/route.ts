@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
 import { verifyReviewToken } from "../../../../../utils/review-jwt"
+import { extractOrderVariantIds, resolveOrderVariantProducts } from "../../../../../utils/order-review-helpers"
 import { REVIEW_MODULE } from "../../../../../modules/review"
 import ReviewModuleService from "../../../../../modules/review/service"
 
@@ -20,30 +21,19 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Pedido não encontrado" })
   }
 
-  const variantIds = ((order as any).items ?? [])
-    .map((item: any) => item.variant_id)
-    .filter(Boolean)
-
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "product_variant",
-    fields: ["id", "product.id", "product.title", "product.thumbnail"],
-    filters: { id: variantIds },
-  })
+  const variantIds = extractOrderVariantIds(order as any)
+  const products = await resolveOrderVariantProducts(req.scope, variantIds)
 
   const reviewService: ReviewModuleService = req.scope.resolve(REVIEW_MODULE)
   const existingReviews = await reviewService.listReviews({ orderId: payload.orderId })
   const reviewedProductIds = new Set(existingReviews.map((r: any) => r.productId))
 
-  const seen = new Set<string>()
-  const items = (data as any[])
-    .filter((variant) => variant.product && !seen.has(variant.product.id) && seen.add(variant.product.id))
-    .map((variant) => ({
-      productId: variant.product.id,
-      title: variant.product.title,
-      thumbnail: variant.product.thumbnail,
-      alreadyReviewed: reviewedProductIds.has(variant.product.id),
-    }))
+  const items = products.map((product) => ({
+    productId: product.productId,
+    title: product.title,
+    thumbnail: product.thumbnail,
+    alreadyReviewed: reviewedProductIds.has(product.productId),
+  }))
 
   res.json({ items })
 }

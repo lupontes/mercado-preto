@@ -52,4 +52,19 @@ describe("AvaliarPage", () => {
       comment: "Produto ótimo!",
     }))
   })
+
+  it("shows an error message when submitting a review fails", async () => {
+    vi.spyOn(reviewApi, "getReviewInvite").mockResolvedValue({
+      items: [{ productId: "prod_1", title: "Cesta de Vime", thumbnail: undefined, alreadyReviewed: false }],
+    })
+    vi.spyOn(reviewApi, "submitReview").mockRejectedValue(new Error("Você já avaliou este produto"))
+    const user = userEvent.setup()
+
+    render(<AvaliarPage />)
+    await screen.findByText("Cesta de Vime")
+    await user.click(screen.getByLabelText("5 estrelas"))
+    await user.click(screen.getByRole("button", { name: "Enviar avaliação" }))
+
+    expect(await screen.findByText("Você já avaliou este produto")).toBeInTheDocument()
+  })
 })

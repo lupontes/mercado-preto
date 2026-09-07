@@ -17,6 +17,7 @@ export default function AvaliacoesPage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     load()
@@ -33,10 +34,13 @@ export default function AvaliacoesPage() {
   }
 
   async function act(id: string, status: 'published' | 'rejected') {
+    setError('')
     setActingId(id)
     try {
       await updateReviewStatus(id, status)
       setReviews((prev) => prev.filter((r) => r.id !== id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar avaliação')
     } finally {
       setActingId(null)
     }
@@ -56,6 +60,10 @@ export default function AvaliacoesPage() {
         <h1 className="font-display text-2xl font-black text-onyx">Avaliações</h1>
         <p className="text-onyx/50 text-sm mt-1">Aprove ou rejeite avaliações antes de publicá-las</p>
       </div>
+
+      {error && (
+        <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
+      )}
 
       {reviews.length === 0 ? (
         <div className="bg-white rounded-xl border border-sand-dark p-12 text-center">
