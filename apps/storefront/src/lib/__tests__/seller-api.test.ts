@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getSellerProduct, sellerLogin, sellerLogout, setSellerPassword } from "../seller-api"
+import { getSellerProduct, getSellerReviews, sellerLogin, sellerLogout, setSellerPassword, updateReviewStatus } from "../seller-api"
 
 describe("getSellerProduct", () => {
   afterEach(() => {
@@ -108,5 +108,31 @@ describe("setSellerPassword", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     await expect(setSellerPassword("joao@teste.com", "novaSenha123")).rejects.toThrow("Token inválido")
+  })
+})
+
+describe("getSellerReviews", () => {
+  it("fetches pending reviews by default", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ reviews: [] }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getSellerReviews()
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/seller/reviews")
+    vi.unstubAllGlobals()
+  })
+})
+
+describe("updateReviewStatus", () => {
+  it("patches the review status", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ review: { id: "r1", status: "published" } }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await updateReviewStatus("r1", "published")
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toContain("/seller/reviews/r1")
+    expect(init.method).toBe("PATCH")
+    vi.unstubAllGlobals()
   })
 })

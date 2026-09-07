@@ -122,3 +122,18 @@ export async function getSellerCommissions(params?: { limit?: number; offset?: n
     count: number
   }>(`/seller/commissions?${qs}`)
 }
+
+export async function getSellerReviews(params?: { status?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams()
+  qs.set("status", params?.status ?? "pending")
+  qs.set("limit", String(params?.limit ?? 20))
+  qs.set("offset", String(params?.offset ?? 0))
+  return sellerFetch<{ reviews: unknown[]; count: number }>(`/seller/reviews?${qs}`)
+}
+
+export async function updateReviewStatus(id: string, status: 'published' | 'rejected') {
+  return sellerFetch<{ review: { id: string; status: string } }>(`/seller/reviews/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}

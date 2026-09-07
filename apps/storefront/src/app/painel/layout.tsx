@@ -10,6 +10,7 @@ import {
   Package,
   ShoppingBag,
   DollarSign,
+  Star,
   User,
   LogOut,
   Menu,
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/painel/produtos', label: 'Meus produtos', icon: Package },
   { href: '/painel/pedidos', label: 'Pedidos', icon: ShoppingBag },
   { href: '/painel/comissoes', label: 'Comissões', icon: DollarSign },
+  { href: '/painel/avaliacoes', label: 'Avaliações', icon: Star },
   { href: '/painel/perfil', label: 'Meu perfil', icon: User },
 ]
 
