@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSellerStore } from '@/lib/seller-store'
@@ -8,30 +8,20 @@ import { sellerLogin } from '@/lib/seller-api'
 import { Loader2 } from 'lucide-react'
 
 export default function PainelLoginPage() {
-  const { login, isAuthenticated } = useSellerStore()
+  const { setSeller } = useSellerStore()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [hydrated, setHydrated] = useState(false)
-
-  useEffect(() => {
-    useSellerStore.persist.rehydrate()
-    setHydrated(true)
-  }, [])
-
-  useEffect(() => {
-    if (hydrated && isAuthenticated()) router.replace('/painel/dashboard')
-  }, [hydrated, isAuthenticated, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      const { token, seller } = await sellerLogin(email, password)
-      login(token, seller)
+      const { seller } = await sellerLogin(email, password)
+      setSeller(seller)
       router.push('/painel/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login')
@@ -58,8 +48,9 @@ export default function PainelLoginPage() {
           <h1 className="font-display font-black text-xl text-onyx mb-6">Entrar na sua loja</h1>
 
           <div>
-            <label className="block text-xs font-semibold text-onyx/60 mb-1">E-mail</label>
+            <label htmlFor="email" className="block text-xs font-semibold text-onyx/60 mb-1">E-mail</label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -70,8 +61,9 @@ export default function PainelLoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-onyx/60 mb-1">Senha</label>
+            <label htmlFor="password" className="block text-xs font-semibold text-onyx/60 mb-1">Senha</label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
