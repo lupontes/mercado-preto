@@ -244,6 +244,14 @@ roda migrations sozinho. Rode `db:migrate` manualmente contra a imagem nova
 antes de subir o serviço (mesmo em instalação nova, e sempre que um módulo
 novo com migração própria for adicionado — ex: o módulo `review`).
 
+**Atenção (2026-09-07):** `DATABASE_URL` no `docker-compose.oci.yml`
+precisa terminar em `?sslmode=disable`. Sem isso, o driver `pg` trava
+indefinidamente (retry silencioso a cada 60s, sem nenhum erro logado)
+negociando TLS com um Postgres que não fala SSL — travou `db:migrate` por
+horas antes de ser root-caused via bisecção empírica de variáveis de
+ambiente. Já corrigido no compose file; só relevante se `DATABASE_URL` for
+reconstruído manualmente fora dele.
+
 ```bash
 cd ~/marketplace
 
