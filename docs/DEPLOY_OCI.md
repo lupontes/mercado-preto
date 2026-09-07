@@ -414,6 +414,12 @@ pnpm install
 
 # Rebuild backend
 docker compose -f infra/docker-compose.oci.yml build medusa
+
+# Rodar migrations contra a imagem nova ANTES de subir o serviço — o CMD do
+# container é só "medusa start", não migra sozinho. Necessário sempre que um
+# módulo novo com migração própria for adicionado (ex: review).
+docker compose -f infra/docker-compose.oci.yml run --rm medusa npx medusa db:migrate
+
 docker compose -f infra/docker-compose.oci.yml up -d medusa
 
 # Rebuild storefront
