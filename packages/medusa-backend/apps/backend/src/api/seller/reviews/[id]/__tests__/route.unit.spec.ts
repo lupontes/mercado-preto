@@ -8,7 +8,7 @@ function buildReq(sellerId: string, id: string, body: Record<string, unknown>, e
     scope: {
       resolve: () => ({
         retrieveReview: jest.fn().mockResolvedValue(existing),
-        updateReviews: updateImpl ?? jest.fn().mockResolvedValue({ id, status: body.status }),
+        updateReviews: updateImpl ?? jest.fn().mockResolvedValue([{ id, status: body.status }]),
       }),
     },
   } as any
@@ -41,7 +41,7 @@ describe("PATCH /seller/reviews/[id]", () => {
   })
 
   it("updates the review status when it belongs to the logged-in seller", async () => {
-    const updateSpy = jest.fn().mockResolvedValue({ id: "review_1", status: "published" })
+    const updateSpy = jest.fn().mockResolvedValue([{ id: "review_1", status: "published" }])
     const req = buildReq("seller_1", "review_1", { status: "published" }, { id: "review_1", sellerId: "seller_1" }, updateSpy)
     const res = buildRes()
 

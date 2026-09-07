@@ -22,11 +22,10 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Avaliação não encontrada" })
   }
 
-  const updated: any = await reviewService.updateReviews({
+  const [review] = await reviewService.updateReviews({
     selector: { id },
     data: { status: parsed.data.status },
   })
-  const review = Array.isArray(updated) ? updated[0] : updated
 
   res.json({ review: { id: review.id, status: review.status } })
 }
