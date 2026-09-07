@@ -1,11 +1,24 @@
 # Handoff: Mercado Preto / MAB marketplace
 
-**Atualizado**: 2026-09-06
+**Atualizado**: 2026-09-07
 
 ## Estado atual de `develop`
 
 Todas as pendências conhecidas foram reconciliadas em `develop`:
 
+- Botão "Falar com o vendedor" (WhatsApp) na página do produto — reaproveita
+  o campo `phone` já existente no cadastro do vendedor, sem migração nova.
+- **Bug crítico corrigido: painel do vendedor estava com login quebrado desde
+  4/9.** O merge de `fix/seller-session-cookie` só executou as Tasks 1-5 do
+  plano (`docs/superpowers/plans/2026-08-25-seller-session-cookie.md`) —
+  Tasks 6-9 (drop de `token` em `seller-store.ts` e nas 6 páginas do painel)
+  nunca foram feitas. Resultado: `isAuthenticated()` nunca era `true` após
+  login (o backend não retorna mais `token`, só cookie HttpOnly), então o
+  painel bounceava pra tela de login (ou ficava em loading infinito nas
+  páginas com `if (!token) return`). Completadas as 4 tasks que faltavam,
+  seguindo o plano já escrito à risca (TDD). Revisão feita em todo o
+  storefront confirmando que não sobrou nenhuma referência a
+  `token`/`isAuthenticated`/`persist` ligada à sessão do vendedor.
 - Integração com o Mercado Livre completa (módulo `marketplace-channel`, cliente HTTP,
   job de renovação de token, rota de publicação, webhook de pedido, fluxo de
   autorização OAuth com PKCE, endereço/CPF reais do comprador via API do ML) —
