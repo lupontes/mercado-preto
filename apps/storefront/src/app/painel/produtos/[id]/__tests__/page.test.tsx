@@ -18,10 +18,6 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "prod_1" }),
 }))
 
-vi.mock("@/lib/seller-store", () => ({
-  useSellerStore: () => ({ token: "test-token" }),
-}))
-
 const baseProduct = {
   id: "prod_1",
   title: "Turbante Afro Premium",
@@ -75,7 +71,7 @@ describe("EditarProdutoPage", () => {
     await user.click(screen.getByRole("button", { name: "Salvar alterações" }))
 
     await waitFor(() => expect(updateSellerProduct).toHaveBeenCalled())
-    expect(updateSellerProduct).toHaveBeenCalledWith("test-token", "prod_1", expect.objectContaining({
+    expect(updateSellerProduct).toHaveBeenCalledWith("prod_1", expect.objectContaining({
       variants: [{ id: "variant_1", prices: [{ amount: 14900, currency_code: "brl" }] }],
     }))
     expect(push).toHaveBeenCalledWith("/painel/produtos")

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSellerStore } from '@/lib/seller-store'
 import { getSellerCommissions } from '@/lib/seller-api'
 import { formatPrice } from '@/lib/api'
 import { Loader2, DollarSign } from 'lucide-react'
@@ -22,20 +21,18 @@ type Commission = {
 type Totals = { grossAmount: number; commissionAmount: number; sellerPayout: number }
 
 export default function ComissoesPage() {
-  const { token } = useSellerStore()
   const [commissions, setCommissions] = useState<Commission[]>([])
   const [totals, setTotals] = useState<Totals>({ grossAmount: 0, commissionAmount: 0, sellerPayout: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!token) return
-    getSellerCommissions(token)
+    getSellerCommissions()
       .then((data) => {
         setCommissions(data.commissions as Commission[])
         setTotals(data.totals)
       })
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   if (loading) {
     return (

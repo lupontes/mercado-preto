@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useSellerStore } from '@/lib/seller-store'
 import { getSellerProducts, deleteSellerProduct } from '@/lib/seller-api'
 import { formatPrice } from '@/lib/api'
 import { Plus, Pencil, Trash2, Loader2, Package } from 'lucide-react'
@@ -19,28 +18,26 @@ type Product = {
 }
 
 export default function ProdutosPage() {
-  const { token } = useSellerStore()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function load() {
-    if (!token) return
     try {
-      const data = await getSellerProducts(token)
+      const data = await getSellerProducts()
       setProducts(data.products as Product[])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [token])
+  useEffect(() => { load() }, [])
 
   async function handleDelete(id: string) {
-    if (!token || !confirm('Tem certeza que deseja excluir este produto?')) return
+    if (!confirm('Tem certeza que deseja excluir este produto?')) return
     setDeletingId(id)
     try {
-      await deleteSellerProduct(token, id)
+      await deleteSellerProduct(id)
       setProducts((prev) => prev.filter((p) => p.id !== id))
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Erro ao excluir produto')

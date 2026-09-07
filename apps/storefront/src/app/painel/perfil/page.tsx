@@ -23,7 +23,7 @@ const CATEGORIES = [
 ]
 
 export default function PerfilPage() {
-  const { token, seller, updateSeller } = useSellerStore()
+  const { seller, updateSeller } = useSellerStore()
   const [form, setForm] = useState<Form>({
     bio: '', location: '', category: '',
     pixKey: '', pixKeyType: 'cpf',
@@ -35,8 +35,7 @@ export default function PerfilPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!token) return
-    getMe(token)
+    getMe()
       .then((data) => {
         const s = data.seller as Record<string, string>
         setForm({
@@ -52,7 +51,7 @@ export default function PerfilPage() {
         })
       })
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   function set(field: keyof Form, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -60,11 +59,10 @@ export default function PerfilPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!token) return
     setError('')
     setSaving(true)
     try {
-      const data = await patchMe(token, form)
+      const data = await patchMe(form)
       updateSeller(data.seller as any)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)

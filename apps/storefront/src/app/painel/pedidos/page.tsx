@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSellerStore } from '@/lib/seller-store'
 import { getSellerOrders } from '@/lib/seller-api'
 import { formatPrice } from '@/lib/api'
 import { Loader2, ShoppingBag } from 'lucide-react'
@@ -16,16 +15,14 @@ type Order = {
 }
 
 export default function PedidosPage() {
-  const { token } = useSellerStore()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!token) return
-    getSellerOrders(token)
+    getSellerOrders()
       .then((data) => setOrders(data.orders as Order[]))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   if (loading) {
     return (

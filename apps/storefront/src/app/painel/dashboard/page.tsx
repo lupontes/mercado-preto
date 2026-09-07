@@ -16,18 +16,17 @@ type Stats = {
 }
 
 export default function DashboardPage() {
-  const { token, seller } = useSellerStore()
+  const { seller } = useSellerStore()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!token) return
-    getDashboard(token)
+    getDashboard()
       .then((data) => setStats(data.stats))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [])
 
   if (loading) return <PageLoader />
 

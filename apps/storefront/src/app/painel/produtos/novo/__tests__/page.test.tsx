@@ -12,10 +12,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }))
 
-vi.mock("@/lib/seller-store", () => ({
-  useSellerStore: () => ({ token: "test-token" }),
-}))
-
 async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>, price = "79,90") {
   await user.type(screen.getByLabelText(/Título do produto/), "Colar Contas de Vidro")
   await user.type(screen.getByLabelText(/Preço/), price)
@@ -52,7 +48,7 @@ describe("NovoProdutoPage", () => {
     await user.click(screen.getByRole("button", { name: "Criar produto" }))
 
     await waitFor(() => expect(createSellerProduct).toHaveBeenCalled())
-    expect(createSellerProduct).toHaveBeenCalledWith("test-token", expect.objectContaining({
+    expect(createSellerProduct).toHaveBeenCalledWith(expect.objectContaining({
       title: "Colar Contas de Vidro",
       variants: [expect.objectContaining({
         prices: [{ amount: 7990, currency_code: "brl" }],
@@ -76,7 +72,7 @@ describe("NovoProdutoPage", () => {
     await user.click(screen.getByRole("button", { name: "Criar produto" }))
 
     await waitFor(() => expect(createSellerProduct).toHaveBeenCalled())
-    expect(createSellerProduct).toHaveBeenCalledWith("test-token", expect.objectContaining({
+    expect(createSellerProduct).toHaveBeenCalledWith(expect.objectContaining({
       category_id: "pcat_1",
     }))
   })

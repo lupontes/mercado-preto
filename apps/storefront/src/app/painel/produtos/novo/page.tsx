@@ -3,13 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSellerStore } from '@/lib/seller-store'
 import { createSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 export default function NovoProdutoPage() {
-  const { token } = useSellerStore()
   const router = useRouter()
 
   const [form, setForm] = useState({
@@ -30,7 +28,6 @@ export default function NovoProdutoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!token) return
     setError('')
     setLoading(true)
 
@@ -38,7 +35,7 @@ export default function NovoProdutoPage() {
       const priceAmount = Math.round(Number(form.price.replace(',', '.')) * 100)
       if (isNaN(priceAmount) || priceAmount <= 0) throw new Error('Preço inválido')
 
-      await createSellerProduct(token, {
+      await createSellerProduct({
         title: form.title,
         description: form.description || undefined,
         status: form.status,

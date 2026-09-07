@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { useSellerStore } from '@/lib/seller-store'
 import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import { ArrowLeft, Loader2 } from 'lucide-react'
@@ -18,7 +17,6 @@ type ProductForm = {
 }
 
 export default function EditarProdutoPage() {
-  const { token } = useSellerStore()
   const router = useRouter()
   const { id } = useParams<{ id: string }>()
 
@@ -36,8 +34,8 @@ export default function EditarProdutoPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!token || !id) return
-    getSellerProduct(token, id)
+    if (!id) return
+    getSellerProduct(id)
       .then((data) => {
         const product = data.product as any
         const price = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
@@ -53,7 +51,7 @@ export default function EditarProdutoPage() {
       })
       .catch(() => router.replace('/painel/produtos'))
       .finally(() => setLoadingData(false))
-  }, [token, id, router])
+  }, [id, router])
 
   function set(field: keyof ProductForm, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -61,7 +59,7 @@ export default function EditarProdutoPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!token || !id) return
+    if (!id) return
     setError('')
     setSaving(true)
 
@@ -69,7 +67,7 @@ export default function EditarProdutoPage() {
       const priceAmount = Math.round(Number(form.price.replace(',', '.')) * 100)
       if (isNaN(priceAmount) || priceAmount <= 0) throw new Error('Preço inválido')
 
-      await updateSellerProduct(token, id, {
+      await updateSellerProduct(id, {
         title: form.title,
         description: form.description || undefined,
         status: form.status,
