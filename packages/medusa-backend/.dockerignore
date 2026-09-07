@@ -1,0 +1,23 @@
+# Nunca copiar node_modules pra dentro do build do backend — a instalação
+# correta é feita dentro do próprio Dockerfile (npm ci --workspace=apps/backend
+# --include-workspace-root), hoisted na raiz de /app/node_modules. Se um
+# node_modules local (ex: apps/backend/node_modules, deixado por um `npm
+# install` rodado direto de dentro de apps/backend) for copiado por cima
+# disso, ele sombreia o node_modules hoisted e quebra a resolução de
+# dependências como @medusajs/cli (visto em 2026-09-07).
+node_modules
+**/node_modules
+
+# Artefatos de build/cache que não precisam ir pro contexto do Docker
+.medusa
+.vite
+dist
+build
+coverage
+.cache
+*.tsbuildinfo
+medusa-db.sql
+mab-catalog-export.json
+
+.git
+.DS_Store
