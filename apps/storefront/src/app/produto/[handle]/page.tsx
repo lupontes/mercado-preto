@@ -2,10 +2,11 @@ import { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getProduct } from '@/lib/api'
+import { getProduct, getProductReviews } from '@/lib/api'
 import { descriptionToPlainText, sanitizeDescriptionHtml } from '@/lib/sanitize'
 import { ArrowLeft } from 'lucide-react'
 import { ProductDetails } from '@/components/product/ProductDetails'
+import { ProductReviews } from '@/components/product/ProductReviews'
 
 export const revalidate = 60
 
@@ -43,6 +44,15 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
   } catch {}
 
   if (!product) notFound()
+
+  // Reviews need the product's id, which only exists after `getProduct`
+  // resolves above — the two calls can't run in parallel. A failed reviews
+  // fetch degrades to an empty state instead of breaking the product page.
+  const { reviews, average, count } = await getProductReviews(product.id).catch(() => ({
+    reviews: [],
+    average: null,
+    count: 0,
+  }))
 
   return (
     <div className="bg-cream min-h-screen">
@@ -92,6 +102,8 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             />
           </div>
         </div>
+
+        <ProductReviews average={average} count={count} reviews={reviews} />
       </div>
     </div>
   )

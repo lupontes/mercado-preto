@@ -172,3 +172,17 @@ export async function searchContent(params: {
 export function formatPrice(amount: number, currency = "BRL") {
   return (amount / 100).toLocaleString("pt-BR", { style: "currency", currency })
 }
+
+export type ProductReview = {
+  id: string
+  rating: number
+  comment: string | null
+  reviewerName: string
+  created_at: string
+}
+
+export async function getProductReviews(productId: string) {
+  return apiFetch<{ reviews: ProductReview[]; average: number | null; count: number }>(
+    `/store/products/${productId}/reviews`
+  )
+}

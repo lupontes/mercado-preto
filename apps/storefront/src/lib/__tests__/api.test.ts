@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getProduct, getSellerProducts } from "../api"
+import { getProduct, getProductReviews, getSellerProducts } from "../api"
 
 describe("getSellerProducts", () => {
   afterEach(() => {
@@ -53,5 +53,21 @@ describe("getProduct", () => {
     expect(url).toContain("fields=")
     expect(url).toContain("seller.name")
     expect(url).toContain("seller.phone")
+  })
+})
+
+describe("getProductReviews", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("fetches reviews for the given product id", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ reviews: [], average: null, count: 0 }),
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await getProductReviews("prod_1")
+
+    expect(fetchMock.mock.calls[0][0]).toContain("/store/products/prod_1/reviews")
   })
 })
