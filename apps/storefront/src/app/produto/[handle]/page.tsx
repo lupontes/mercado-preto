@@ -86,6 +86,9 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
               descriptionHtml={sanitizeDescriptionHtml(product.description)}
               thumbnail={product.thumbnail}
               variants={product.variants ?? []}
+              sellerName={product.seller?.name}
+              sellerPhone={product.seller?.phone}
+              productUrl={`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/produto/${handle}`}
             />
           </div>
         </div>

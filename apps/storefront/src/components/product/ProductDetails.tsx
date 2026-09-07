@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AddToCartButton } from '@/components/cart/AddToCartButton'
+import { WhatsAppSellerButton } from '@/components/product/WhatsAppSellerButton'
 import { formatPrice } from '@/lib/api'
 import type { SanitizedHtml } from '@/lib/sanitize'
 
@@ -18,9 +19,21 @@ type Props = {
   descriptionHtml?: SanitizedHtml
   thumbnail?: string
   variants: Variant[]
+  sellerName?: string
+  sellerPhone?: string
+  productUrl: string
 }
 
-export function ProductDetails({ productId, title, descriptionHtml, thumbnail, variants }: Props) {
+export function ProductDetails({
+  productId,
+  title,
+  descriptionHtml,
+  thumbnail,
+  variants,
+  sellerName,
+  sellerPhone,
+  productUrl,
+}: Props) {
   const [selectedVariant, setSelectedVariant] = useState<Variant>(variants[0])
 
   const price = selectedVariant?.prices?.find((p) => p.currency_code === 'brl')
@@ -71,6 +84,13 @@ export function ProductDetails({ productId, title, descriptionHtml, thumbnail, v
           price={price?.amount ?? 0}
         />
       </div>
+
+      <WhatsAppSellerButton
+        sellerName={sellerName}
+        sellerPhone={sellerPhone}
+        productTitle={title}
+        productUrl={productUrl}
+      />
 
       <p className="text-xs text-onyx/40 mt-4 text-center">
         Venda realizada por um afroemprendedor do Mercado Preto

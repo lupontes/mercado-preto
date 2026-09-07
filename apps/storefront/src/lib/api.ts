@@ -38,6 +38,10 @@ export type Product = {
     title: string
     prices?: Array<{ amount: number; currency_code: string }>
   }>
+  seller?: {
+    name: string
+    phone?: string
+  }
 }
 
 export async function listSellers(params?: {
@@ -145,7 +149,9 @@ export async function countProductsByCategory(): Promise<Record<string, number>>
 
 export async function getProduct(handle: string) {
   const regionParam = REGION_ID ? `&region_id=${REGION_ID}` : ""
-  return apiFetch<{ products: Product[] }>(`/store/products?handle=${handle}&fields=*variants.prices${regionParam}`)
+  return apiFetch<{ products: Product[] }>(
+    `/store/products?handle=${handle}&fields=*variants.prices,+seller.name,+seller.phone${regionParam}`
+  )
 }
 
 export async function searchContent(params: {
