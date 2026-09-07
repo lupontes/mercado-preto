@@ -1,7 +1,6 @@
 'use client'
 
 import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
 
 export type SellerProfile = {
   id: string
@@ -24,50 +23,16 @@ export type SellerBanking = {
 }
 
 type SellerStore = {
-  token: string | null
   seller: SellerProfile | null
-  login: (token: string, seller: SellerProfile) => void
+  setSeller: (seller: SellerProfile) => void
   updateSeller: (seller: Partial<SellerProfile>) => void
-  logout: () => void
-  isAuthenticated: () => boolean
+  clearSeller: () => void
 }
 
-export const useSellerStore = create<SellerStore>()(
-  persist(
-    (set, get) => ({
-      token: null,
-      seller: null,
-
-      login: (token, seller) => set({ token, seller }),
-
-      updateSeller: (updates) =>
-        set((state) => ({ seller: state.seller ? { ...state.seller, ...updates } : null })),
-
-      logout: () => set({ token: null, seller: null }),
-
-      isAuthenticated: () => !!get().token,
-    }),
-    {
-      name: 'mercado-preto-seller',
-      storage: createJSONStorage(() =>
-        typeof window !== 'undefined'
-          ? localStorage
-          : ({ getItem: () => null, setItem: () => {}, removeItem: () => {}, length: 0, clear: () => {}, key: () => null } as Storage)
-      ),
-      partialize: (state) => ({
-        token: state.token,
-        seller: state.seller ? {
-          id: state.seller.id,
-          name: state.seller.name,
-          email: state.seller.email,
-          status: state.seller.status,
-          ownerName: state.seller.ownerName,
-          bio: state.seller.bio,
-          location: state.seller.location,
-          category: state.seller.category,
-        } : null,
-      }),
-      skipHydration: true,
-    }
-  )
-)
+export const useSellerStore = create<SellerStore>()((set) => ({
+  seller: null,
+  setSeller: (seller) => set({ seller }),
+  updateSeller: (updates) =>
+    set((state) => ({ seller: state.seller ? { ...state.seller, ...updates } : null })),
+  clearSeller: () => set({ seller: null }),
+}))
