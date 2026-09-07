@@ -16,7 +16,7 @@ export async function sendBrevoEmail(to: string, subject: string, htmlContent: s
     recipient = testRecipient
   }
 
-  await fetch("https://api.brevo.com/v3/smtp/email", {
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
       "api-key": apiKey,
@@ -28,5 +28,12 @@ export async function sendBrevoEmail(to: string, subject: string, htmlContent: s
       subject,
       htmlContent,
     }),
+  }).catch((err) => {
+    console.error("[email] falha ao chamar a API da Brevo:", err)
+    return null
   })
+
+  if (res && !res.ok) {
+    console.error(`[email] Brevo respondeu ${res.status} ao enviar para ${recipient}`)
+  }
 }

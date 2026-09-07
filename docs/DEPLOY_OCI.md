@@ -239,13 +239,26 @@ NEXT_PUBLIC_CHATWOOT_TOKEN=
 
 ## Passo 6 — Subir infraestrutura e backend
 
+**Atenção:** o `CMD` do container do backend é só `medusa start` — ele **não**
+roda migrations sozinho. Rode `db:migrate` manualmente contra a imagem nova
+antes de subir o serviço (mesmo em instalação nova, e sempre que um módulo
+novo com migração própria for adicionado — ex: o módulo `review`).
+
 ```bash
 cd ~/marketplace
 
-# Subir toda a infraestrutura + Medusa backend
-docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d --build
+# Subir a infraestrutura (banco, redis etc.) e construir a imagem nova, sem
+# subir o serviço medusa ainda
+docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d --build --no-deps postgres redis
+docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci build medusa
 
-# Aguardar o Medusa inicializar (migrations automáticas no CMD do container)
+# Rodar as migrations contra a imagem nova, antes de servir tráfego
+docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci run --rm medusa npx medusa db:migrate
+
+# Só então subir o backend
+docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d medusa
+
+# Aguardar o Medusa inicializar
 docker compose -f infra/docker-compose.oci.yml logs -f medusa
 # Aguardar: "Listening on http://0.0.0.0:9000"
 ```

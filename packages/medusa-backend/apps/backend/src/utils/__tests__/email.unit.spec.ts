@@ -44,4 +44,26 @@ describe("sendBrevoEmail", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled()
   })
+
+  it("logs but does not throw when the Brevo API call rejects (network failure)", async () => {
+    process.env.BREVO_API_KEY = "test-key"
+    process.env.MARKETPLACE_SANDBOX = "false"
+    jest.spyOn(global, "fetch").mockRejectedValue(new Error("network down"))
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {})
+
+    await expect(sendBrevoEmail("cliente@teste.com", "Assunto", "<p>Corpo</p>")).resolves.toBeUndefined()
+
+    expect(errorSpy).toHaveBeenCalledWith("[email] falha ao chamar a API da Brevo:", expect.any(Error))
+  })
+
+  it("logs when Brevo responds with a non-2xx status", async () => {
+    process.env.BREVO_API_KEY = "test-key"
+    process.env.MARKETPLACE_SANDBOX = "false"
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: false, status: 400 } as Response)
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {})
+
+    await sendBrevoEmail("cliente@teste.com", "Assunto", "<p>Corpo</p>")
+
+    expect(errorSpy).toHaveBeenCalledWith("[email] Brevo respondeu 400 ao enviar para cliente@teste.com")
+  })
 })
