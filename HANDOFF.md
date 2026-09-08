@@ -61,11 +61,60 @@ migrações novas aplicadas (`channel_credential`, `channel_listing`,
 `review`), storefront reconstruído e servindo via PM2. Ambos respondendo
 200 no health check.
 
-**Bug de infra root-caused e corrigido nesta sessão**: `DATABASE_URL` sem
-`?sslmode=disable` fazia o driver `pg` travar indefinidamente (retry mudo
-a cada 60s) negociando TLS com um Postgres sem SSL — travava
-`medusa db:migrate` por horas sem nenhum erro logado. Corrigido em
-`infra/docker-compose.oci.yml`; documentado em `docs/DEPLOY_OCI.md`.
+**Bugs de infra root-caused e corrigidos nesta sessão** (todos descobertos
+em cadeia, ao investigar por que o botão de WhatsApp e as avaliações não
+apareciam no domínio real mesmo após o deploy estar "correto"):
+
+1. `DATABASE_URL` sem `?sslmode=disable` fazia o driver `pg` travar
+   indefinidamente (retry mudo a cada 60s) negociando TLS com um Postgres
+   sem SSL — travava `medusa db:migrate` por horas sem nenhum erro
+   logado. Corrigido em `infra/docker-compose.oci.yml` (PR #41/#42 — o
+   #41 fechou sem trazer a mudança real por causa de histórico
+   compartilhado com um commit revertido; ver PR #42 pra a correção que
+   de fato pegou).
+2. **Container Docker órfão servindo tráfego real**: o nginx que atende
+   `https://teste.mercadopreto.com.br` tinha `upstream storefront { server
+   storefront:3000; }` apontando pra um container `mercado-preto-storefront`
+   não gerenciado por nenhum compose deste repo, parado (sem rebuild) há
+   3+ dias. Todo o tráfego do domínio real servia uma build completamente
+   desatualizada, sem erro nenhum — só conteúdo sempre atrasado,
+   mascarando qualquer deploy feito via PM2 (a arquitetura real,
+   documentada em `docs/DEPLOY_OCI.md`). Corrigido apontando o upstream
+   pro gateway da rede bridge do Docker (`172.18.0.1:3000`, PR #43) — meio
+   frágil (IP fixo), o ideal seria adicionar esse nginx ao
+   `docker-compose.oci.yml` (hoje não gerenciado por nenhum compose) com
+   `extra_hosts: host.docker.internal:host-gateway`. Container órfão
+   **parado** (não removido — `docker rm` pendente de confirmação, ação
+   destrutiva).
+3. **Gotcha de bind-mount de arquivo único do Docker**: depois de corrigir
+   `nginx.conf` via `git pull` no servidor, `nginx -s reload` não pegava a
+   mudança — o `git checkout` recria o arquivo (novo inode) e quebra o
+   bind-mount de arquivo único, que segue o inode antigo. Precisa
+   `docker restart mercado-preto-nginx` (não só `reload`) depois de
+   qualquer `git pull` que toque `infra/nginx/nginx.conf`.
+4. `NEXT_PUBLIC_PUBLISHABLE_KEY` e `NEXT_PUBLIC_REGION_ID` em
+   `apps/storefront/.env.local` no servidor estavam desatualizados
+   (drift — não bate com o que existe hoje no banco). Como
+   `next: {revalidate: 60}` no `apiFetch` combinado com o comportamento
+   de "stale-if-error" do cache de dados do Next.js, isso ficou
+   **completamente mascarado**: toda revalidação em background falhava
+   silenciosamente e o Next continuava servindo pra sempre a última
+   resposta boa em cache. Só ficou visível depois de um `rm -rf .next`
+   (build limpo). Corrigido diretamente no `.env.local` do servidor (não
+   versionado, não tem PR).
+5. **Mixed content bloqueando toda chamada client-side à API**: com o
+   nginx corrigido (achado 2) e o cache limpo (achado 4), o botão de
+   WhatsApp e as avaliações passaram a funcionar (são server-side/SSR),
+   mas o login do vendedor continuava dando "Failed to fetch" — client-side,
+   `NEXT_PUBLIC_MEDUSA_URL` aponta pro backend em `http://` direto, e uma
+   página `https` bloqueia esse fetch como mixed content, sem erro de
+   servidor nenhum. Corrigido (PR #44): `api.ts`/`seller-api.ts`/
+   `review-api.ts` usam caminho relativo no navegador (server-side
+   continua com a URL direta); `nginx.conf` ganhou proxy pra `/store/` e
+   `/seller/` (só `/api/`, `/auth/`, `/admin/`, `/app/` existiam).
+
+Login do vendedor e aba "Avaliações" do painel confirmados funcionando
+de ponta a ponta no domínio real após esses 5 fixes.
 
 **Achados à parte, não corrigidos ainda:**
 - `express-rate-limit` loga um `ValidationError` (`ERR_ERL_KEY_GEN_IPV6`)
