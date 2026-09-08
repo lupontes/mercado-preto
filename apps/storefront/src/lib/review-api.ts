@@ -1,4 +1,9 @@
-const BASE_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? "http://localhost:9000"
+// No navegador, uma chamada direta pra NEXT_PUBLIC_MEDUSA_URL (http://) a
+// partir de uma página https é bloqueada como mixed content. Este módulo só
+// roda client-side (avaliar produto, painel de avaliações), então usa
+// sempre caminho relativo, resolvido contra a própria origem https e
+// proxiado pelo nginx (location /store/).
+const BASE_URL = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_MEDUSA_URL ?? "http://localhost:9000")
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ""
 
 async function reviewFetch<T>(path: string, init?: RequestInit): Promise<T> {
