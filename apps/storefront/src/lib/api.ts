@@ -1,14 +1,10 @@
-// No navegador, uma chamada direta pra NEXT_PUBLIC_MEDUSA_URL (http://) a
-// partir de uma página https é bloqueada como mixed content. Server-side
-// (SSR) não tem esse problema e usa a URL direta do backend; client-side usa
-// caminho relativo, resolvido contra a própria origem https e proxiado pelo
-// nginx (location /store/).
-const BASE_URL = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_MEDUSA_URL ?? "http://localhost:9000")
+import { medusaBaseUrl } from "./medusa-url"
+
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ""
 const REGION_ID = process.env.NEXT_PUBLIC_REGION_ID ?? ""
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${medusaBaseUrl()}${path}`, {
     next: { revalidate: 60 },
     ...init,
     headers: {

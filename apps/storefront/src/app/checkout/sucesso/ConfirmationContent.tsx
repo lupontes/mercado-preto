@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
 import { formatPrice } from '@/lib/api'
+import { medusaBaseUrl } from '@/lib/medusa-url'
 
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 type ConfirmData = {
@@ -33,7 +33,7 @@ export default function ConfirmationContent() {
   useEffect(() => {
     if (!paymentId) return
 
-    fetch(`${MEDUSA_URL}/store/checkout/confirm?payment_id=${paymentId}`, {
+    fetch(`${medusaBaseUrl()}/store/checkout/confirm?payment_id=${paymentId}`, {
       headers: { 'x-publishable-api-key': PUB_KEY },
     })
       .then((r) => (r.ok ? r.json() : null))
