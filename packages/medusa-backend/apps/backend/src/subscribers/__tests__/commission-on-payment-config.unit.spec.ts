@@ -7,4 +7,8 @@ describe("commissionOnPayment config", () => {
     )
     expect(config.event).not.toEqual(expect.arrayContaining(["order.payment_captured"]))
   })
+
+  it("also subscribes to test_cash.order_approved so test-cash orders get commission", () => {
+    expect(config.event).toEqual(expect.arrayContaining(["test_cash.order_approved"]))
+  })
 })
