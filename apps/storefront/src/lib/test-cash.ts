@@ -1,4 +1,8 @@
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
+// In the browser, a direct call to NEXT_PUBLIC_MEDUSA_URL (http://) from an
+// https page is blocked as mixed content. Server-side (SSR) is unaffected and
+// uses the backend URL directly; client-side uses a relative path, resolved
+// against the page's own https origin and proxied by nginx (location /store/).
+const BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000')
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 /**
@@ -7,7 +11,7 @@ const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
  */
 export async function fetchTestCashEnabled(): Promise<boolean> {
   try {
-    const res = await fetch(`${MEDUSA_URL}/store/checkout/test-cash`, {
+    const res = await fetch(`${BASE_URL}/store/checkout/test-cash`, {
       headers: { 'x-publishable-api-key': PUB_KEY },
     })
     if (!res.ok) return false

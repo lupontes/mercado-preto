@@ -14,6 +14,19 @@ describe('fetchTestCashEnabled', () => {
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/store\/checkout\/test-cash$/)
   })
 
+  it('uses a same-origin relative URL in the browser to avoid mixed content', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ enabled: true }) })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('window', {})
+    // BASE_URL is resolved at module load, so re-import with window defined.
+    vi.resetModules()
+    const { fetchTestCashEnabled: fn } = await import('../test-cash')
+
+    await fn()
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/test-cash')
+  })
+
   it('returns false when the backend reports enabled: false', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ enabled: false }) }))
     expect(await fetchTestCashEnabled()).toBe(false)

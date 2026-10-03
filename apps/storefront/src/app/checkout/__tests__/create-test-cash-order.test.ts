@@ -28,6 +28,19 @@ describe('createTestCashOrder', () => {
     expect(body).toEqual({ items, address, shipping, total: 2 * 7900 + 2500, document: '111.444.777-35' })
   })
 
+  it('uses a same-origin relative URL in the browser to avoid mixed content', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ external_reference: 'ref-1' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('window', {})
+    // BASE_URL is resolved at module load, so re-import with window defined.
+    vi.resetModules()
+    const { createTestCashOrder: fn } = await import('../create-test-cash-order')
+
+    await fn(items, address, shipping)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/test-cash')
+  })
+
   it('returns null on a non-2xx response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({ error: 'x' }) }))
     expect(await createTestCashOrder(items, address, shipping)).toBeNull()
