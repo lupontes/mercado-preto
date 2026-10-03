@@ -27,11 +27,15 @@ export default function ConfirmationContent() {
   const paymentId = params.get('payment_id') ?? params.get('collection_id')
   const urlStatus = params.get('status')
 
+  // Test-cash orders (test environments only) never go through MercadoPago,
+  // so there is no payment to confirm: the order already exists.
+  const testCashRef = params.get('test_cash')
+
   const [data, setData] = useState<ConfirmData | null>(null)
-  const [loading, setLoading] = useState(!!paymentId)
+  const [loading, setLoading] = useState(!!paymentId && !testCashRef)
 
   useEffect(() => {
-    if (!paymentId) return
+    if (!paymentId || testCashRef) return
 
     fetch(`${MEDUSA_URL}/store/checkout/confirm?payment_id=${paymentId}`, {
       headers: { 'x-publishable-api-key': PUB_KEY },
@@ -39,7 +43,7 @@ export default function ConfirmationContent() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [paymentId])
+  }, [paymentId, testCashRef])
 
   if (loading) {
     return (
@@ -49,7 +53,7 @@ export default function ConfirmationContent() {
     )
   }
 
-  const status = data?.status ?? urlStatus
+  const status = testCashRef ? 'approved' : data?.status ?? urlStatus
   const isApproved = status === 'approved'
   const isPending = status === 'pending' || status === 'in_process'
 
@@ -64,7 +68,11 @@ export default function ConfirmationContent() {
           <XCircle className="h-16 w-16 text-terracotta mx-auto mb-4" />
         )}
 
-        <h1 className="font-display text-3xl font-black text-onyx">
+        <h1
+          className="font-display text-3xl font-black text-onyx"
+          data-testid="confirmation-status"
+          data-status={isApproved ? 'approved' : isPending ? 'pending' : 'failed'}
+        >
           {isApproved
             ? 'Pedido confirmado!'
             : isPending
@@ -79,6 +87,16 @@ export default function ConfirmationContent() {
             ? 'Seu pagamento está sendo processado. Assim que confirmado, seu pedido será liberado automaticamente.'
             : 'Não foi possível confirmar o pagamento. Tente novamente ou entre em contato.'}
         </p>
+
+        {testCashRef && (
+          <div className="mt-6 rounded-xl bg-white border border-sand-dark p-4 text-left text-sm space-y-2">
+            <p className="text-onyx/60">
+              <span className="font-semibold text-onyx">Forma de pagamento: </span>
+              Pagamento em dinheiro (teste)
+            </p>
+            <p className="text-onyx/40 text-xs font-mono pt-1">Ref: {testCashRef}</p>
+          </div>
+        )}
 
         {data && (
           <div className="mt-6 rounded-xl bg-white border border-sand-dark p-4 text-left text-sm space-y-2">
