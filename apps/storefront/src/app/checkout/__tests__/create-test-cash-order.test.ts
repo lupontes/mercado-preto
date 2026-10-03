@@ -22,7 +22,7 @@ describe('createTestCashOrder', () => {
 
     expect(result).toEqual({ externalReference: 'ref-1' })
     const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toMatch(/\/store\/checkout\/test-cash$/)
+    expect(String(url)).toMatch(/\/store\/checkout\/sandbox-cash$/)
     expect((init as RequestInit).method).toBe('POST')
     const body = JSON.parse((init as RequestInit).body as string)
     expect(body).toEqual({ items, address, shipping, total: 2 * 7900 + 2500, document: '111.444.777-35' })
@@ -38,7 +38,7 @@ describe('createTestCashOrder', () => {
 
     await fn(items, address, shipping)
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/test-cash')
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/sandbox-cash')
   })
 
   it('returns null on a non-2xx response', async () => {

@@ -68,7 +68,7 @@ function makeRes() {
   return res
 }
 
-describe("/store/checkout/test-cash", () => {
+describe("/store/checkout/sandbox-cash", () => {
   const original = { ...process.env }
 
   beforeEach(() => {

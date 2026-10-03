@@ -1,4 +1,4 @@
-import { isTestCashEnabled, TEST_CASH_ORDER_APPROVED_EVENT, TEST_CASH_PAYMENT_METHOD } from "../test-cash"
+import { isTestCashEnabled, TEST_CASH_ORDER_APPROVED_EVENT, TEST_CASH_PAYMENT_METHOD } from "../sandbox-cash"
 
 describe("isTestCashEnabled", () => {
   const original = { ...process.env }

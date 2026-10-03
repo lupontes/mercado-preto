@@ -5,7 +5,7 @@ import {
   isTestCashEnabled,
   TEST_CASH_ORDER_APPROVED_EVENT,
   TEST_CASH_PAYMENT_METHOD,
-} from "../../../../utils/test-cash"
+} from "../../../../utils/sandbox-cash"
 import { buildCheckoutSnapshot, checkoutRequestSchema } from "../../../../utils/checkout-payload"
 import { createOrdersFromCheckout } from "../../../../utils/create-orders-from-checkout"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
@@ -65,12 +65,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     )
 
     logger.info(
-      `[checkout/test-cash] ${createdOrders.length} pedido(s) de teste criado(s) para ref ${externalReference}`
+      `[checkout/sandbox-cash] ${createdOrders.length} pedido(s) de teste criado(s) para ref ${externalReference}`
     )
     res.json({ external_reference: externalReference })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
-    logger.error(`[checkout/test-cash] falha ao criar pedido de teste: ${msg}`)
+    logger.error(`[checkout/sandbox-cash] falha ao criar pedido de teste: ${msg}`)
     res.status(500).json({ error: "Erro ao criar pedido de teste.", detail: msg })
   }
 }

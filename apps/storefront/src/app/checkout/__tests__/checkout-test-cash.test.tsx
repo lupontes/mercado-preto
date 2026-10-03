@@ -27,10 +27,10 @@ function jsonResponse(body: unknown, ok = true) {
 function stubBackend({ enabled, testCashResponse }: { enabled: boolean; testCashResponse?: Promise<unknown> }) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const u = String(url)
-    if (u.endsWith('/store/checkout/test-cash') && init?.method === 'POST') {
+    if (u.endsWith('/store/checkout/sandbox-cash') && init?.method === 'POST') {
       return testCashResponse ?? jsonResponse({ external_reference: 'ref-test-1' })
     }
-    if (u.endsWith('/store/checkout/test-cash')) return jsonResponse({ enabled })
+    if (u.endsWith('/store/checkout/sandbox-cash')) return jsonResponse({ enabled })
     if (u.includes('viacep.com.br')) return jsonResponse({ erro: true })
     if (u.includes('/store/shipping/estimate')) return jsonResponse({ rates: [rate] })
     if (u.includes('/store/checkout/preference')) {
@@ -93,7 +93,7 @@ describe('CheckoutPage — test cash payment', () => {
 
     await fillAddressAndContinue(user, container)
 
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/store\/checkout\/test-cash$/), expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/store\/checkout\/sandbox-cash$/), expect.anything())
     expect(screen.queryByTestId('payment-method-test-cash')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /ir para pagamento/i })).toBeInTheDocument()
   })
