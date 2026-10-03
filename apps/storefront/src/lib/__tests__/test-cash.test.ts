@@ -11,7 +11,7 @@ describe('fetchTestCashEnabled', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     expect(await fetchTestCashEnabled()).toBe(true)
-    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/store\/checkout\/test-cash$/)
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/store\/checkout\/sandbox-cash$/)
   })
 
   it('uses a same-origin relative URL in the browser to avoid mixed content', async () => {
@@ -24,7 +24,7 @@ describe('fetchTestCashEnabled', () => {
 
     await fn()
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/test-cash')
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/sandbox-cash')
   })
 
   it('returns false when the backend reports enabled: false', async () => {

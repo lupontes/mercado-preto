@@ -8,7 +8,7 @@ const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
  */
 export async function fetchTestCashEnabled(): Promise<boolean> {
   try {
-    const res = await fetch(`${medusaBaseUrl()}/store/checkout/test-cash`, {
+    const res = await fetch(`${medusaBaseUrl()}/store/checkout/sandbox-cash`, {
       headers: { 'x-publishable-api-key': PUB_KEY },
     })
     if (!res.ok) return false

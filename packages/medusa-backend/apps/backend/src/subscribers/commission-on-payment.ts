@@ -6,7 +6,7 @@ import { PAYOUT_MODULE } from "../modules/payout"
 import CommissionModuleService from "../modules/commission/service"
 import PayoutModuleService from "../modules/payout/service"
 import { MARKETPLACE_CHANNEL_MODULE } from "../modules/marketplace-channel"
-import { TEST_CASH_ORDER_APPROVED_EVENT } from "../utils/test-cash"
+import { TEST_CASH_ORDER_APPROVED_EVENT } from "../utils/sandbox-cash"
 import type MarketplaceChannelModuleService from "../modules/marketplace-channel/service"
 
 // Taxa de operação MercadoPago: 2,99% + R$0,39 por transação (estimativa).

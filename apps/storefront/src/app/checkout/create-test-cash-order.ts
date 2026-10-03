@@ -10,7 +10,7 @@ export async function createTestCashOrder(
   shipping: ShippingRate
 ): Promise<{ externalReference: string } | null> {
   try {
-    const res = await fetch(`${medusaBaseUrl()}/store/checkout/test-cash`, {
+    const res = await fetch(`${medusaBaseUrl()}/store/checkout/sandbox-cash`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
