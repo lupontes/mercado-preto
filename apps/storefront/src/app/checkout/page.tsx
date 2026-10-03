@@ -9,14 +9,12 @@ import { formatPrice } from '@/lib/api'
 import { maskDocument, validateDocument } from '@/lib/document'
 import { ChevronRight, Loader2, Truck, CreditCard, MapPin } from 'lucide-react'
 import { createPreference, type Address, type PreferenceData } from './create-preference'
+import { fetchShippingRates } from './shipping-rates'
 
 const MercadoPagoBrick = dynamic(
   () => import('@/components/payment/MercadoPagoBrick'),
   { ssr: false, loading: () => <p className="text-sm text-onyx/50">Carregando formulário de pagamento...</p> }
 )
-
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
-const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 type Step = 'address' | 'shipping' | 'payment'
 
@@ -31,15 +29,6 @@ async function fetchCep(cep: string) {
   const data = await res.json()
   if (data.erro) return null
   return data
-}
-
-async function fetchShippingRates(cep: string): Promise<ShippingRate[]> {
-  const res = await fetch(`${MEDUSA_URL}/store/shipping/estimate?cep=${cep}`, {
-    headers: { 'x-publishable-api-key': PUB_KEY },
-  })
-  if (!res.ok) return []
-  const { rates } = await res.json()
-  return rates ?? []
 }
 
 export default function CheckoutPage() {
@@ -93,10 +82,15 @@ export default function CheckoutPage() {
     setLoading(true)
 
     const cep = address.cep.replace(/\D/g, '')
-    const fetchedRates = await fetchShippingRates(cep)
-    setRates(fetchedRates)
-    setLoading(false)
-    setStep('shipping')
+    try {
+      const fetchedRates = await fetchShippingRates(cep)
+      setRates(fetchedRates)
+      setStep('shipping')
+    } catch {
+      setError('Não foi possível calcular o frete. Verifique sua conexão e tente novamente.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleShippingSubmit() {
