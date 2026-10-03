@@ -8,8 +8,21 @@ const medusaUrl = process.env.NEXT_PUBLIC_MEDUSA_URL
   ? new URL(process.env.NEXT_PUBLIC_MEDUSA_URL)
   : undefined
 
+const backendUrl = (process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000').replace(/\/$/, '')
+
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Browser code calls the backend through same-origin relative paths (see
+  // src/lib/medusa-url.ts). When deployed, nginx proxies /store and /seller
+  // before requests ever reach Next.js, so these rewrites only matter where
+  // there is no nginx in front — local dev, or hitting the storefront port
+  // directly — and keep those setups working instead of returning 404.
+  async rewrites() {
+    return [
+      { source: '/store/:path*', destination: `${backendUrl}/store/:path*` },
+      { source: '/seller/:path*', destination: `${backendUrl}/seller/:path*` },
+    ]
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.digitaloceanspaces.com' },
