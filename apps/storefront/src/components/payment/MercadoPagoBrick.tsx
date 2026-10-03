@@ -2,23 +2,21 @@
 
 import { useEffect } from 'react'
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react'
+import { medusaBaseUrl } from '@/lib/medusa-url'
 
 const MP_PUBLIC_KEY = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY ?? ''
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
-// Calls the Medusa store API directly, the same way every other checkout
-// request does (fetchShippingRates, createPreference in checkout/page.tsx).
-// In production NEXT_PUBLIC_MEDUSA_URL points at .../api, which nginx proxies
-// straight to Medusa. A same-origin path like `/api/checkout/payment` gets
-// caught by that same nginx `/api/` rule and forwarded to a Medusa route
-// that doesn't exist, so it must never be used here.
+// Goes through medusaBaseUrl() like every other checkout request: a relative
+// `/store/...` path in the browser, proxied by nginx to Medusa. A same-origin
+// path like `/api/checkout/payment` gets caught by the nginx `/api/` rule and
+// forwarded to a Medusa route that doesn't exist, so it must never be used here.
 export async function submitPayment(
   paymentFields: Record<string, unknown>,
   externalReference: string,
   amountCents: number
 ): Promise<{ payment_id: string }> {
-  const res = await fetch(`${MEDUSA_URL}/store/checkout/payment`, {
+  const res = await fetch(`${medusaBaseUrl()}/store/checkout/payment`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

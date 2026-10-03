@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 let search = ''
@@ -13,6 +13,7 @@ import ConfirmationContent from '../ConfirmationContent'
 describe('ConfirmationContent', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     search = ''
   })
 
@@ -50,5 +51,17 @@ describe('ConfirmationContent', () => {
     expect(await screen.findByTestId('confirmation-status')).toHaveAttribute('data-status', 'approved')
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/store\/checkout\/confirm\?payment_id=42$/)
     expect(screen.queryByText(/pagamento em dinheiro \(teste\)/i)).not.toBeInTheDocument()
+  })
+
+  it('confirms the payment through a relative URL so the https page is not blocked as mixed content', async () => {
+    search = 'payment_id=123&status=approved'
+    vi.stubEnv('NEXT_PUBLIC_MEDUSA_URL', 'http://168.138.148.67:9000')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, json: async () => null })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ConfirmationContent />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/confirm?payment_id=123')
   })
 })

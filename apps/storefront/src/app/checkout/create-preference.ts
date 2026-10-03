@@ -1,6 +1,6 @@
 import type { ShippingRate } from '@/lib/cart-store'
+import { medusaBaseUrl } from '@/lib/medusa-url'
 
-const MEDUSA_URL = process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000'
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 export type Address = {
@@ -41,7 +41,7 @@ export async function createPreference(
   address: Address,
   shipping: ShippingRate
 ): Promise<PreferenceData | null> {
-  const res = await fetch(`${MEDUSA_URL}/store/checkout/preference`, {
+  const res = await fetch(`${medusaBaseUrl()}/store/checkout/preference`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

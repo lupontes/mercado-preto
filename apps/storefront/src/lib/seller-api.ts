@@ -1,13 +1,9 @@
-// No navegador, uma chamada direta pra NEXT_PUBLIC_MEDUSA_URL (http://) a
-// partir de uma página https é bloqueada como mixed content. Este módulo só
-// roda client-side (painel do vendedor), então usa sempre caminho relativo,
-// resolvido contra a própria origem https e proxiado pelo nginx (location
-// /store/).
-const BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_MEDUSA_URL ?? 'http://localhost:9000')
+import { medusaBaseUrl } from './medusa-url'
+
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
 async function sellerFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${medusaBaseUrl()}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
@@ -25,7 +21,7 @@ async function sellerFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // /store/sellers/* routes sit under Medusa's global /store middleware, which
 // requires this header even for the pre-auth login/set-password calls below.
 export async function sellerLogin(email: string, password: string) {
-  const res = await fetch(`${BASE_URL}/store/sellers/login`, {
+  const res = await fetch(`${medusaBaseUrl()}/store/sellers/login`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
@@ -37,7 +33,7 @@ export async function sellerLogin(email: string, password: string) {
 }
 
 export async function sellerLogout() {
-  await fetch(`${BASE_URL}/store/sellers/logout`, {
+  await fetch(`${medusaBaseUrl()}/store/sellers/logout`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'x-publishable-api-key': PUB_KEY },
@@ -45,7 +41,7 @@ export async function sellerLogout() {
 }
 
 export async function setSellerPassword(email: string, password: string) {
-  const res = await fetch(`${BASE_URL}/store/sellers/set-password`, {
+  const res = await fetch(`${medusaBaseUrl()}/store/sellers/set-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
     body: JSON.stringify({ email, password }),
