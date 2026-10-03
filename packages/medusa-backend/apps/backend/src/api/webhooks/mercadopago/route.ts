@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
-import type { SellerGroup } from "../../../utils/seller-order-groups"
+import { createOrdersFromCheckout } from "../../../utils/create-orders-from-checkout"
 import { CHECKOUT_MODULE } from "../../../modules/checkout"
 import type CheckoutModuleService from "../../../modules/checkout/service"
 
@@ -160,9 +160,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         }
       }
 
-      const addr = meta?.address as Record<string, string> | undefined
-      const shipping: { name: string; price: number } | undefined = meta?.shipping
-
       if (!meta?.items?.length) {
         logger.error(
           `[mercadopago/webhook] metadados do checkout não recuperados (payment.metadata vazio, snapshot ausente, busca de preferência sem resultado) — pedido NÃO criado pra ref ${payment.external_reference}, payment ${payment.id}`
@@ -170,75 +167,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         return res.sendStatus(200)
       }
 
-      const sellerGroups: SellerGroup[] = Array.isArray(meta?.seller_groups)
-        ? meta.seller_groups
-        : [
-            {
-              sellerId: meta?.seller_id,
-              subtotal: 0,
-              shippingShare: shipping?.price ?? 0,
-              items: meta?.items ?? [],
-            } as SellerGroup,
-          ]
+      const createdOrders = await createOrdersFromCheckout({
+        container: req.scope,
+        externalReference: payment.external_reference as string,
+        meta,
+        extraMetadata: { mercadopago_payment_id: String(payment.id) },
+        fallbackPayer: payment.payer as Record<string, any> | undefined,
+      })
 
-      const orderService = req.scope.resolve(Modules.ORDER)
-      const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
-
-      const pendingGroups: SellerGroup[] = []
-      for (const group of sellerGroups) {
-        const existing = await orderService.listOrders(
-          {
-            metadata: {
-              mercadopago_external_reference: payment.external_reference,
-              seller_id: group.sellerId,
-            },
-          } as any,
-          { take: 1 }
-        )
-        if (existing.length === 0) pendingGroups.push(group)
-      }
-
-      if (pendingGroups.length === 0) {
+      if (createdOrders.length === 0) {
         logger.info(
           `[mercadopago/webhook] todos os pedidos já existem para ref ${payment.external_reference} — ignorando webhook duplicado`
         )
         return res.sendStatus(200)
       }
 
-      const createdOrders = await orderService.createOrders(
-        pendingGroups.map((group) => ({
-          currency_code: "brl",
-          email: addr?.email ?? (payment.payer as any)?.email,
-          shipping_address: {
-            first_name: addr?.first_name ?? (payment.payer as any)?.name ?? "",
-            last_name: addr?.last_name ?? (payment.payer as any)?.surname ?? "",
-            phone: addr?.phone ?? (payment.payer as any)?.phone?.number ?? "",
-            address_1: addr?.address_1 ?? (payment.payer as any)?.address?.street_name ?? "",
-            address_2: addr?.address_2 ?? "",
-            city: addr?.city ?? "",
-            province: addr?.state ?? "",
-            country_code: "br",
-            postal_code: addr?.postal_code ?? (payment.payer as any)?.address?.zip_code ?? "",
-          },
-          items: group.items.map((i) => ({
-            title: i.title,
-            quantity: i.quantity,
-            unit_price: i.price,
-            ...(i.variant_id ? { variant_id: i.variant_id } : {}),
-          })),
-          shipping_methods: shipping ? [{ name: shipping.name, amount: group.shippingShare }] : [],
-          metadata: {
-            mercadopago_payment_id: String(payment.id),
-            mercadopago_external_reference: payment.external_reference,
-            seller_id: group.sellerId,
-            buyer_document: meta?.buyer_document,
-          },
-        }))
-      )
-
       logger.info(
         `[mercadopago/webhook] ${createdOrders.length} pedido(s) criado(s) para ref ${payment.external_reference}`
       )
+
+      const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
 
       // order.placed              → WhatsApp de confirmação
       // mercadopago.order_approved → emissão NF-e (evento customizado para evitar

@@ -6,4 +6,8 @@ describe("orderFiscalEmit config", () => {
       expect.arrayContaining(["mercadopago.order_approved", "marketplace.order_placed"])
     )
   })
+
+  it("does not subscribe to test_cash.order_approved (test-cash orders must never emit NF-e)", () => {
+    expect(config.event).not.toEqual(expect.arrayContaining(["test_cash.order_approved"]))
+  })
 })

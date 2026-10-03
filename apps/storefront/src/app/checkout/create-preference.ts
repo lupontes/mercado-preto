@@ -21,20 +21,33 @@ export type PreferenceData = {
   externalReference: string
 }
 
+export type CheckoutItem = {
+  title: string
+  quantity: number
+  price: number
+  variantId?: string
+  productId: string
+}
+
+// Shared by every checkout submission so the backend receives the same shape
+// regardless of payment method.
+export function buildCheckoutRequestBody(items: CheckoutItem[], address: Address, shipping: ShippingRate) {
+  const total = items.reduce((s, i) => s + i.price * i.quantity, 0) + shipping.price
+  return { items, address, shipping, total, document: address.document }
+}
+
 export async function createPreference(
-  items: { title: string; quantity: number; price: number; variantId?: string; productId: string }[],
+  items: CheckoutItem[],
   address: Address,
   shipping: ShippingRate
 ): Promise<PreferenceData | null> {
-  const total = items.reduce((s, i) => s + i.price * i.quantity, 0) + shipping.price
-
   const res = await fetch(`${medusaBaseUrl()}/store/checkout/preference`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-publishable-api-key': PUB_KEY,
     },
-    body: JSON.stringify({ items, address, shipping, total, document: address.document }),
+    body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
   })
 
   if (!res.ok) return null

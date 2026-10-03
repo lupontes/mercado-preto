@@ -11,6 +11,14 @@ export function validateEnv(): void {
 
   const sandbox = isSandboxMode()
 
+  // Fail loudly on a contradictory config instead of silently ignoring the
+  // flag: someone enabling test cash in production made a mistake worth seeing.
+  if (process.env.TEST_CASH_PAYMENT_ENABLED === "true" && !sandbox) {
+    throw new Error(
+      "TEST_CASH_PAYMENT_ENABLED=true is not allowed when MARKETPLACE_SANDBOX=false (production mode). Remove TEST_CASH_PAYMENT_ENABLED."
+    )
+  }
+
   const mercadopagoToken = process.env.MERCADOPAGO_ACCESS_TOKEN
   if (mercadopagoToken) {
     const looksLikeTestToken = mercadopagoToken.startsWith("TEST-")

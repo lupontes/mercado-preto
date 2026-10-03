@@ -2,43 +2,9 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Preference } from "mercadopago"
-import { z } from "zod"
-import { validateDocument } from "../../../../utils/validate-document"
-import { groupItemsBySeller } from "../../../../utils/seller-order-groups"
+import { buildCheckoutSnapshot, checkoutRequestSchema } from "../../../../utils/checkout-payload"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
 import type CheckoutModuleService from "../../../../modules/checkout/service"
-
-const schema = z.object({
-  items: z.array(
-    z.object({
-      title: z.string(),
-      quantity: z.number().int().positive(),
-      price: z.number().int().positive(),
-      variantId: z.string().optional(),
-      productId: z.string(),
-    })
-  ).min(1),
-  address: z.object({
-    firstName: z.string(),
-    lastName: z.string(),
-    email: z.string().email(),
-    phone: z.string().optional(),
-    cep: z.string(),
-    address1: z.string(),
-    address2: z.string().optional(),
-    city: z.string(),
-    state: z.string(),
-  }),
-  shipping: z.object({
-    id: z.string(),
-    name: z.string(),
-    price: z.number().int().nonnegative(),
-  }),
-  total: z.number().int().positive(),
-  document: z.string().refine((v) => validateDocument(v).valid, {
-    message: "CPF ou CNPJ inválido",
-  }),
-})
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -46,61 +12,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(503).json({ error: "MercadoPago não configurado." })
   }
 
-  const parsed = schema.safeParse(req.body)
+  const parsed = checkoutRequestSchema.safeParse(req.body)
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address, shipping, total, document } = parsed.data
-  const { digits: buyerDocument } = validateDocument(document)
+  const { items, address, shipping } = parsed.data
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
   const backendUrl = process.env.BACKEND_URL
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const productIds = [...new Set(items.map((i) => i.productId))]
-  const { data: products } = await query.graph({
-    entity: "product",
-    fields: ["id", "seller.id"],
-    filters: { id: productIds },
-  })
-  const sellerByProductId: Record<string, string> = {}
-  for (const p of products as any[]) {
-    if (p.seller?.id) sellerByProductId[p.id] = p.seller.id
-  }
-
-  const grouped = groupItemsBySeller(items, sellerByProductId, shipping.price)
-  if ("unresolvedProductId" in grouped) {
+  const built = await buildCheckoutSnapshot(query, parsed.data)
+  if ("unresolvedProductId" in built) {
     return res.status(400).json({
       error: "Produto sem vendedor associado.",
-      productId: grouped.unresolvedProductId,
+      productId: built.unresolvedProductId,
     })
   }
+  const checkoutSnapshotPayload = built.payload
 
   const externalReference = crypto.randomUUID()
-
-  const checkoutSnapshotPayload = {
-    seller_groups: grouped.groups,
-    buyer_document: buyerDocument,
-    address: {
-      first_name: address.firstName,
-      last_name: address.lastName,
-      email: address.email,
-      phone: address.phone ?? "",
-      address_1: address.address1,
-      address_2: address.address2 ?? "",
-      city: address.city,
-      state: address.state,
-      postal_code: address.cep.replace(/\D/g, ""),
-    },
-    items: items.map((i) => ({
-      variant_id: i.variantId,
-      title: i.title,
-      quantity: i.quantity,
-      price: i.price,
-    })),
-    shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
-    total,
-  }
 
   const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
 
