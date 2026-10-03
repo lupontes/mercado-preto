@@ -443,3 +443,4 @@ pnpm build && pm2 restart storefront
 - **BACKEND_URL**: em testes aponta para o IP público sem HTTPS. O MercadoPago exige HTTPS em produção — nesse caso o `auto_return` fica desabilitado automaticamente pelo backend.
 - **Evolution API volumes**: o diretório `evolution_data` contém as chaves de sessão do WhatsApp. Faça backup antes de destruir os volumes.
 - **PM2**: mantém o storefront rodando como daemon no servidor. Use `pm2 logs storefront` para acompanhar erros em tempo real.
+- **Pagamento "Dinheiro (teste)"**: para percorrer o checkout sem o Mercado Pago, defina `TEST_CASH_PAYMENT_ENABLED=true` no `.env` do servidor de testes e recrie o container `medusa`. A opção aparece na etapa de entrega do checkout. Nunca declarar essa variável em `docker-compose.prod.yml` — com `MARKETPLACE_SANDBOX=false` o backend recusa subir.

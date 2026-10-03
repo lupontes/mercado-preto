@@ -9,6 +9,7 @@ function setBaseValidEnv() {
   delete process.env.MERCADOPAGO_ACCESS_TOKEN
   delete process.env.FOCUS_NFE_TOKEN
   delete process.env.FOCUS_NFE_SANDBOX
+  delete process.env.TEST_CASH_PAYMENT_ENABLED
 }
 
 describe("validateEnv", () => {
@@ -103,6 +104,27 @@ describe("validateEnv", () => {
       setBaseValidEnv()
       process.env.MARKETPLACE_SANDBOX = "false"
       process.env.FOCUS_NFE_SANDBOX = "true"
+      expect(() => validateEnv()).not.toThrow()
+    })
+  })
+
+  describe("test cash payment guard", () => {
+    it("throws when TEST_CASH_PAYMENT_ENABLED=true and MARKETPLACE_SANDBOX=false", () => {
+      setBaseValidEnv()
+      process.env.MARKETPLACE_SANDBOX = "false"
+      process.env.TEST_CASH_PAYMENT_ENABLED = "true"
+      expect(() => validateEnv()).toThrow(/TEST_CASH_PAYMENT_ENABLED/)
+    })
+
+    it("passes when TEST_CASH_PAYMENT_ENABLED=true in sandbox mode", () => {
+      setBaseValidEnv()
+      process.env.TEST_CASH_PAYMENT_ENABLED = "true"
+      expect(() => validateEnv()).not.toThrow()
+    })
+
+    it("passes in production mode when the flag is absent", () => {
+      setBaseValidEnv()
+      process.env.MARKETPLACE_SANDBOX = "false"
       expect(() => validateEnv()).not.toThrow()
     })
   })

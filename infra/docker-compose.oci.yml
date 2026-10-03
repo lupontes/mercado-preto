@@ -143,6 +143,9 @@ services:
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
       MERCADOPAGO_WEBHOOK_SECRET: ${MERCADOPAGO_WEBHOOK_SECRET}
 
+      # Pagamento "Dinheiro (teste)" — só ambientes de teste (ver .env.template)
+      TEST_CASH_PAYMENT_ENABLED: ${TEST_CASH_PAYMENT_ENABLED:-false}
+
       # URL pública do backend (MercadoPago callbacks)
       # Em testes: IP público. Em produção: domínio HTTPS.
       BACKEND_URL: http://${SERVER_IP}:9000
