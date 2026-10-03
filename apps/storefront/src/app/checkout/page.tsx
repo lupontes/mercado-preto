@@ -8,7 +8,10 @@ import { useCartStore, type ShippingRate } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/api'
 import { maskDocument, validateDocument } from '@/lib/document'
 import { ChevronRight, Loader2, Truck, CreditCard, MapPin } from 'lucide-react'
-import { createPreference, type Address, type PreferenceData } from './create-preference'
+import PaymentMethodSelector, { type PaymentMethod } from '@/components/payment/PaymentMethodSelector'
+import { fetchTestCashEnabled } from '@/lib/test-cash'
+import { createTestCashOrder } from './create-test-cash-order'
+import { createPreference, type Address, type CheckoutItem, type PreferenceData } from './create-preference'
 
 const MercadoPagoBrick = dynamic(
   () => import('@/components/payment/MercadoPagoBrick'),
@@ -56,6 +59,18 @@ export default function CheckoutPage() {
 
   const [hydrated, setHydrated] = useState(false)
   const [paid, setPaid] = useState(false)
+  const [testCashEnabled, setTestCashEnabled] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mercadopago')
+
+  useEffect(() => {
+    let active = true
+    fetchTestCashEnabled().then((enabled) => {
+      if (active) setTestCashEnabled(enabled)
+    })
+    return () => { active = false }
+  }, [])
+
+  const isTestCash = testCashEnabled && paymentMethod === 'test_cash'
   useEffect(() => {
     useCartStore.persist.rehydrate()
     setHydrated(true)
@@ -99,6 +114,16 @@ export default function CheckoutPage() {
     setStep('shipping')
   }
 
+  function checkoutItems(): CheckoutItem[] {
+    return items.map((i) => ({
+      title: i.title,
+      quantity: i.quantity,
+      price: i.price,
+      variantId: i.variantId,
+      productId: i.productId,
+    }))
+  }
+
   async function handleShippingSubmit() {
     if (!selectedShipping) {
       setError('Selecione uma opção de entrega.')
@@ -107,17 +132,20 @@ export default function CheckoutPage() {
     setError('')
     setLoading(true)
 
-    const data = await createPreference(
-      items.map((i) => ({
-        title: i.title,
-        quantity: i.quantity,
-        price: i.price,
-        variantId: i.variantId,
-        productId: i.productId,
-      })),
-      address,
-      selectedShipping
-    )
+    if (isTestCash) {
+      const order = await createTestCashOrder(checkoutItems(), address, selectedShipping)
+      if (!order) {
+        setError('Erro ao criar o pedido de teste. Tente novamente.')
+        setLoading(false)
+        return
+      }
+      setPaid(true)
+      clear()
+      router.push(`/checkout/sucesso?test_cash=${encodeURIComponent(order.externalReference)}`)
+      return
+    }
+
+    const data = await createPreference(checkoutItems(), address, selectedShipping)
 
     if (!data) {
       setError('Erro ao preparar o pagamento. Tente novamente.')
@@ -321,6 +349,10 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
+                {testCashEnabled && (
+                  <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
+                )}
+
                 {error && <p className="text-terracotta text-sm mt-3">{error}</p>}
 
                 <div className="flex gap-3 mt-6">
@@ -329,9 +361,10 @@ export default function CheckoutPage() {
                     Voltar
                   </button>
                   <button onClick={handleShippingSubmit} disabled={loading}
+                    data-testid={isTestCash ? 'submit-test-cash' : undefined}
                     className="flex-1 rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Ir para pagamento
+                    {isTestCash ? 'Finalizar pedido (teste)' : 'Ir para pagamento'}
                   </button>
                 </div>
               </div>
