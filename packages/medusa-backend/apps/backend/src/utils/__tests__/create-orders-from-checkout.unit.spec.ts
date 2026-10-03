@@ -86,6 +86,21 @@ describe("createOrdersFromCheckout", () => {
     expect(input.map((o: any) => o.metadata.seller_id)).toEqual(["seller-b"])
   })
 
+  it("looks up existing orders by checkout reference AND seller", async () => {
+    const container = makeContainer()
+
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta: twoSellerMeta })
+
+    expect(container._orderService.listOrders).toHaveBeenCalledWith(
+      { metadata: { mercadopago_external_reference: "ref-1", seller_id: "seller-a" } },
+      { take: 1 }
+    )
+    expect(container._orderService.listOrders).toHaveBeenCalledWith(
+      { metadata: { mercadopago_external_reference: "ref-1", seller_id: "seller-b" } },
+      { take: 1 }
+    )
+  })
+
   it("returns [] without calling createOrders when every group already exists", async () => {
     const container = makeContainer({ "seller-a": true, "seller-b": true })
 

@@ -272,6 +272,23 @@ describe("POST /webhooks/mercadopago", () => {
     expect(createdOrder.metadata.seller_id).toBe("seller-abc")
   })
 
+  it("stores the MercadoPago payment id and external reference in the created order's metadata", async () => {
+    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+    mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+
+    const req = makeReq({ type: "payment", data: { id: "42" } })
+    await POST(req, makeRes())
+
+    const [createdOrder] = req._orderService.createOrders.mock.calls[0][0]
+    expect(createdOrder.metadata).toEqual(
+      expect.objectContaining({
+        mercadopago_payment_id: String(approvedPayment.id),
+        mercadopago_external_reference: approvedPayment.external_reference,
+      })
+    )
+  })
+
   it("does not create an order when metadata recovery fails via preference search error (refuses instead of creating an empty order)", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockRejectedValue(new Error("MP unavailable"))
