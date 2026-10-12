@@ -128,7 +128,12 @@ services:
       REDIS_URL: redis://redis:6379
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: ${MEILI_MASTER_KEY}
-      NODE_ENV: development
+      # production é obrigatório: com development o Medusa serve o painel
+      # admin (/app) pelo servidor de dev do Vite, que bloqueia qualquer host
+      # fora de localhost ("Blocked request ... server.allowedHosts") — visto
+      # em 2026-10-12 impedindo o acesso ao painel master via domínio.
+      # Sandbox das integrações é controlado por MARKETPLACE_SANDBOX, não aqui.
+      NODE_ENV: production
 
       # Segurança
       JWT_SECRET: ${JWT_SECRET}
