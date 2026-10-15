@@ -2,6 +2,7 @@ import { defineMiddlewares } from "@medusajs/framework/http"
 import rateLimit from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 import { verifySellerToken } from "../utils/seller-jwt"
+import { findForbiddenSellerField } from "../utils/store-fields-guard"
 
 export function sellerCors(req: any, res: any, next: any) {
   const origin = req.headers.origin as string | undefined
@@ -31,6 +32,16 @@ export function sellerAuth(req: any, res: any, next: any) {
   }
 }
 
+// Blocks private seller columns from being pulled through the seller↔product
+// link with the public publishable key (see utils/store-fields-guard.ts).
+export function storeFieldsGuard(req: any, res: any, next: any) {
+  const forbidden = findForbiddenSellerField(req.query?.fields)
+  if (forbidden) {
+    return res.status(400).json({ error: `Campo não permitido: ${forbidden}` })
+  }
+  next()
+}
+
 const rateLimitKeyGenerator = (req: any) => {
   const xff = req.headers["x-forwarded-for"] as string | undefined
   return xff?.split(",")[0]?.trim() ?? req.ip ?? "unknown"
@@ -52,6 +63,10 @@ const registerRateLimit = rateLimit({
 
 export default defineMiddlewares({
   routes: [
+    {
+      matcher: "/store/*",
+      middlewares: [storeFieldsGuard],
+    },
     {
       matcher: "/seller",
       middlewares: [sellerCors, sellerAuth],
