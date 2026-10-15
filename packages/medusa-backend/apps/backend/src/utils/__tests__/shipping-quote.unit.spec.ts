@@ -160,6 +160,22 @@ describe("quoteShipping", () => {
     expect(calculator).toHaveBeenCalledTimes(4)
   })
 
+  it("does not cache an empty quote list, so the next call quotes again", async () => {
+    const cache = new QuoteCache()
+    const calculator = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue(quotesByOrigin["44300000"])
+    const deps = { query: makeQuery({ variants, products: [products[0]] }), calculator, cache }
+    const onlyA = { postalCode: "01310100", items: [{ variantId: "var-a1", quantity: 1 }] }
+
+    const first = await quoteShipping(deps, onlyA)
+    expect(first.unavailableSellers.map((u) => u.reason)).toEqual(["quote_failed"])
+    const second = await quoteShipping(deps, onlyA)
+    expect(calculator).toHaveBeenCalledTimes(2)
+    expect(second.options.map((o) => o.tier)).toEqual(["economico", "rapido"])
+  })
+
   it("throws for a variant that does not exist", async () => {
     await expect(
       quoteShipping(

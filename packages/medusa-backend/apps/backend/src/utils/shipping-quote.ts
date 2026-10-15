@@ -150,7 +150,9 @@ export async function quoteShipping(
         let quotes = cache.get(key)
         if (!quotes) {
           quotes = await deps.calculator({ fromPostalCode, toPostalCode, products: bucket.products })
-          cache.set(key, quotes)
+          // An empty answer is usually transient; caching it would block the
+          // seller for the whole TTL.
+          if (quotes.length > 0) cache.set(key, quotes)
         }
         if (quotes.length === 0) return unavailable(bucket, "quote_failed")
         quotedSellers.push({ bucket, quotes })
