@@ -17,11 +17,16 @@ vi.mock('next/dynamic', () => ({
 
 import CheckoutPage from '../page'
 import { useCartStore } from '@/lib/cart-store'
+import { formatPrice } from '@/lib/api'
 
-const rate = { id: 'pac', name: 'PAC', company: 'Correios', price: 2500, currency: 'brl', delivery_time: '5 dias' }
+const economico = (total: number) => ({
+  tier: 'economico' as const, label: 'Econômico', total, deliveryDays: 11,
+  sellers: [{ sellerId: 's1', sellerName: 'Loja A', tier: 'economico' as const, service: 'PAC' as const, serviceId: 1, price: total, deliveryDays: 9 }],
+})
+const quoteWith = (total: number) => ({ options: [economico(total)], unavailableSellers: [] })
 
-function jsonResponse(body: unknown, ok = true) {
-  return { ok, json: async () => body }
+function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500) {
+  return { ok, status, json: async () => body }
 }
 
 function stubBackend({ enabled, testCashResponse }: { enabled: boolean; testCashResponse?: Promise<unknown> }) {
@@ -32,7 +37,7 @@ function stubBackend({ enabled, testCashResponse }: { enabled: boolean; testCash
     }
     if (u.endsWith('/store/checkout/sandbox-cash')) return jsonResponse({ enabled })
     if (u.includes('viacep.com.br')) return jsonResponse({ erro: true })
-    if (u.includes('/store/shipping/estimate')) return jsonResponse({ rates: [rate] })
+    if (u.includes('/store/shipping/quote')) return jsonResponse(quoteWith(2500))
     if (u.includes('/store/checkout/preference')) {
       return jsonResponse({ preference_id: 'pref-1', external_reference: 'ref-mp-1' })
     }
@@ -51,7 +56,7 @@ function seedCart() {
         items: [{ productId: 'prod-1', variantId: 'var-1', title: 'Camiseta', variantTitle: 'M', price: 7900, quantity: 1 }],
         selectedShipping: null,
       },
-      version: 0,
+      version: 1,
     })
   )
 }
@@ -70,7 +75,7 @@ async function fillAddressAndContinue(user: ReturnType<typeof userEvent.setup>, 
   await user.type(inputs[7], 'Cachoeira')
   await user.type(inputs[8], 'Rua das Flores')
   await user.click(screen.getByRole('button', { name: /calcular frete/i }))
-  await user.click(await screen.findByRole('radio', { name: /PAC/ }))
+  await user.click(await screen.findByRole('radio', { name: /Econômico/ }))
 }
 
 describe('CheckoutPage — test cash payment', () => {
@@ -156,5 +161,23 @@ describe('CheckoutPage — test cash payment', () => {
     expect(await screen.findByText('Erro ao criar o pedido de teste. Tente novamente.')).toBeInTheDocument()
     expect(push).not.toHaveBeenCalled()
     expect(screen.getByTestId('submit-test-cash')).not.toBeDisabled()
+  })
+
+  it('shows the updated price and keeps the buyer on the shipping step when the backend answers 409', async () => {
+    stubBackend({
+      enabled: true,
+      testCashResponse: Promise.resolve(jsonResponse({ error: 'O valor do frete foi atualizado', quote: quoteWith(2900) }, false, 409)),
+    })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(await screen.findByTestId('payment-method-test-cash'))
+    await user.click(screen.getByTestId('submit-test-cash'))
+
+    expect(
+      await screen.findByText(`O valor do frete foi atualizado para ${formatPrice(2900)}. Confira e continue.`.replace(/\s+/g, ' '))
+    ).toBeInTheDocument()
+    expect(push).not.toHaveBeenCalled()
   })
 })

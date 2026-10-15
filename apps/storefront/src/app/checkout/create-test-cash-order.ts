@@ -1,5 +1,11 @@
-import type { ShippingRate } from '@/lib/cart-store'
-import { buildCheckoutRequestBody, type Address, type CheckoutItem } from './create-preference'
+import type { ShippingOption } from '@/lib/cart-store'
+import {
+  buildCheckoutRequestBody,
+  readCheckoutResponse,
+  type Address,
+  type CheckoutItem,
+  type CheckoutResult,
+} from './create-preference'
 import { medusaBaseUrl } from '@/lib/medusa-url'
 
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
@@ -7,8 +13,8 @@ const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 export async function createTestCashOrder(
   items: CheckoutItem[],
   address: Address,
-  shipping: ShippingRate
-): Promise<{ externalReference: string } | null> {
+  shipping: ShippingOption
+): Promise<CheckoutResult<{ externalReference: string }>> {
   try {
     const res = await fetch(`${medusaBaseUrl()}/store/checkout/sandbox-cash`, {
       method: 'POST',
@@ -18,10 +24,8 @@ export async function createTestCashOrder(
       },
       body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
     })
-    if (!res.ok) return null
-    const { external_reference } = await res.json()
-    return { externalReference: external_reference }
+    return await readCheckoutResponse(res, (b) => ({ externalReference: b.external_reference }))
   } catch {
-    return null
+    return { ok: false, status: 0, error: 'Erro ao criar o pedido de teste.' }
   }
 }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { useCartStore, type ShippingRate } from '@/lib/cart-store'
+import { useCartStore, type ShippingQuote } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/api'
 import { maskDocument, validateDocument } from '@/lib/document'
 import { ChevronRight, Loader2, Truck, CreditCard, MapPin } from 'lucide-react'
@@ -12,7 +12,8 @@ import PaymentMethodSelector, { type PaymentMethod } from '@/components/payment/
 import { fetchTestCashEnabled } from '@/lib/test-cash'
 import { createTestCashOrder } from './create-test-cash-order'
 import { createPreference, type Address, type CheckoutItem, type PreferenceData } from './create-preference'
-import { fetchShippingRates } from './shipping-rates'
+import { fetchShippingQuote } from './shipping-quote'
+import ShippingOptions from './ShippingOptions'
 
 const MercadoPagoBrick = dynamic(
   () => import('@/components/payment/MercadoPagoBrick'),
@@ -40,7 +41,7 @@ export default function CheckoutPage() {
 
   const [step, setStep] = useState<Step>('address')
   const [address, setAddress] = useState<Address>(EMPTY_ADDRESS)
-  const [rates, setRates] = useState<ShippingRate[]>([])
+  const [quote, setQuote] = useState<ShippingQuote | null>(null)
   const [preferenceData, setPreferenceData] = useState<PreferenceData | null>(null)
   const [loading, setLoading] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
@@ -85,6 +86,20 @@ export default function CheckoutPage() {
     setCepLoading(false)
   }
 
+  async function loadQuote() {
+    const q = await fetchShippingQuote(
+      address.cep.replace(/\D/g, ''),
+      items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+    )
+    setQuote(q)
+    // Keep the buyer's tier when it is still offered; a blocked quote clears it.
+    setShipping(
+      q.unavailableSellers.length === 0
+        ? q.options.find((o) => o.tier === selectedShipping?.tier) ?? q.options[0] ?? null
+        : null
+    )
+  }
+
   async function handleAddressSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -96,10 +111,8 @@ export default function CheckoutPage() {
 
     setLoading(true)
 
-    const cep = address.cep.replace(/\D/g, '')
     try {
-      const fetchedRates = await fetchShippingRates(cep)
-      setRates(fetchedRates)
+      await loadQuote()
       setStep('shipping')
     } catch {
       setError('Não foi possível calcular o frete. Verifique sua conexão e tente novamente.')
@@ -126,28 +139,36 @@ export default function CheckoutPage() {
     setError('')
     setLoading(true)
 
-    if (isTestCash) {
-      const order = await createTestCashOrder(checkoutItems(), address, selectedShipping)
-      if (!order) {
-        setError('Erro ao criar o pedido de teste. Tente novamente.')
-        setLoading(false)
-        return
+    const result = isTestCash
+      ? await createTestCashOrder(checkoutItems(), address, selectedShipping)
+      : await createPreference(checkoutItems(), address, selectedShipping)
+
+    if (!result.ok) {
+      if (result.status === 409 && result.quote) {
+        // The price moved since the buyer chose: show the new one and let them confirm.
+        setQuote(result.quote)
+        const updated = result.quote.options.find((o) => o.tier === selectedShipping.tier) ?? null
+        setShipping(updated)
+        setError(updated ? `O valor do frete foi atualizado para ${formatPrice(updated.total)}. Confira e continue.` : result.error)
+      } else if (result.status === 422 && result.quote) {
+        setQuote(result.quote)
+        setShipping(null)
+        setError(result.error)
+      } else {
+        setError(isTestCash ? 'Erro ao criar o pedido de teste. Tente novamente.' : 'Erro ao preparar o pagamento. Tente novamente.')
       }
-      setPaid(true)
-      clear()
-      router.push(`/checkout/sucesso?test_cash=${encodeURIComponent(order.externalReference)}`)
-      return
-    }
-
-    const data = await createPreference(checkoutItems(), address, selectedShipping)
-
-    if (!data) {
-      setError('Erro ao preparar o pagamento. Tente novamente.')
       setLoading(false)
       return
     }
 
-    setPreferenceData(data)
+    if (isTestCash) {
+      setPaid(true)
+      clear()
+      router.push(`/checkout/sucesso?test_cash=${encodeURIComponent((result.data as { externalReference: string }).externalReference)}`)
+      return
+    }
+
+    setPreferenceData(result.data as PreferenceData)
     setLoading(false)
     setStep('payment')
   }
@@ -162,7 +183,7 @@ export default function CheckoutPage() {
     setError(message)
   }
 
-  const totalCents = subtotal() + (selectedShipping?.price ?? 0)
+  const totalCents = subtotal() + (selectedShipping?.total ?? 0)
 
   const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
     { id: 'address', label: 'Endereço', icon: <MapPin className="h-4 w-4" /> },
@@ -313,35 +334,7 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-sand-dark p-6">
                 <h2 className="font-display font-black text-xl text-onyx mb-6">Opções de entrega</h2>
 
-                {rates.length === 0 ? (
-                  <p className="text-onyx/50">Nenhuma opção disponível para este CEP.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {rates.map((rate) => (
-                      <label
-                        key={rate.id}
-                        className={`flex items-center gap-4 rounded-xl border p-4 cursor-pointer transition-colors ${
-                          selectedShipping?.id === rate.id
-                            ? 'border-amber bg-amber/5'
-                            : 'border-sand-dark hover:border-amber/50'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="shipping"
-                          checked={selectedShipping?.id === rate.id}
-                          onChange={() => setShipping(rate)}
-                          className="accent-amber"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold text-onyx">{rate.company} — {rate.name}</p>
-                          <p className="text-sm text-onyx/50">{rate.delivery_time}</p>
-                        </div>
-                        <p className="font-display font-bold text-onyx">{formatPrice(rate.price)}</p>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                {quote && <ShippingOptions quote={quote} selected={selectedShipping} onSelect={setShipping} onRetry={loadQuote} />}
 
                 {testCashEnabled && (
                   <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
@@ -354,7 +347,7 @@ export default function CheckoutPage() {
                     className="rounded-xl border border-sand-dark px-6 py-3 font-semibold text-onyx/60 hover:border-amber transition-colors">
                     Voltar
                   </button>
-                  <button onClick={handleShippingSubmit} disabled={loading}
+                  <button onClick={handleShippingSubmit} disabled={loading || !selectedShipping || (quote?.unavailableSellers.length ?? 0) > 0}
                     data-testid={isTestCash ? 'submit-test-cash' : undefined}
                     className="flex-1 rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -411,8 +404,8 @@ export default function CheckoutPage() {
               </div>
               {selectedShipping && (
                 <div className="flex justify-between text-onyx/60">
-                  <span>Frete</span>
-                  <span>{formatPrice(selectedShipping.price)}</span>
+                  <span>{`Frete (${selectedShipping.label})`}</span>
+                  <span>{formatPrice(selectedShipping.total)}</span>
                 </div>
               )}
               <div className="flex justify-between font-display font-bold text-onyx pt-1">
