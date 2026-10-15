@@ -110,7 +110,7 @@ Without this token, the shipping endpoint returns fixed illustrative rates (PAC/
 
 ```env
 MELHOR_ENVIO_TOKEN=<sandbox JWT>
-MELHOR_ENVIO_ORIGIN_CEP=44300000         # ZIP code of the dispatch origin
+SHIPPING_HANDLING_DAYS=2                 # business days added to the carrier lead time
 ```
 
 See [Section 6 — Melhor Envio](#6-melhor-envio).
@@ -259,7 +259,7 @@ Register at https://melhorenvio.com.br. A sandbox environment is available separ
 3. Select scope: at minimum **Calcular fretes** (`shipping-calculate`)
 4. Copy the JWT and set it as `MELHOR_ENVIO_TOKEN`
 
-Set `MELHOR_ENVIO_ORIGIN_CEP` to the ZIP code of the physical origin of your shipments.
+The shipping origin is the registered address of each store (seller), not a global setting.
 
 The backend automatically uses the sandbox URL (`https://sandbox.melhorenvio.com.br`) when `NODE_ENV !== production`.
 
@@ -383,7 +383,7 @@ Next.js caches API responses for 60 seconds (`revalidate: 60`). Medusa also has 
 
 - The shipping estimate endpoint requires the `x-publishable-api-key` header
 - Verify `MELHOR_ENVIO_TOKEN` is set and the sandbox URL is being used in development
-- Check that `MELHOR_ENVIO_ORIGIN_CEP` is a valid Brazilian ZIP code
+- Check that each store has a valid Brazilian ZIP code in its registered address
 
 ### "Erro ao iniciar o pagamento" (MercadoPago)
 

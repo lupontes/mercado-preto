@@ -250,7 +250,7 @@ O Next.js é a loja que o cliente vê e usa. É a vitrine digital: a página de 
 | `FOCUS_NFE_CNPJ` | 🔧 | CNPJ do emitente das notas fiscais (pendente) |
 | `FOCUS_NFE_IE` | 🔧 | Inscrição Estadual do emitente (pendente) |
 | `MELHOR_ENVIO_TOKEN` | 🔧 | Credencial de acesso ao Melhor Envio |
-| `MELHOR_ENVIO_ORIGIN_CEP` | 🔧 | CEP de origem dos envios |
+| `SHIPPING_HANDLING_DAYS` | 🔧 | Dias úteis de manuseio somados ao prazo de entrega (padrão 2) |
 | `BREVO_API_KEY` | 🔧 | Credencial de acesso ao Brevo para envio de e-mails |
 | `EMAIL_FROM` | 🔧 | Endereço de e-mail remetente |
 | `EVOLUTION_API_URL` | ✅ | Endereço do servidor WhatsApp (Evolution API) |
