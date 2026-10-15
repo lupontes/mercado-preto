@@ -146,8 +146,9 @@ MERCADOPAGO_ACCESS_TOKEN=TEST-...
 MERCADOPAGO_WEBHOOK_SECRET=
 
 # Melhor Envio (opcional)
+# no servidor de teste: token do SANDBOX do Melhor Envio (nunca o de produção)
 MELHOR_ENVIO_TOKEN=
-MELHOR_ENVIO_ORIGIN_CEP=44300000
+SHIPPING_HANDLING_DAYS=2
 
 # Brevo e-mail (opcional)
 BREVO_API_KEY=
@@ -197,8 +198,9 @@ EVOLUTION_API_KEY=<mesmo EVOLUTION_API_KEY>
 EVOLUTION_API_INSTANCE=mercadopreto
 EVOLUTION_WEBHOOK_SECRET=
 
+# no servidor de teste: token do SANDBOX do Melhor Envio (nunca o de produção)
 MELHOR_ENVIO_TOKEN=
-MELHOR_ENVIO_ORIGIN_CEP=44300000
+SHIPPING_HANDLING_DAYS=2
 
 BREVO_API_KEY=
 EMAIL_FROM=noreply@mercadopreto.com.br
