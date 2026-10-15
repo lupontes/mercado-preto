@@ -44,7 +44,9 @@ export function buildCheckoutRequestBody(items: CheckoutItem[], address: Address
 /** Shared by every checkout POST: maps 409/422 bodies into a typed failure. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function readCheckoutResponse<T>(res: Response, pick: (body: any) => T): Promise<CheckoutResult<T>> {
-  const body = await res.json().catch(() => ({}))
+  const body = await res.json().catch(() => null)
+  // A 2xx with an unreadable body must not look like a successful checkout.
+  if (res.ok && body === null) return { ok: false, status: res.status, error: 'Erro ao preparar o pagamento.' }
   if (res.ok) return { ok: true, data: pick(body) }
   return { ok: false, status: res.status, error: body?.error ?? 'Erro ao preparar o pagamento.', quote: body?.quote }
 }

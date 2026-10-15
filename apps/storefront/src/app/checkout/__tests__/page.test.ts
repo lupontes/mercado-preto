@@ -60,4 +60,11 @@ describe('createPreference', () => {
     const result = await createPreference(items, address, option)
     expect(result).toEqual({ ok: false, status: 409, error: 'O valor do frete foi atualizado', quote })
   })
+
+  it('does not report success when a 2xx body cannot be parsed', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => { throw new SyntaxError('bad json') } }))
+    expect(await createPreference(items, address, option)).toEqual({
+      ok: false, status: 200, error: 'Erro ao preparar o pagamento.',
+    })
+  })
 })

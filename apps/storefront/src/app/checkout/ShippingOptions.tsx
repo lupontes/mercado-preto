@@ -15,12 +15,13 @@ function unavailableMessage(u: UnavailableSeller): string {
 }
 
 export default function ShippingOptions({
-  quote, selected, onSelect, onRetry,
+  quote, selected, onSelect, onRetry, retrying = false,
 }: {
   quote: ShippingQuote
   selected: ShippingOption | null
   onSelect: (option: ShippingOption) => void
   onRetry: () => void
+  retrying?: boolean
 }) {
   const [showDetails, setShowDetails] = useState(false)
   const storeCount = quote.options[0]?.sellers.length ?? 0
@@ -32,7 +33,7 @@ export default function ShippingOptions({
           <p key={u.sellerId} className="text-terracotta text-sm">{unavailableMessage(u)}</p>
         ))}
         {quote.unavailableSellers.some((u) => u.reason === 'quote_failed') && (
-          <button type="button" onClick={onRetry} className="rounded-xl border border-sand-dark px-4 py-2 text-sm font-semibold">
+          <button type="button" onClick={onRetry} disabled={retrying} className="rounded-xl border border-sand-dark px-4 py-2 text-sm font-semibold disabled:opacity-50">
             Tentar novamente
           </button>
         )}

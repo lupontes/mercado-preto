@@ -100,6 +100,18 @@ export default function CheckoutPage() {
     )
   }
 
+  async function handleRetryQuote() {
+    setError('')
+    setLoading(true)
+    try {
+      await loadQuote()
+    } catch {
+      setError('Não foi possível calcular o frete. Verifique sua conexão e tente novamente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleAddressSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -334,7 +346,7 @@ export default function CheckoutPage() {
               <div className="bg-white rounded-2xl border border-sand-dark p-6">
                 <h2 className="font-display font-black text-xl text-onyx mb-6">Opções de entrega</h2>
 
-                {quote && <ShippingOptions quote={quote} selected={selectedShipping} onSelect={setShipping} onRetry={loadQuote} />}
+                {quote && <ShippingOptions quote={quote} selected={selectedShipping} onSelect={setShipping} onRetry={handleRetryQuote} retrying={loading} />}
 
                 {testCashEnabled && (
                   <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
