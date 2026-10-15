@@ -4,6 +4,14 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../modules/seller"
 import { categoryExists } from "./category-validation"
+import { resolveSellerPackage } from "./package"
+
+const packageFields = {
+  packageSize: z.enum(["small", "medium", "large", "bulky"]).optional(),
+  packageDimensions: z
+    .object({ weight: z.number().positive(), length: z.number().positive(), width: z.number().positive(), height: z.number().positive() })
+    .optional(),
+}
 
 const CreateProductSchema = z.object({
   title: z.string().min(2),
@@ -20,6 +28,7 @@ const CreateProductSchema = z.object({
       currency_code: z.string().length(3).default("brl"),
     })).default([]),
   })).default([{ title: "Default", prices: [] }]),
+  ...packageFields,
 })
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
@@ -60,6 +69,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
+  const pkg = resolveSellerPackage(parsed.data.packageSize ?? "medium", parsed.data.packageDimensions)
+  if (!pkg.ok) return res.status(400).json({ error: pkg.error })
+
   const productService = req.scope.resolve(Modules.PRODUCT)
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK)
 
@@ -81,11 +93,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           thumbnail: parsed.data.thumbnail,
           status: parsed.data.status as any,
           category_ids: parsed.data.category_id ? [parsed.data.category_id] : undefined,
+          metadata: pkg.metadata,
           // The seller panel only creates single-variant products (no option
           // picker in the UI), so every variant gets the same fixed option.
           options: [{ title: "Default", values: ["Default"] }],
           variants: parsed.data.variants.map((v: any) => ({
             title: v.title,
+            ...pkg.dims,
             ...(v.sku ? { sku: v.sku } : {}),
             prices: v.prices,
             options: { Default: "Default" },
