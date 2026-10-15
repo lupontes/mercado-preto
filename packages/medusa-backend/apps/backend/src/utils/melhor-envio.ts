@@ -21,6 +21,12 @@ export type ShippingCalculator = (input: {
 // agency in nearly every town, which matters for first-time sellers.
 const CORREIOS_SERVICES = "1,2"
 
+// Number(null) and Number("") are 0, which would look like a valid deadline.
+function toNumberOrNaN(value: unknown): number {
+  if (value === null || value === undefined || value === "") return NaN
+  return Number(value)
+}
+
 export function createMelhorEnvioCalculator(opts: {
   token: string
   sandbox: boolean
@@ -66,9 +72,11 @@ export function createMelhorEnvioCalculator(opts: {
           service: s.name as "PAC" | "SEDEX",
           serviceId: Number(s.id),
           price: Math.round(Number(s.custom_price ?? s.price) * 100),
-          deliveryDays: Number(s.custom_delivery_time ?? s.delivery_time),
+          deliveryDays: toNumberOrNaN(s.custom_delivery_time ?? s.delivery_time),
         }))
-        .filter((q) => Number.isFinite(q.price) && q.price > 0)
+        // A service without a usable price or deadline would surface as
+        // "R$ NaN" / "null dias" in the checkout, so it is treated as unavailable.
+        .filter((q) => Number.isFinite(q.price) && q.price > 0 && Number.isFinite(q.deliveryDays) && q.deliveryDays >= 0)
     } finally {
       clearTimeout(timer)
     }
@@ -86,9 +94,11 @@ export const mockShippingCalculator: ShippingCalculator = async ({ products }) =
 }
 
 export function getShippingCalculator(env: NodeJS.ProcessEnv = process.env): ShippingCalculator | null {
-  if (env.MELHOR_ENVIO_TOKEN) {
+  // A stray space or newline from a copied .env value must not become "Bearer tok\n".
+  const token = env.MELHOR_ENVIO_TOKEN?.trim()
+  if (token) {
     return createMelhorEnvioCalculator({
-      token: env.MELHOR_ENVIO_TOKEN,
+      token,
       // Mirrors isSandboxMode() in utils/sandbox.ts without reading the global process.env.
       sandbox: env.MARKETPLACE_SANDBOX !== "false",
     })

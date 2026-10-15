@@ -43,6 +43,15 @@ describe("createMelhorEnvioCalculator", () => {
     expect(quotes).toEqual([{ service: "PAC", serviceId: 1, price: 3679, deliveryDays: 10 }])
   })
 
+  it("drops services whose delivery time is missing or not a number", async () => {
+    const fetchImpl = okFetch([
+      { id: 1, name: "PAC", price: "36.79", delivery_time: null, company: { name: "Correios" } },
+      { id: 2, name: "SEDEX", price: "60.00", delivery_time: "abc", company: { name: "Correios" } },
+    ])
+    const quotes = await createMelhorEnvioCalculator({ token: "tok", sandbox: true, fetchImpl })(input)
+    expect(quotes).toEqual([])
+  })
+
   it("throws on HTTP errors so the caller marks the seller as quote_failed", async () => {
     const fetchImpl = jest.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ message: "Unauthenticated." }) })
     await expect(createMelhorEnvioCalculator({ token: "bad", sandbox: true, fetchImpl })(input)).rejects.toThrow("401")
@@ -67,6 +76,19 @@ describe("getShippingCalculator", () => {
   })
   it("returns null without a token outside development", () => {
     expect(getShippingCalculator({ NODE_ENV: "production" } as any)).toBeNull()
+  })
+  it("treats a whitespace-only token as absent", () => {
+    expect(getShippingCalculator({ MELHOR_ENVIO_TOKEN: "   ", NODE_ENV: "production" } as any)).toBeNull()
+    expect(getShippingCalculator({ MELHOR_ENVIO_TOKEN: " \n", NODE_ENV: "development" } as any)).toBe(mockShippingCalculator)
+  })
+  it("sends the token without surrounding whitespace", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({ ok: true, status: 200, json: async () => [] } as any)
+    try {
+      await getShippingCalculator({ MELHOR_ENVIO_TOKEN: "  tok\n", NODE_ENV: "production" } as any)!(input)
+      expect((fetchSpy.mock.calls[0][1] as any).headers.Authorization).toBe("Bearer tok")
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })
 
