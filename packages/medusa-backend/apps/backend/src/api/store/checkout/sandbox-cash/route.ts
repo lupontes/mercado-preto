@@ -37,8 +37,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const logger = req.scope.resolve("logger")
   const shipping = await resolveCheckoutShipping(
-    { query, calculator: getShippingCalculator(), cache: defaultQuoteCache, logger: req.scope.resolve("logger") },
+    { query, calculator: getShippingCalculator(), cache: defaultQuoteCache, logger },
     parsed.data
   )
   if (!shipping.ok) return res.status(shipping.status).json(shipping.body)
@@ -51,7 +52,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     })
   }
 
-  const logger = req.scope.resolve("logger")
   const externalReference = crypto.randomUUID()
 
   try {

@@ -47,4 +47,11 @@ describe("resolveCheckoutShipping", () => {
       ok: false, status: 422, body: { error: "Opção de frete indisponível", quote: noTier },
     })
   })
+
+  it("answers 400 when the quote fails for an unknown variant or seller", async () => {
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Variante não encontrada: v9"))
+    expect(await resolveCheckoutShipping(deps, request)).toEqual({
+      ok: false, status: 400, body: { error: "Variante não encontrada: v9" },
+    })
+  })
 })

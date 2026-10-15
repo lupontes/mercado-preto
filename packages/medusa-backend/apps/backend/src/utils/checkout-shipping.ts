@@ -17,11 +17,17 @@ type Deps = {
 export async function resolveCheckoutShipping(
   deps: Deps,
   request: CheckoutRequest
-): Promise<{ ok: true; option: ShippingOption } | { ok: false; status: 409 | 422; body: Record<string, unknown> }> {
-  const quote = await quoteShipping(deps, {
-    postalCode: request.address.cep,
-    items: request.items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-  })
+): Promise<{ ok: true; option: ShippingOption } | { ok: false; status: 400 | 409 | 422; body: Record<string, unknown> }> {
+  let quote: Awaited<ReturnType<typeof quoteShipping>>
+  try {
+    quote = await quoteShipping(deps, {
+      postalCode: request.address.cep,
+      items: request.items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+    })
+  } catch (err) {
+    // Unknown variant / seller-less product (stale cart): same 400 as /store/shipping/quote.
+    return { ok: false, status: 400, body: { error: err instanceof Error ? err.message : String(err) } }
+  }
 
   if (quote.unavailableSellers.length > 0) {
     return { ok: false, status: 422, body: { error: "Frete indisponível para alguns produtos do carrinho", quote } }
