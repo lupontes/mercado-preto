@@ -1,6 +1,6 @@
 # Frete por Loja (Ciclo 2 da Logística) — Design
 
-**Status**: Aprovado pelo usuário em conversa (15/10/2026), aguardando revisão do spec escrito.
+**Status**: Aprovado pelo usuário (spec escrito revisado em 15/10/2026), pronto para plano de implementação.
 
 Substitui o levantamento `2026-08-27-frete-segmentado-por-loja-scope.md`.
 
@@ -202,11 +202,15 @@ Premissas de produto vindas das conversas de 15/10/2026:
 - Frete grátis, cupons de frete.
 - Correção do executor `pnpm test:admin` (vitest 4 × vite 5), em chore separado. Até lá, os testes do admin rodam com o vitest da storefront.
 
-## Dados a preparar antes de publicar
+**Próximos passos logo após este ciclo**, por decisão do usuário: os dois primeiros itens acima, cada um no seu próprio ciclo curto.
 
-- Endereço da base operacional da loja oficial em Cachoeira: rua, número e CEP informados pelo usuário.
-- Lista das 9 variantes acima de 100 cm, para conferência das medidas pelo usuário.
-- `MELHOR_ENVIO_TOKEN` do sandbox em `infra/.env.oci` (servidor de teste).
+## Dados a preparar antes de publicar (servidor de teste)
+
+O usuário autorizou dados **temporários**, por se tratar de ambiente de teste:
+
+- Endereço da loja oficial: endereço provisório em Cachoeira/BA, a partir do texto atual de `location` ("Rua Sete de Setembro, Centro Histórico, CEP 44300-000"). O endereço definitivo será informado antes da produção.
+- As 9 variantes acima de 100 cm recebem medidas provisórias dentro dos limites dos Correios, com `package_review = "pending"` para revisão futura.
+- `MELHOR_ENVIO_TOKEN` do sandbox em `infra/.env.oci`.
 
 ## Testes
 
