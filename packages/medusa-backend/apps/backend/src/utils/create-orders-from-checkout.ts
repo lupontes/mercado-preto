@@ -1,5 +1,6 @@
 import { Modules } from "@medusajs/framework/utils"
 import type { SellerGroup } from "./seller-order-groups"
+import { INITIAL_SHIPPING_STATUS } from "./shipping-status"
 
 export type CheckoutMeta = {
   seller_groups?: SellerGroup[]
@@ -85,6 +86,7 @@ export async function createOrdersFromCheckout({
         mercadopago_external_reference: externalReference,
         seller_id: group.sellerId,
         buyer_document: meta.buyer_document,
+        shipping_status: INITIAL_SHIPPING_STATUS,
         ...extraMetadata,
       },
     }))

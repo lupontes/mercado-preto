@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import { getSellerOrders } from '@/lib/seller-api'
 import { formatPrice } from '@/lib/api'
+import { orderStatusBadge } from '@/lib/order-status'
 import { Loader2, ShoppingBag } from 'lucide-react'
 
 type Order = {
   id: string
   display_id?: number
   status: string
+  shipping_status?: string | null
   total?: number
   created_at: string
   items?: Array<{ title: string; quantity: number; unit_price: number }>
@@ -74,7 +76,7 @@ export default function PedidosPage() {
                     {order.total ? formatPrice(order.total) : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <OrderStatusBadge status={order.status} />
+                    <OrderStatusBadge status={order.status} shippingStatus={order.shipping_status} />
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-onyx/50">
                     {new Date(order.created_at).toLocaleDateString('pt-BR')}
@@ -89,14 +91,8 @@ export default function PedidosPage() {
   )
 }
 
-function OrderStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string }> = {
-    pending: { label: 'Pendente', className: 'bg-amber/10 text-amber-dark' },
-    completed: { label: 'Concluído', className: 'bg-forest/10 text-forest' },
-    cancelled: { label: 'Cancelado', className: 'bg-terracotta/10 text-terracotta' },
-    requires_action: { label: 'Ação necessária', className: 'bg-amber/10 text-amber-dark' },
-  }
-  const { label, className } = map[status] ?? { label: status, className: 'bg-sand-dark text-onyx/60' }
+function OrderStatusBadge({ status, shippingStatus }: { status: string; shippingStatus?: string | null }) {
+  const { label, className } = orderStatusBadge(status, shippingStatus)
   return (
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${className}`}>
       {label}

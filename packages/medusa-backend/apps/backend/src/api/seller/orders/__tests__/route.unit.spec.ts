@@ -110,4 +110,31 @@ describe("GET /seller/orders", () => {
     expect((res._body as any).limit).toBe(10)
     expect((res._body as any).offset).toBe(5)
   })
+
+  it("returns each order's shipping_status, without exposing the rest of its metadata (it holds the buyer's CPF)", async () => {
+    const listOrders = jest.fn().mockResolvedValue([
+      {
+        id: "order_1",
+        items: [],
+        shipping_methods: [],
+        metadata: { seller_id: "seller_1", buyer_document: "11144477735", shipping_status: "awaiting_shipment" },
+      },
+      { id: "order_legacy", items: [], shipping_methods: [], metadata: { seller_id: "seller_1" } },
+    ])
+    const req = {
+      sellerId: "seller_1",
+      query: {},
+      scope: makeScope({ [Modules.ORDER]: { listOrders } }),
+    } as any
+    const res = makeRes()
+
+    await GET(req, res)
+
+    const [, config] = listOrders.mock.calls[0]
+    expect(config.select).toContain("metadata")
+    const [order, legacy] = (res._body as any).orders
+    expect(order.shipping_status).toBe("awaiting_shipment")
+    expect(order.metadata).toBeUndefined()
+    expect(legacy.shipping_status).toBeNull()
+  })
 })

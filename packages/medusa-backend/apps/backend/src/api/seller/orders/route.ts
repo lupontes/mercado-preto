@@ -24,12 +24,15 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       // (não passam pelo fluxo completo de carrinho/checkout do Medusa, que
       // preenche esse campo de versionamento). O total é calculado abaixo, a
       // partir dos itens e do frete já carregados via relations.
-      select: ["status", "created_at", "display_id"],
+      // "metadata" is read only to extract shipping_status; it is stripped from
+      // the response below because it also holds the buyer's CPF.
+      select: ["status", "created_at", "display_id", "metadata"],
     }
   )
 
-  const ordersWithTotal = orders.map((order: any) => ({
+  const ordersWithTotal = orders.map(({ metadata, ...order }: any) => ({
     ...order,
+    shipping_status: metadata?.shipping_status ?? null,
     total:
       (order.items ?? []).reduce(
         (sum: number, item: any) => sum + Number(item.unit_price ?? 0) * Number(item.quantity ?? 0),
