@@ -20,6 +20,15 @@ const Seller = model.define("seller", {
   rejectionReason: model.text().nullable(),
   mercadopagoUserId: model.text().nullable(),
   passwordHash: model.text().nullable(),
+  // Operational base address: origin of every shipment (quotes now, labels in cycle 3).
+  // Nullable so existing stores keep working until someone fills it in.
+  addressPostalCode: model.text().nullable(),
+  addressStreet: model.text().nullable(),
+  addressNumber: model.text().nullable(),
+  addressComplement: model.text().nullable(),
+  addressDistrict: model.text().nullable(),
+  addressCity: model.text().nullable(),
+  addressState: model.text().nullable(),
 })
 
 export default Seller
