@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
-import { exceedsCorreiosLimits, suggestPackageSize } from '@/lib/package-size'
+import { validatePackage, suggestPackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 export default function NovoProdutoPage() {
@@ -168,16 +168,6 @@ export default function NovoProdutoPage() {
       </form>
     </div>
   )
-}
-
-function validatePackage(pkg: PackageValue): string | null {
-  if (pkg.size !== 'bulky') return null
-  const d = pkg.dimensions
-  if (!d || [d.length, d.width, d.height, d.weight].some((x) => !(x > 0))) {
-    return 'Informe comprimento, largura, altura e peso da caixa.'
-  }
-  if (exceedsCorreiosLimits(d)) return 'Medidas acima do limite dos Correios.'
-  return null
 }
 
 function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {

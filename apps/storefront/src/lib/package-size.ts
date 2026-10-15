@@ -28,3 +28,14 @@ export function exceedsCorreiosLimits(d: PackageDimensions): boolean {
   const sides = [d.length, d.width, d.height]
   return Math.max(...sides) > 100 || sides.reduce((s, x) => s + x, 0) > 200 || d.weight > 30
 }
+
+// Single source of the seller-facing validation messages for the product forms.
+export function validatePackage(pkg: { size: PackageSize; dimensions?: PackageDimensions }): string | null {
+  if (pkg.size !== 'bulky') return null
+  const d = pkg.dimensions
+  if (!d || [d.length, d.width, d.height, d.weight].some((x) => !(x > 0))) {
+    return 'Informe comprimento, largura, altura e peso da caixa.'
+  }
+  if (exceedsCorreiosLimits(d)) return 'Medidas acima do limite dos Correios.'
+  return null
+}

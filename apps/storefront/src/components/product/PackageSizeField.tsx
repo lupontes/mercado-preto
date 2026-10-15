@@ -34,6 +34,18 @@ export default function PackageSizeField({ value, onChange }: { value: PackageVa
     })
   }
 
+  function selectSize(size: PackageSize) {
+    if (size !== 'bulky') return onChange({ size })
+    // Rebuild from the visible text so what the seller sees is what gets sent.
+    const hasText = Object.values(raw).some((t) => t.trim() !== '')
+    onChange({
+      size: 'bulky',
+      dimensions: hasText
+        ? { length: toNumber(raw.length), width: toNumber(raw.width), height: toNumber(raw.height), weight: toNumber(raw.weight) }
+        : value.dimensions,
+    })
+  }
+
   const overLimit = value.size === 'bulky' && value.dimensions && exceedsCorreiosLimits(value.dimensions)
 
   return (
@@ -44,7 +56,7 @@ export default function PackageSizeField({ value, onChange }: { value: PackageVa
           <input
             type="radio" name="packageSize" className="mt-1 accent-amber"
             checked={value.size === o.value}
-            onChange={() => onChange(o.value === 'bulky' ? { size: 'bulky', dimensions: value.dimensions } : { size: o.value })}
+            onChange={() => selectSize(o.value)}
             aria-label={o.label}
           />
           <span>

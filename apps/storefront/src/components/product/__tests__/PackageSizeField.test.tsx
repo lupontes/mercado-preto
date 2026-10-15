@@ -35,4 +35,16 @@ describe('PackageSizeField', () => {
     render(<Harness initial={{ size: 'bulky', dimensions: { length: 120, width: 35, height: 115, weight: 1.8 } }} onChange={vi.fn()} />)
     expect(screen.getByText(/acima do limite dos Correios/)).toBeInTheDocument()
   })
+
+  it('keeps typed measures when switching away from Volumoso and back', async () => {
+    const onChange = vi.fn()
+    render(<Harness initial={{ size: 'bulky' }} onChange={onChange} />)
+    await userEvent.type(screen.getByLabelText('Comprimento (cm)'), '65')
+    await userEvent.type(screen.getByLabelText('Largura (cm)'), '40')
+    await userEvent.type(screen.getByLabelText('Altura (cm)'), '50')
+    await userEvent.type(screen.getByLabelText('Peso (kg)'), '1,2')
+    await userEvent.click(screen.getByRole('radio', { name: /Pequeno/ }))
+    await userEvent.click(screen.getByRole('radio', { name: /Volumoso/ }))
+    expect(onChange).toHaveBeenLastCalledWith({ size: 'bulky', dimensions: { length: 65, width: 40, height: 50, weight: 1.2 } })
+  })
 })

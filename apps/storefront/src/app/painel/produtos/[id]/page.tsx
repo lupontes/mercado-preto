@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
-import { exceedsCorreiosLimits, type PackageSize } from '@/lib/package-size'
+import { validatePackage, type PackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 type ProductForm = {
@@ -48,8 +48,9 @@ export default function EditarProdutoPage() {
         const storedSize = product.metadata?.package_size as PackageSize | undefined
         if (storedSize) {
           const v = product.variants?.[0]
-          const dims = storedSize === 'bulky' && v
-            ? { length: Number(v.length), width: Number(v.width), height: Number(v.height), weight: Number(v.weight) }
+          const candidate = v && { length: Number(v.length), width: Number(v.width), height: Number(v.height), weight: Number(v.weight) }
+          const dims = storedSize === 'bulky' && candidate && Object.values(candidate).every(Number.isFinite)
+            ? candidate
             : undefined
           setPkg({ size: storedSize, dimensions: dims })
         }
@@ -199,16 +200,6 @@ export default function EditarProdutoPage() {
       </form>
     </div>
   )
-}
-
-function validatePackage(pkg: PackageValue): string | null {
-  if (pkg.size !== 'bulky') return null
-  const d = pkg.dimensions
-  if (!d || [d.length, d.width, d.height, d.weight].some((x) => !(x > 0))) {
-    return 'Informe comprimento, largura, altura e peso da caixa.'
-  }
-  if (exceedsCorreiosLimits(d)) return 'Medidas acima do limite dos Correios.'
-  return null
 }
 
 function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
