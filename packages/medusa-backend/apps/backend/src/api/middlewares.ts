@@ -3,6 +3,7 @@ import { BlockList, isIP } from "node:net"
 import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 import { verifySellerToken } from "../utils/seller-jwt"
+import { findForbiddenSellerField } from "../utils/store-fields-guard"
 
 export function sellerCors(req: any, res: any, next: any) {
   const origin = req.headers.origin as string | undefined
@@ -30,6 +31,16 @@ export function sellerAuth(req: any, res: any, next: any) {
   } catch {
     return res.status(401).json({ error: "Token inválido ou expirado" })
   }
+}
+
+// Blocks private seller columns from being pulled through the seller↔product
+// link with the public publishable key (see utils/store-fields-guard.ts).
+export function storeFieldsGuard(req: any, res: any, next: any) {
+  const forbidden = findForbiddenSellerField(req.query?.fields)
+  if (forbidden) {
+    return res.status(400).json({ error: `Campo não permitido: ${forbidden}` })
+  }
+  next()
 }
 
 // The only hop we trust to set X-Forwarded-For is our own nginx, which reaches
@@ -89,6 +100,10 @@ const registerRateLimit = rateLimit({
 
 export default defineMiddlewares({
   routes: [
+    {
+      matcher: "/store/*",
+      middlewares: [storeFieldsGuard],
+    },
     {
       matcher: "/seller",
       middlewares: [sellerCors, sellerAuth],
