@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
+import { parseAddressBlock } from "../../../../utils/seller-address"
 
 const UpdateSellerSchema = z.object({
   name: z.string().min(2).optional(),
@@ -33,14 +34,18 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
   const { id } = req.params
 
-  const parsed = UpdateSellerSchema.safeParse(req.body)
+  const block = parseAddressBlock((req.body ?? {}) as Record<string, unknown>)
+  if (!block.ok) {
+    return res.status(400).json({ error: "Endereço inválido", details: block.error.flatten() })
+  }
+  const parsed = UpdateSellerSchema.safeParse(block.rest)
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
   const [seller] = await sellerService.updateSellers({
     selector: { id },
-    data: parsed.data,
+    data: { ...parsed.data, ...(block.address ?? {}) },
   })
 
   res.json({ seller })

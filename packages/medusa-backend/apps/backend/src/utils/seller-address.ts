@@ -45,3 +45,28 @@ export function hasShippingOrigin(seller: Partial<Record<keyof SellerAddress, st
     filled(seller.addressState)
   )
 }
+
+const ADDRESS_KEYS = [
+  "addressPostalCode", "addressStreet", "addressNumber", "addressComplement",
+  "addressDistrict", "addressCity", "addressState",
+] as const
+
+/**
+ * Splits a request body into its address block and the rest. The address is
+ * all-or-nothing: if any address key is present the whole block must be valid.
+ * Returns `address: undefined` when no address key was sent.
+ */
+export function parseAddressBlock(
+  body: Record<string, unknown>
+): { ok: true; address?: SellerAddress; rest: Record<string, unknown> } | { ok: false; error: z.ZodError } {
+  const rest: Record<string, unknown> = {}
+  const raw: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(body ?? {})) {
+    if ((ADDRESS_KEYS as readonly string[]).includes(k)) raw[k] = v
+    else rest[k] = v
+  }
+  if (Object.keys(raw).length === 0) return { ok: true, rest }
+  const parsed = sellerAddressSchema.safeParse(raw)
+  if (!parsed.success) return { ok: false, error: parsed.error }
+  return { ok: true, address: parsed.data, rest }
+}

@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { SELLER_MODULE } from "../../../modules/seller"
 import SellerModuleService from "../../../modules/seller/service"
+import { parseAddressBlock } from "../../../utils/seller-address"
 
 const UpdateProfileSchema = z.object({
   bio: z.string().max(500).optional(),
@@ -30,14 +31,18 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
   const sellerId = (req as any).sellerId
 
-  const parsed = UpdateProfileSchema.safeParse(req.body)
+  const block = parseAddressBlock((req.body ?? {}) as Record<string, unknown>)
+  if (!block.ok) {
+    return res.status(400).json({ error: "Endereço inválido", details: block.error.flatten() })
+  }
+  const parsed = UpdateProfileSchema.safeParse(block.rest)
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
   const [seller] = await sellerService.updateSellers({
     selector: { id: sellerId },
-    data: parsed.data,
+    data: { ...parsed.data, ...(block.address ?? {}) },
   })
 
   const { passwordHash, ...safe } = seller as any
