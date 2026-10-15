@@ -72,8 +72,18 @@ describe("createOrdersFromCheckout", () => {
       mercadopago_external_reference: "ref-1",
       seller_id: "seller-a",
       buyer_document: "11144477735",
+      shipping_status: "awaiting_shipment",
       payment_method: "test_cash",
     })
+  })
+
+  it("creates every order as awaiting shipment, since orders only exist after payment approval", async () => {
+    const container = makeContainer()
+
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta: twoSellerMeta })
+
+    const input = container._orderService.createOrders.mock.calls[0][0]
+    expect(input.map((o: any) => o.metadata.shipping_status)).toEqual(["awaiting_shipment", "awaiting_shipment"])
   })
 
   it("only creates orders for seller groups that do not exist yet (idempotency)", async () => {
