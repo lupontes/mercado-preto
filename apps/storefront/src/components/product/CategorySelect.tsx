@@ -5,7 +5,7 @@ import { listCategories, type Category } from '@/lib/api'
 
 type CategorySelectProps = {
   value: string
-  onChange: (categoryId: string) => void
+  onChange: (categoryId: string, categoryName?: string) => void
   id?: string
 }
 
@@ -22,7 +22,7 @@ export function CategorySelect({ value, onChange, id }: CategorySelectProps) {
   }, [])
 
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="input">
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value, categories.find((c) => c.id === e.target.value)?.name)} className="input">
       <option value="">Sem categoria</option>
       {categories.map((category) => (
         <option key={category.id} value={category.id}>

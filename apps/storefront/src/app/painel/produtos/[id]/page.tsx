@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
+import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
+import { exceedsCorreiosLimits, type PackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 type ProductForm = {
@@ -28,6 +30,9 @@ export default function EditarProdutoPage() {
     price: '',
     category_id: '',
   })
+  const [pkg, setPkg] = useState<PackageValue>({ size: 'medium' })
+  // Imported products have no stored size: only send one once the seller picks it, so real measures are kept.
+  const [pkgTouched, setPkgTouched] = useState(false)
   const [variantId, setVariantId] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,6 +45,14 @@ export default function EditarProdutoPage() {
         const product = data.product as any
         const price = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
         setVariantId(product.variants?.[0]?.id ?? null)
+        const storedSize = product.metadata?.package_size as PackageSize | undefined
+        if (storedSize) {
+          const v = product.variants?.[0]
+          const dims = storedSize === 'bulky' && v
+            ? { length: Number(v.length), width: Number(v.width), height: Number(v.height), weight: Number(v.weight) }
+            : undefined
+          setPkg({ size: storedSize, dimensions: dims })
+        }
         setForm({
           title: product.title ?? '',
           description: product.description ?? '',
@@ -61,6 +74,12 @@ export default function EditarProdutoPage() {
     e.preventDefault()
     if (!id) return
     setError('')
+
+    const pkgError = pkgTouched ? validatePackage(pkg) : null
+    if (pkgError) {
+      setError(pkgError)
+      return
+    }
     setSaving(true)
 
     try {
@@ -73,6 +92,8 @@ export default function EditarProdutoPage() {
         status: form.status,
         thumbnail: form.thumbnail || undefined,
         category_id: form.category_id || null,
+        ...(pkgTouched ? { packageSize: pkg.size } : {}),
+        ...(pkgTouched && pkg.size === 'bulky' ? { packageDimensions: pkg.dimensions } : {}),
         variants: variantId
           ? [{ id: variantId, prices: [{ amount: priceAmount, currency_code: 'brl' }] }]
           : undefined,
@@ -142,6 +163,8 @@ export default function EditarProdutoPage() {
           <CategorySelect id="category_id" value={form.category_id} onChange={(value) => set('category_id', value)} />
         </Field>
 
+        <PackageSizeField value={pkg} onChange={(v) => { setPkgTouched(true); setPkg(v) }} />
+
         <Field label="URL da imagem principal" htmlFor="thumbnail">
           <input
             id="thumbnail"
@@ -176,6 +199,16 @@ export default function EditarProdutoPage() {
       </form>
     </div>
   )
+}
+
+function validatePackage(pkg: PackageValue): string | null {
+  if (pkg.size !== 'bulky') return null
+  const d = pkg.dimensions
+  if (!d || [d.length, d.width, d.height, d.weight].some((x) => !(x > 0))) {
+    return 'Informe comprimento, largura, altura e peso da caixa.'
+  }
+  if (exceedsCorreiosLimits(d)) return 'Medidas acima do limite dos Correios.'
+  return null
 }
 
 function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
