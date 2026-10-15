@@ -6,7 +6,18 @@ jest.mock("crypto", () => {
   return { ...actual, randomUUID: () => "fixed-uuid-1234" }
 })
 
+jest.mock("../../../../../utils/checkout-shipping", () => ({ resolveCheckoutShipping: jest.fn() }))
+jest.mock("../../../../../utils/melhor-envio", () => ({ getShippingCalculator: () => null }))
+import { resolveCheckoutShipping } from "../../../../../utils/checkout-shipping"
 import { GET, POST } from "../route"
+
+const shippingOption = {
+  tier: "economico" as const, label: "Econômico", total: 2500, deliveryDays: 11,
+  sellers: [
+    { sellerId: "seller-a", sellerName: "A", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 1500, deliveryDays: 9 },
+    { sellerId: "seller-b", sellerName: "B", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 1000, deliveryDays: 7 },
+  ],
+}
 
 const validBody = {
   items: [
@@ -24,8 +35,7 @@ const validBody = {
     city: "Cachoeira",
     state: "BA",
   },
-  shipping: { id: "pac", name: "PAC", price: 2500 },
-  total: 15400,
+  shipping: { tier: "economico", expectedTotal: 2500 },
   document: "111.444.777-35",
 }
 
@@ -73,6 +83,8 @@ describe("/store/checkout/sandbox-cash", () => {
 
   beforeEach(() => {
     process.env = { ...original }
+    ;(resolveCheckoutShipping as jest.Mock).mockReset()
+    ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({ ok: true, option: shippingOption })
     delete process.env.MARKETPLACE_SANDBOX
     // The route must work with MercadoPago completely unavailable.
     delete process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -132,6 +144,34 @@ describe("/store/checkout/sandbox-cash", () => {
       await POST(req, res)
 
       expect(res._status).toBe(400)
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
+    it("returns 422 and creates nothing when shipping is unavailable", async () => {
+      ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
+        ok: false, status: 422, body: { error: "Frete indisponível para alguns produtos do carrinho", quote: {} },
+      })
+      const req = makeReq()
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(422)
+      expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
+    it("returns 409 and creates nothing when the shipping price changed", async () => {
+      ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
+        ok: false, status: 409, body: { error: "O valor do frete foi atualizado", quote: {} },
+      })
+      const req = makeReq()
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(409)
+      expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
     })
 

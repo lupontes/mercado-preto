@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { validateDocument } from "./validate-document"
 import { groupItemsBySeller, type SellerGroup } from "./seller-order-groups"
+import type { ShippingOption } from "./shipping-quote"
 import type { CheckoutMeta } from "./create-orders-from-checkout"
 
 // Shared by every checkout entry point (MercadoPago preference, test cash) so
@@ -11,7 +12,7 @@ export const checkoutRequestSchema = z.object({
       title: z.string(),
       quantity: z.number().int().positive(),
       price: z.number().int().positive(),
-      variantId: z.string().optional(),
+      variantId: z.string(),
       productId: z.string(),
     })
   ).min(1),
@@ -27,11 +28,10 @@ export const checkoutRequestSchema = z.object({
     state: z.string(),
   }),
   shipping: z.object({
-    id: z.string(),
-    name: z.string(),
-    price: z.number().int().nonnegative(),
+    tier: z.enum(["economico", "rapido"]),
+    // What the buyer saw; the server re-quotes and answers 409 if it changed.
+    expectedTotal: z.number().int().nonnegative(),
   }),
-  total: z.number().int().positive(),
   document: z.string().refine((v) => validateDocument(v).valid, {
     message: "CPF ou CNPJ inválido",
   }),
@@ -52,9 +52,10 @@ type ProductQuery = { graph: (args: any) => Promise<{ data: any[] }> }
 
 export async function buildCheckoutSnapshot(
   query: ProductQuery,
-  request: CheckoutRequest
+  request: CheckoutRequest,
+  option: ShippingOption
 ): Promise<{ payload: CheckoutSnapshotPayload } | { unresolvedProductId: string }> {
-  const { items, address, shipping, total, document } = request
+  const { items, address, document } = request
   // checkoutRequestSchema already rejected invalid documents, so digits is set.
   const buyerDocument = validateDocument(document).digits as string
 
@@ -69,7 +70,8 @@ export async function buildCheckoutSnapshot(
     if (p.seller?.id) sellerByProductId[p.id] = p.seller.id
   }
 
-  const grouped = groupItemsBySeller(items, sellerByProductId, shipping.price)
+  const shippingBySeller = Object.fromEntries(option.sellers.map((s) => [s.sellerId, s]))
+  const grouped = groupItemsBySeller(items, sellerByProductId, shippingBySeller)
   if ("unresolvedProductId" in grouped) {
     return { unresolvedProductId: grouped.unresolvedProductId }
   }
@@ -95,8 +97,8 @@ export async function buildCheckoutSnapshot(
         quantity: i.quantity,
         price: i.price,
       })),
-      shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
-      total,
+      shipping: { id: option.tier, name: option.label, price: option.total },
+      total: items.reduce((sum, i) => sum + i.price * i.quantity, 0) + option.total,
     },
   }
 }

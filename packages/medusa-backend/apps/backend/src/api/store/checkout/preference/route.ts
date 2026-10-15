@@ -3,6 +3,9 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { buildCheckoutSnapshot, checkoutRequestSchema } from "../../../../utils/checkout-payload"
+import { resolveCheckoutShipping } from "../../../../utils/checkout-shipping"
+import { getShippingCalculator } from "../../../../utils/melhor-envio"
+import { defaultQuoteCache } from "../../../../utils/shipping-quote"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
 import type CheckoutModuleService from "../../../../modules/checkout/service"
 
@@ -17,12 +20,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address, shipping } = parsed.data
+  const { items, address } = parsed.data
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
   const backendUrl = process.env.BACKEND_URL
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const built = await buildCheckoutSnapshot(query, parsed.data)
+  const shipping = await resolveCheckoutShipping(
+    { query, calculator: getShippingCalculator(), cache: defaultQuoteCache, logger: req.scope.resolve("logger") },
+    parsed.data
+  )
+  if (!shipping.ok) return res.status(shipping.status).json(shipping.body)
+  const option = shipping.option
+
+  const built = await buildCheckoutSnapshot(query, parsed.data, option)
   if ("unresolvedProductId" in built) {
     return res.status(400).json({
       error: "Produto sem vendedor associado.",
@@ -56,13 +66,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             unit_price: item.price / 100,
             currency_id: "BRL",
           })),
-          ...(shipping.price > 0
+          ...(option.total > 0
             ? [
                 {
-                  id: `frete-${shipping.id}`,
-                  title: `Frete — ${shipping.name}`,
+                  id: `frete-${option.tier}`,
+                  title: `Frete — ${option.label}`,
                   quantity: 1,
-                  unit_price: shipping.price / 100,
+                  unit_price: option.total / 100,
                   currency_id: "BRL",
                 },
               ]

@@ -1,8 +1,11 @@
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { CHECKOUT_MODULE } from "../../../../../modules/checkout"
+import { resolveCheckoutShipping } from "../../../../../utils/checkout-shipping"
 
 jest.mock("mercadopago")
+jest.mock("../../../../../utils/checkout-shipping", () => ({ resolveCheckoutShipping: jest.fn() }))
+jest.mock("../../../../../utils/melhor-envio", () => ({ getShippingCalculator: () => null }))
 jest.mock("crypto", () => ({ randomUUID: () => "fixed-uuid-1234" }))
 
 const MockPreference = Preference as jest.MockedClass<typeof Preference>
@@ -53,6 +56,11 @@ const makeRes = () => {
   return res
 }
 
+const shippingOption = {
+  tier: "economico" as const, label: "Econômico", total: 2500, deliveryDays: 11,
+  sellers: [{ sellerId: "seller-1", sellerName: "Loja", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 2500, deliveryDays: 9 }],
+}
+
 const validBody = {
   items: [{ title: "Camiseta", quantity: 1, price: 7900, variantId: "var-1", productId: "prod-1" }],
   address: {
@@ -66,8 +74,7 @@ const validBody = {
     city: "Cachoeira",
     state: "BA",
   },
-  shipping: { id: "pac", name: "PAC", price: 2500 },
-  total: 10400,
+  shipping: { tier: "economico", expectedTotal: 2500 },
   document: "111.444.777-35",
 }
 
@@ -76,6 +83,7 @@ describe("POST /store/checkout/preference", () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({ ok: true, option: shippingOption })
     mockPreferenceCreate = jest.fn()
     MockPreference.mockImplementation(() => ({ create: mockPreferenceCreate } as any))
     ;(MercadoPagoConfig as jest.MockedClass<typeof MercadoPagoConfig>).mockImplementation(() => ({} as any))
@@ -124,9 +132,12 @@ describe("POST /store/checkout/preference", () => {
 
   it("omits shipping item when price is 0", async () => {
     mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+    ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
+      ok: true,
+      option: { ...shippingOption, total: 0, sellers: [{ ...shippingOption.sellers[0], price: 0 }] },
+    })
 
-    const body = { ...validBody, shipping: { id: "retirada", name: "Retirada", price: 0 } }
-    await POST(makeReq(body), makeRes())
+    await POST(makeReq(validBody), makeRes())
 
     const reqBody = mockPreferenceCreate.mock.calls[0][0].body
     const shippingItem = reqBody.items.find((i: any) => i.id.startsWith("frete-"))
@@ -277,7 +288,7 @@ describe("POST /store/checkout/preference", () => {
     expect(body.metadata.items).toEqual([
       expect.objectContaining({ variant_id: "var-1", title: "Camiseta", quantity: 1, price: 7900 }),
     ])
-    expect(body.metadata.shipping).toEqual({ id: "pac", name: "PAC", price: 2500 })
+    expect(body.metadata.shipping).toEqual({ id: "economico", name: "Econômico", price: 2500 })
     expect(body.metadata.total).toBe(10400)
   })
 
@@ -293,7 +304,7 @@ describe("POST /store/checkout/preference", () => {
         seller_groups: expect.arrayContaining([expect.objectContaining({ sellerId: "seller-1" })]),
         buyer_document: "11144477735",
         items: [expect.objectContaining({ title: "Camiseta", quantity: 1, price: 7900 })],
-        shipping: { id: "pac", name: "PAC", price: 2500 },
+        shipping: { id: "economico", name: "Econômico", price: 2500 },
         total: 10400,
       })
     )
@@ -334,5 +345,22 @@ describe("POST /store/checkout/preference", () => {
 
     expect(res._status).toBe(200)
     expect(res._body).toEqual(expect.objectContaining({ preference_id: "pref-xyz" }))
+  })
+
+  it("charges the server-side shipping as the 'Frete — Econômico' item", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1", init_point: "x" })
+    await POST(makeReq(validBody), makeRes())
+    const body = mockPreferenceCreate.mock.calls[0][0].body
+    expect(body.items).toContainEqual(expect.objectContaining({ id: "frete-economico", title: "Frete — Econômico", unit_price: 25 }))
+  })
+
+  it("passes through 409 when the shipping price changed, without creating a preference", async () => {
+    ;(resolveCheckoutShipping as jest.Mock).mockResolvedValueOnce({ ok: false, status: 409, body: { error: "O valor do frete foi atualizado", quote: {} } })
+    const req = makeReq(validBody)
+    const res = makeRes()
+    await POST(req, res)
+    expect(res._status).toBe(409)
+    expect(mockPreferenceCreate).not.toHaveBeenCalled()
+    expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
   })
 })

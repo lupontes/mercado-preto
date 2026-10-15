@@ -16,9 +16,16 @@ const request: CheckoutRequest = {
     city: "Cachoeira",
     state: "BA",
   },
-  shipping: { id: "pac", name: "PAC", price: 2500 },
-  total: 23300,
+  shipping: { tier: "economico", expectedTotal: 5500 },
   document: "111.444.777-35",
+}
+
+const option = {
+  tier: "economico" as const, label: "Econômico", total: 5500, deliveryDays: 11,
+  sellers: [
+    { sellerId: "seller-a", sellerName: "A", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 2500, deliveryDays: 9 },
+    { sellerId: "seller-b", sellerName: "B", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 3000, deliveryDays: 7 },
+  ],
 }
 
 function makeQuery(sellers: Record<string, string>) {
@@ -47,7 +54,7 @@ describe("buildCheckoutSnapshot", () => {
   it("builds the snapshot payload with seller groups, digits-only document and CEP", async () => {
     const query = makeQuery({ "prod-1": "seller-a", "prod-2": "seller-b" })
 
-    const result = await buildCheckoutSnapshot(query, request)
+    const result = await buildCheckoutSnapshot(query, request, option)
 
     expect(query.graph).toHaveBeenCalledWith({
       entity: "product",
@@ -62,14 +69,25 @@ describe("buildCheckoutSnapshot", () => {
       { variant_id: "var-1", title: "Camiseta", quantity: 2, price: 7900 },
       { variant_id: "var-2", title: "Boné", quantity: 1, price: 5000 },
     ])
-    expect(result.payload.shipping).toEqual({ id: "pac", name: "PAC", price: 2500 })
-    expect(result.payload.total).toBe(23300)
+  })
+
+  it("stores each seller's real shipping and the server-side total", async () => {
+    const query = makeQuery({ "prod-1": "seller-a", "prod-2": "seller-b" })
+    const result = await buildCheckoutSnapshot(query, request, option)
+    if (!("payload" in result)) throw new Error("expected payload")
+    expect(result.payload.seller_groups.map((g) => g.shippingShare)).toEqual([2500, 3000])
+    expect(result.payload.shipping).toEqual({ id: "economico", name: "Econômico", price: 5500 })
+    expect(result.payload.total).toBe(2 * 7900 + 5000 + 5500)
+  })
+
+  it("rejects the old shipping shape (price sent by the browser)", () => {
+    expect(checkoutRequestSchema.safeParse({ ...request, shipping: { id: "pac", name: "PAC", price: 1 } }).success).toBe(false)
   })
 
   it("returns unresolvedProductId when a product has no seller", async () => {
     const query = makeQuery({ "prod-1": "seller-a" })
 
-    const result = await buildCheckoutSnapshot(query, request)
+    const result = await buildCheckoutSnapshot(query, request, option)
 
     expect(result).toEqual({ unresolvedProductId: "prod-2" })
   })
