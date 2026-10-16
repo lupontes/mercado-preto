@@ -1,6 +1,6 @@
 import type { CheckoutRequest } from "./checkout-payload"
 import type { ShippingCalculator } from "./melhor-envio"
-import { quoteShipping, type QuoteCache, type ShippingOption } from "./shipping-quote"
+import { quoteFailureResponse, quoteShipping, type QuoteCache, type ShippingOption } from "./shipping-quote"
 
 type Deps = {
   query: { graph: (args: any) => Promise<{ data: any[] }> }
@@ -17,7 +17,7 @@ type Deps = {
 export async function resolveCheckoutShipping(
   deps: Deps,
   request: CheckoutRequest
-): Promise<{ ok: true; option: ShippingOption } | { ok: false; status: 400 | 409 | 422; body: Record<string, unknown> }> {
+): Promise<{ ok: true; option: ShippingOption } | { ok: false; status: 400 | 409 | 422 | 502; body: Record<string, unknown> }> {
   let quote: Awaited<ReturnType<typeof quoteShipping>>
   try {
     quote = await quoteShipping(deps, {
@@ -25,8 +25,10 @@ export async function resolveCheckoutShipping(
       items: request.items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
     })
   } catch (err) {
-    // Unknown variant / seller-less product (stale cart): same 400 as /store/shipping/quote.
-    return { ok: false, status: 400, body: { error: err instanceof Error ? err.message : String(err) } }
+    // Same mapping as /store/shipping/quote: stale cart -> 400 with the buyer message,
+    // anything internal -> logged, generic 502.
+    const failure = quoteFailureResponse(err, deps.logger)
+    return { ok: false, ...failure }
   }
 
   if (quote.unavailableSellers.length > 0) {

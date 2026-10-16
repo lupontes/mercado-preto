@@ -33,6 +33,33 @@ export type ShippingQuote = { options: ShippingOption[]; unavailableSellers: Una
 
 export type QuoteItemInput = { variantId: string; quantity: number }
 
+/**
+ * An error whose message is written for the buyer. Anything else thrown while
+ * quoting (DB, infra, calculator bugs) is internal and must never reach the UI.
+ */
+export class BuyerFacingError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BuyerFacingError"
+  }
+}
+
+export const QUOTE_UNEXPECTED_FAILURE_MESSAGE = "Não foi possível calcular o frete agora. Tente novamente em instantes."
+
+/**
+ * Maps a quoteShipping failure to an HTTP answer: buyer-facing errors keep
+ * their message with 400; anything else is logged and answered with a generic
+ * message and 502, so internal text never leaks.
+ */
+export function quoteFailureResponse(
+  err: unknown,
+  logger?: { error: (m: string) => void }
+): { status: 400 | 502; body: { error: string } } {
+  if (err instanceof BuyerFacingError) return { status: 400, body: { error: err.message } }
+  logger?.error(`[shipping-quote] falha inesperada: ${err instanceof Error ? err.stack ?? err.message : String(err)}`)
+  return { status: 502, body: { error: QUOTE_UNEXPECTED_FAILURE_MESSAGE } }
+}
+
 // Shown to the buyer as-is (quote route and checkout answer it with 400), so it
 // carries no internal ids — those only go to the logs.
 export const CART_ITEM_UNAVAILABLE_MESSAGE =
@@ -123,7 +150,7 @@ export async function quoteShipping(
   for (const item of input.items) {
     if (!variantById.has(item.variantId)) {
       deps.logger?.error(`[shipping-quote] variante não encontrada: ${item.variantId}`)
-      throw new Error(CART_ITEM_UNAVAILABLE_MESSAGE)
+      throw new BuyerFacingError(CART_ITEM_UNAVAILABLE_MESSAGE)
     }
   }
 
@@ -146,7 +173,7 @@ export async function quoteShipping(
     const product: any = productById.get(variant.product_id)
     if (!product?.seller?.id) {
       deps.logger?.error(`[shipping-quote] produto sem vendedor: ${variant.product_id}`)
-      throw new Error(CART_ITEM_UNAVAILABLE_MESSAGE)
+      throw new BuyerFacingError(CART_ITEM_UNAVAILABLE_MESSAGE)
     }
     const sellerId = product.seller.id
     if (!buckets.has(sellerId)) {

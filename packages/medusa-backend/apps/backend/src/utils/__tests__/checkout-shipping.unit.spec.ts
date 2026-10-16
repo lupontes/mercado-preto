@@ -1,5 +1,5 @@
 jest.mock("../shipping-quote", () => ({ ...jest.requireActual("../shipping-quote"), quoteShipping: jest.fn() }))
-import { quoteShipping, type ShippingOption } from "../shipping-quote"
+import { BuyerFacingError, CART_ITEM_UNAVAILABLE_MESSAGE, quoteShipping, type ShippingOption } from "../shipping-quote"
 import { resolveCheckoutShipping } from "../checkout-shipping"
 
 const option = (tier: "economico" | "rapido", total: number): ShippingOption => ({
@@ -48,10 +48,29 @@ describe("resolveCheckoutShipping", () => {
     })
   })
 
-  it("answers 400 when the quote fails for an unknown variant or seller", async () => {
-    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
+  it("answers 400 with the buyer message when the quote fails for an unknown variant or seller", async () => {
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new BuyerFacingError(CART_ITEM_UNAVAILABLE_MESSAGE))
     expect(await resolveCheckoutShipping(deps, request)).toEqual({
-      ok: false, status: 400, body: { error: "Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente." },
+      ok: false, status: 400, body: { error: CART_ITEM_UNAVAILABLE_MESSAGE },
     })
+  })
+
+  it("does not leak an infra error: logs it and answers a generic 502", async () => {
+    const logger = { error: jest.fn() }
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("connection refused 10.0.0.5:5432"))
+    const result = await resolveCheckoutShipping({ ...deps, logger }, request)
+    expect(result).toEqual({
+      ok: false, status: 502, body: { error: "Não foi possível calcular o frete agora. Tente novamente em instantes." },
+    })
+    expect(JSON.stringify(result)).not.toContain("connection refused")
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("connection refused"))
+  })
+
+  it("does not leak when query.graph itself rejects (real quoteShipping)", async () => {
+    ;(quoteShipping as jest.Mock).mockImplementation(jest.requireActual("../shipping-quote").quoteShipping)
+    const query = { graph: jest.fn().mockRejectedValue(new Error("connection refused")) }
+    const result: any = await resolveCheckoutShipping({ ...deps, query, logger: { error: jest.fn() } }, request)
+    expect(result.status).toBe(502)
+    expect(result.body.error).not.toContain("connection refused")
   })
 })

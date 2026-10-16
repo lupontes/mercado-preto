@@ -1,12 +1,13 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 jest.mock("../../../../../utils/shipping-quote", () => ({
+  ...jest.requireActual("../../../../../utils/shipping-quote"),
   quoteShipping: jest.fn(),
   defaultQuoteCache: {},
 }))
 jest.mock("../../../../../utils/melhor-envio", () => ({ getShippingCalculator: jest.fn(() => "calculator") }))
 
-import { quoteShipping } from "../../../../../utils/shipping-quote"
+import { BuyerFacingError, CART_ITEM_UNAVAILABLE_MESSAGE, quoteShipping } from "../../../../../utils/shipping-quote"
 import { POST } from "../route"
 
 function makeReq(body: unknown) {
@@ -50,11 +51,22 @@ describe("POST /store/shipping/quote", () => {
     expect(quoteShipping).not.toHaveBeenCalled()
   })
 
-  it("answers 400 when a variant does not exist", async () => {
-    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
+  it("answers 400 with the buyer message when a variant does not exist", async () => {
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new BuyerFacingError(CART_ITEM_UNAVAILABLE_MESSAGE))
     const res = makeRes()
     await POST(makeReq({ postalCode: "01310100", items: [{ variantId: "v9", quantity: 1 }] }), res)
     expect(res._status).toBe(400)
-    expect(res._body.error).toBe("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente.")
+    expect(res._body.error).toBe(CART_ITEM_UNAVAILABLE_MESSAGE)
+  })
+
+  it("does not leak an infra error: logs it and answers a generic 502", async () => {
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("connection refused 10.0.0.5:5432"))
+    const req = makeReq({ postalCode: "01310100", items: [{ variantId: "v1", quantity: 1 }] })
+    const res = makeRes()
+    await POST(req, res)
+    expect(res._status).toBe(502)
+    expect(res._body).toEqual({ error: "Não foi possível calcular o frete agora. Tente novamente em instantes." })
+    expect(JSON.stringify(res._body)).not.toContain("connection refused")
+    expect(req.scope.resolve("logger").error).toHaveBeenCalledWith(expect.stringContaining("connection refused"))
   })
 })
