@@ -44,8 +44,17 @@ const TIERS: Array<{ tier: ShippingTier; label: string; service: "PAC" | "SEDEX"
 ]
 
 export class QuoteCache {
+  // Map keeps insertion order, so the first key is always the oldest entry.
   private entries = new Map<string, { value: ServiceQuote[]; expiresAt: number }>()
-  constructor(private ttlMs = 10 * 60 * 1000, private now: () => number = Date.now) {}
+  constructor(
+    private ttlMs = 10 * 60 * 1000,
+    private now: () => number = Date.now,
+    // Keys come from buyer input (CEP + cart), so the cache must not grow without bound.
+    private maxEntries = 1000
+  ) {}
+  get size(): number {
+    return this.entries.size
+  }
   get(key: string): ServiceQuote[] | undefined {
     const hit = this.entries.get(key)
     if (!hit) return undefined
@@ -56,7 +65,16 @@ export class QuoteCache {
     return hit.value
   }
   set(key: string, value: ServiceQuote[]): void {
-    this.entries.set(key, { value, expiresAt: this.now() + this.ttlMs })
+    const now = this.now()
+    for (const [k, entry] of this.entries) {
+      if (entry.expiresAt < now) this.entries.delete(k)
+    }
+    this.entries.delete(key)
+    while (this.entries.size >= this.maxEntries) {
+      const oldest = this.entries.keys().next().value as string
+      this.entries.delete(oldest)
+    }
+    this.entries.set(key, { value, expiresAt: now + this.ttlMs })
   }
 }
 

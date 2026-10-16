@@ -51,6 +51,12 @@ describe("checkoutRequestSchema", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, items: [] }).success).toBe(false)
   })
 
+  it("rejects more than 50 items", () => {
+    const items = Array.from({ length: 51 }, (_, i) => ({ ...request.items[0], variantId: `var-${i}` }))
+    expect(checkoutRequestSchema.safeParse({ ...request, items }).success).toBe(false)
+    expect(checkoutRequestSchema.safeParse({ ...request, items: items.slice(0, 50) }).success).toBe(true)
+  })
+
   it("rejects an invalid CPF/CNPJ", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, document: "123" }).success).toBe(false)
   })

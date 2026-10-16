@@ -199,3 +199,36 @@ describe("quoteShipping", () => {
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("prod-x"))
   })
 })
+
+describe("QuoteCache", () => {
+  const quote: ServiceQuote[] = [{ service: "PAC", serviceId: 1, price: 1, deliveryDays: 1 }]
+
+  it("evicts the oldest entry once the cap is reached", () => {
+    const cache = new QuoteCache(60_000, () => 0, 2)
+    cache.set("a", quote)
+    cache.set("b", quote)
+    cache.set("c", quote)
+    expect(cache.size).toBe(2)
+    expect(cache.get("a")).toBeUndefined()
+    expect(cache.get("b")).toBe(quote)
+    expect(cache.get("c")).toBe(quote)
+  })
+
+  it("caps at 1000 entries by default", () => {
+    const cache = new QuoteCache(60_000, () => 0)
+    for (let i = 0; i < 1001; i++) cache.set(`k${i}`, quote)
+    expect(cache.size).toBe(1000)
+    expect(cache.get("k0")).toBeUndefined()
+  })
+
+  it("drops expired entries when a new one is stored", () => {
+    let now = 0
+    const cache = new QuoteCache(1000, () => now)
+    cache.set("old-1", quote)
+    cache.set("old-2", quote)
+    now = 1001
+    cache.set("fresh", quote)
+    expect(cache.size).toBe(1)
+    expect(cache.get("fresh")).toBe(quote)
+  })
+})

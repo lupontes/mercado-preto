@@ -41,6 +41,7 @@ describe("POST /store/shipping/quote", () => {
       { postalCode: "123", items: [{ variantId: "v1", quantity: 1 }] },
       { postalCode: "01310100", items: [] },
       { postalCode: "01310100", items: [{ variantId: "v1", quantity: 0 }] },
+      { postalCode: "01310100", items: Array.from({ length: 51 }, (_, i) => ({ variantId: `v${i}`, quantity: 1 })) },
     ]) {
       const res = makeRes()
       await POST(makeReq(body), res)

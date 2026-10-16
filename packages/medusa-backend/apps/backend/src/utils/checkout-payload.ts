@@ -15,7 +15,7 @@ export const checkoutRequestSchema = z.object({
       variantId: z.string(),
       productId: z.string(),
     })
-  ).min(1),
+  ).min(1).max(50),
   address: z.object({
     firstName: z.string(),
     lastName: z.string(),

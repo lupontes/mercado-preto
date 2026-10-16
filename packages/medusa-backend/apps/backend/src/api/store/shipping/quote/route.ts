@@ -6,7 +6,7 @@ import { defaultQuoteCache, quoteShipping } from "../../../../utils/shipping-quo
 
 export const quoteRequestSchema = z.object({
   postalCode: z.string().refine((v) => v.replace(/\D/g, "").length === 8, "CEP inválido. Informe 8 dígitos."),
-  items: z.array(z.object({ variantId: z.string().min(1), quantity: z.number().int().positive() })).min(1),
+  items: z.array(z.object({ variantId: z.string().min(1), quantity: z.number().int().positive() })).min(1).max(50, "O carrinho pode ter no máximo 50 itens."),
 })
 
 // Prices, weights and the seller of each item come from the database — the

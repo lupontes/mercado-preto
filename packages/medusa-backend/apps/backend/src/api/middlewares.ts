@@ -61,6 +61,15 @@ const registerRateLimit = rateLimit({
   keyGenerator: rateLimitKeyGenerator,
 })
 
+// Each quote fans out to one paid Melhor Envio call per seller, so an open
+// endpoint is an easy way to burn the marketplace's API quota.
+export const shippingQuoteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  message: { error: "Muitas cotações de frete. Aguarde um minuto e tente novamente." },
+  keyGenerator: rateLimitKeyGenerator,
+})
+
 export default defineMiddlewares({
   routes: [
     {
@@ -82,6 +91,10 @@ export default defineMiddlewares({
     {
       matcher: "/store/sellers/set-password",
       middlewares: [loginRateLimit],
+    },
+    {
+      matcher: "/store/shipping/quote",
+      middlewares: [shippingQuoteRateLimit],
     },
     {
       matcher: "/store/sellers/logout",
