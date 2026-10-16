@@ -10,3 +10,10 @@ allowBuilds:
   protobufjs: true
   sharp: true
   unrs-resolver: true
+# pnpm 11 only reads settings from this file; the old `pnpm` field in the root
+# package.json is ignored. A single @types/react across the workspace matters
+# because Next's own .d.ts files resolve `react` through pnpm's hoisted copy,
+# and with two versions installed the winner depended on install history.
+overrides:
+  '@types/react': ^19.0.0
+  '@types/react-dom': ^19.0.0
