@@ -301,8 +301,19 @@ source ~/.bashrc && nvm use 22
 # Após preencher NEXT_PUBLIC_PUBLISHABLE_KEY e NEXT_PUBLIC_REGION_ID no .env.local:
 cd apps/storefront
 pnpm build
+# `pnpm build` dispara automaticamente o script `postbuild`, que copia
+# `public/` e `.next/static/` para dentro de `.next/standalone/` — o
+# Next.js não inclui esses diretórios no bundle standalone por padrão.
 
 # Rodar em produção (porta 3000)
+# Importante: next.config.ts usa `output: 'standalone'`, então NÃO se pode
+# rodar com `next start` (ele loga
+# '"next start" does not work with "output: standalone" configuration' e
+# não serve o bundle standalone corretamente). O script `start` do
+# package.json já chama `node .next/standalone/apps/storefront/server.js`,
+# com `HOSTNAME=0.0.0.0` fixo: o server standalone escuta em
+# `process.env.HOSTNAME`, e se o PM2 herdar o nome da máquina nessa variável
+# o nginx (no Docker, via 172.18.0.1:3000) deixa de alcançar o storefront.
 pnpm start &
 ```
 
@@ -405,6 +416,9 @@ docker compose -f infra/docker-compose.oci.yml build medusa
 docker compose -f infra/docker-compose.oci.yml up -d medusa
 
 # Rebuild do storefront após mudanças
+# (o `postbuild` do package.json já recopia public/ e .next/static/ para
+# dentro de .next/standalone/; `pm2 restart` volta a chamar `pnpm start`,
+# que executa node .next/standalone/apps/storefront/server.js)
 cd ~/marketplace/apps/storefront
 pnpm build && pm2 restart storefront
 ```
@@ -431,6 +445,8 @@ docker compose -f infra/docker-compose.oci.yml run --rm medusa npx medusa db:mig
 docker compose -f infra/docker-compose.oci.yml up -d medusa
 
 # Rebuild storefront
+# (mesmo aviso do Passo 8: `pnpm start`/`pm2 restart` precisam continuar
+# apontando para o servidor standalone, nunca para `next start`)
 cd apps/storefront
 pnpm build && pm2 restart storefront
 ```

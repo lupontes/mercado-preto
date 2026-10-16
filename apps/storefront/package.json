@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
-    "start": "next start",
+    "postbuild": "mkdir -p .next/standalone/apps/storefront/.next && cp -r public .next/standalone/apps/storefront/public && cp -r .next/static .next/standalone/apps/storefront/.next/static",
+    "start": "HOSTNAME=0.0.0.0 node .next/standalone/apps/storefront/server.js",
     "lint": "next lint",
     "test": "vitest run"
   },
