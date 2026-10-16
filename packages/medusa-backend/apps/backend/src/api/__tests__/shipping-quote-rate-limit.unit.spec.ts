@@ -13,7 +13,9 @@ function makeRes() {
 }
 
 async function hit(ip: string) {
-  const req = { ip, headers: { "x-forwarded-for": ip }, method: "POST", app: { get: () => false } } as any
+  // The key generator reads the socket address (see rateLimitKeyGenerator), so a
+  // public client is simulated as a direct connection from that IP.
+  const req = { ip, socket: { remoteAddress: ip }, headers: {}, method: "POST", app: { get: () => false } } as any
   const res = makeRes()
   const next = jest.fn()
   await shippingQuoteRateLimit(req, res, next)

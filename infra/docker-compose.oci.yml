@@ -1,18 +1,25 @@
 # =============================================================================
-# Mercado Preto — Ambiente de Testes Oracle Cloud (Ambiente B)
-# Servidor: 168.138.148.67 | Portas NSG: 9000, 3000, 8080, 7700
+# Mercado Preto — Oracle Cloud test environment (Environment B)
+# Server: 168.138.148.67 | Public ports: 80, 443 (and 22 for SSH)
 #
-# Uso:
-#   Subir:    docker compose -f docker-compose.oci.yml --env-file .env.oci up -d
+# Usage:
+#   Start:    docker compose -f docker-compose.oci.yml --env-file .env.oci up -d
 #   Logs:     docker compose -f docker-compose.oci.yml logs -f
-#   Parar:    docker compose -f docker-compose.oci.yml down
+#   Stop:     docker compose -f docker-compose.oci.yml down
 #   Rebuild:  docker compose -f docker-compose.oci.yml build --no-cache medusa
+#
+# Internal ports are published on 127.0.0.1 only (reach them via SSH tunnel).
 # =============================================================================
+
+# Pinned on purpose: the project name prefixes the volumes (infra_postgres_data
+# etc.). Changing it makes Docker create new, empty volumes. It is also the
+# project name of docker-compose.prod.yml, which lives in the same folder.
+name: infra
 
 services:
 
   # ---------------------------------------------------------------------------
-  # PostgreSQL — banco principal (interno, sem porta externa)
+  # PostgreSQL — banco principal (port published only on 127.0.0.1; access via SSH tunnel)
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
@@ -22,7 +29,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -33,14 +40,14 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Redis — cache e filas (interno, sem porta externa)
+  # Redis — cache e filas (port published only on 127.0.0.1; access via SSH tunnel)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: mercado-preto-redis
     command: redis-server --appendonly yes
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -51,8 +58,7 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Meilisearch — busca full-text (porta 7700 exposta — NSG aberta)
-  # Diferença do docker-compose.yml local: 7700:7700 em vez de 7701:7700
+  # Meilisearch — full-text search (internal; dashboard via SSH tunnel to the container's port 7700)
   # ---------------------------------------------------------------------------
   meilisearch:
     image: getmeili/meilisearch:v1.13
@@ -60,8 +66,6 @@ services:
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       MEILI_ENV: development
-    ports:
-      - "7700:7700"
     volumes:
       - meilisearch_data:/meili_data
     restart: unless-stopped
@@ -72,7 +76,7 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Evolution API — gateway WhatsApp (porta 8080 — NSG aberta)
+  # Evolution API — gateway WhatsApp (port 8080 published only on 127.0.0.1; access via SSH tunnel)
   # SERVER_URL aponta para o IP público do servidor OCI
   # ---------------------------------------------------------------------------
   evolution-api:
@@ -80,7 +84,7 @@ services:
     container_name: mercado-preto-evolution
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       SERVER_URL: http://${SERVER_IP}:8080
       DEL_INSTANCE: "false"
@@ -107,7 +111,7 @@ services:
       - evolution_data:/evolution/instances
 
   # ---------------------------------------------------------------------------
-  # Medusa backend — motor do marketplace (porta 9000 — NSG aberta)
+  # Medusa backend — marketplace engine (public only via nginx at /api, /app, /auth, /admin, /store, /seller)
   # Build: docker build -t mercado-preto-api packages/medusa-backend
   # ---------------------------------------------------------------------------
   medusa:
@@ -117,7 +121,7 @@ services:
     image: mercado-preto-api:oci
     container_name: mercado-preto-api
     ports:
-      - "9000:9000"
+      - "127.0.0.1:9000:9000"
     environment:
       # Infra (resolvida dentro da rede Docker)
       # sslmode=disable é obrigatório: sem ele, o driver pg trava
@@ -139,10 +143,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_SECRET: ${COOKIE_SECRET}
 
-      # CORS — apontar para o IP público do servidor OCI
-      STORE_CORS: http://${SERVER_IP}:3000
-      ADMIN_CORS: http://${SERVER_IP}:9000
-      AUTH_CORS: http://${SERVER_IP}:3000,http://${SERVER_IP}:9000
+      # CORS — the browser only talks to the public domain (nginx in front)
+      STORE_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
+      ADMIN_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
+      AUTH_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
 
       # MercadoPago
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
@@ -151,9 +155,10 @@ services:
       # Pagamento "Dinheiro (teste)" — só ambientes de teste (ver .env.template)
       TEST_CASH_PAYMENT_ENABLED: ${TEST_CASH_PAYMENT_ENABLED:-false}
 
-      # URL pública do backend (MercadoPago callbacks)
-      # Em testes: IP público. Em produção: domínio HTTPS.
-      BACKEND_URL: http://${SERVER_IP}:9000
+      # Public backend URL: base for the Mercado Pago notification_url, the
+      # uploads /static and the Mercado Livre callback. nginx strips the /api
+      # prefix before the request reaches medusa.
+      BACKEND_URL: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}/api
 
       # Melhor Envio
       MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
@@ -187,6 +192,13 @@ services:
       # Comissão padrão
       MARKETPLACE_COMMISSION_RATE: ${MARKETPLACE_COMMISSION_RATE:-15}
 
+    volumes:
+      # Arquivos enviados pelo file module local (imagens de produto). Sem
+      # este volume, cada recriação do container perde /app/static e todas as
+      # imagens passam a dar 404 — visto em 2026-10-15. O nome resolve para
+      # o volume existente `infra_backend_uploads`, criado pelo
+      # docker-compose.prod.yml (mesmo nome de projeto: `infra`).
+      - backend_uploads:/app/static
     depends_on:
       postgres:
         condition: service_healthy
@@ -197,11 +209,10 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Certbot — renovação automática do certificado Let's Encrypt
-  # O nginx (mercado-preto-nginx) não é gerenciado por este compose, mas lê os
-  # certificados do mesmo diretório e recarrega a cada 6h; sem este serviço o
-  # certificado expira em 90 dias sem nenhum aviso (ocorreu em 2026-10-05).
-  # Emissão inicial: infra/nginx/init-letsencrypt.sh
+  # Certbot — automatic Let's Encrypt certificate renewal
+  # Writes to ./nginx/certbot, which the nginx service below reads and reloads
+  # every 6h; without this service the certificate expires after 90 days with
+  # no warning (happened on 2026-10-05). Initial issuance: infra/nginx/init-letsencrypt.sh
   # ---------------------------------------------------------------------------
   certbot:
     image: certbot/certbot:latest
@@ -212,8 +223,33 @@ services:
     entrypoint: sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # nginx — the only public entry point (80/443)
+  # OCI-specific config in ./nginx/oci, mounted as a directory: a single file
+  # mounted on its own does not see changes from a git pull, because checkout
+  # creates a new inode. The storefront runs on the host (PM2) and is reached
+  # through host.docker.internal.
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: mercado-preto-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx/oci:/etc/nginx/oci:ro
+      - ./nginx/certbot/conf:/etc/nginx/ssl:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
+    depends_on:
+      - medusa
+    restart: unless-stopped
+    command: sh -c 'while :; do sleep 6h; nginx -c /etc/nginx/oci/nginx.conf -s reload; done & exec nginx -c /etc/nginx/oci/nginx.conf -g "daemon off;"'
+
 volumes:
   postgres_data:
   redis_data:
   meilisearch_data:
   evolution_data:
+  backend_uploads:

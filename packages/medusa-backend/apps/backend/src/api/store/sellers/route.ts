@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SELLER_MODULE } from "../../../modules/seller"
 import SellerModuleService from "../../../modules/seller/service"
+import { toPublicSeller } from "../../../utils/public-seller"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
@@ -17,15 +18,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   })
   const count = await sellerService.listSellers(filters).then((s) => s.length)
 
-  const publicSellers = sellers.map(({ id, name, bio, location: loc, category: cat, status, created_at }) => ({
-    id,
-    name,
-    bio,
-    location: loc,
-    category: cat,
-    status,
-    created_at,
-  }))
+  const publicSellers = sellers.map(toPublicSeller)
 
   res.json({ sellers: publicSellers, count, limit: Number(limit), offset: Number(offset) })
 }
