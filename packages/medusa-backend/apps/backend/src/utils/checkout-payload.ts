@@ -21,7 +21,9 @@ export const checkoutRequestSchema = z.object({
     lastName: z.string(),
     email: z.string().email(),
     phone: z.string().optional(),
-    cep: z.string(),
+    // Same rule as /store/shipping/quote: the re-quote and the stored
+    // postal_code both need a real 8-digit CEP.
+    cep: z.string().refine((v) => v.replace(/\D/g, "").length === 8, "CEP inválido. Informe 8 dígitos."),
     address1: z.string(),
     address2: z.string().optional(),
     city: z.string(),

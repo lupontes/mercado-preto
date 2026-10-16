@@ -57,6 +57,15 @@ describe("checkoutRequestSchema", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, items: items.slice(0, 50) }).success).toBe(true)
   })
 
+  it("accepts a CEP with or without the dash and rejects one without 8 digits", () => {
+    const withCep = (cep: string) => ({ ...request, address: { ...request.address, cep } })
+    expect(checkoutRequestSchema.safeParse(withCep("44300-000")).success).toBe(true)
+    expect(checkoutRequestSchema.safeParse(withCep("44300000")).success).toBe(true)
+    for (const cep of ["", "123", "44300-00", "443000000", "abcde-fgh"]) {
+      expect(checkoutRequestSchema.safeParse(withCep(cep)).success).toBe(false)
+    }
+  })
+
   it("rejects an invalid CPF/CNPJ", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, document: "123" }).success).toBe(false)
   })

@@ -149,6 +149,17 @@ describe("/store/checkout/sandbox-cash", () => {
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
     })
 
+    it("returns 400 without quoting when the CEP does not have 8 digits", async () => {
+      const req = makeReq({ ...validBody, address: { ...validBody.address, cep: "4430-000" } })
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(400)
+      expect(resolveCheckoutShipping).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
     it("returns 422 and creates nothing when shipping is unavailable", async () => {
       ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
         ok: false, status: 422, body: { error: "Frete indisponível para alguns produtos do carrinho", quote: {} },
