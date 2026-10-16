@@ -28,6 +28,15 @@ describe("ProductPackageReviewWidget", () => {
     expect(sdk.client.fetch).toHaveBeenCalledWith("/admin/products/prod-1/package-review", { method: "POST", body: { status: "approved" } })
   })
 
+  it("shows imported products awaiting review even without a package size", async () => {
+    renderWidget({ id: "prod-3", metadata: { package_review: "pending" }, variants: [{ weight: 0.4, length: 20, width: 15, height: 10 }] })
+    expect(screen.getByText("Medidas importadas")).toBeInTheDocument()
+    expect(screen.getByText("20 × 15 × 10 cm · 0.4 kg")).toBeInTheDocument()
+    expect(screen.getByText("Medidas a conferir")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Medidas conferidas" }))
+    expect(sdk.client.fetch).toHaveBeenCalledWith("/admin/products/prod-3/package-review", { method: "POST", body: { status: "approved" } })
+  })
+
   it("renders nothing for products without package metadata (imported catalog)", () => {
     const { container } = renderWidget({ id: "prod-2", metadata: {}, variants: [] })
     expect(container).toBeEmptyDOMElement()

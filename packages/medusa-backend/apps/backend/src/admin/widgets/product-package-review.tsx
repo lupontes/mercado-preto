@@ -17,8 +17,10 @@ const ProductPackageReviewWidget = ({ data }: DetailWidgetProps<AdminProduct>) =
   })
 
   const size = data.metadata?.package_size as PackageSize | undefined
-  if (!size) return null
   const review = data.metadata?.package_review as string | undefined
+  // Imported products carry real measures and a review flag but no size
+  // choice; the team still has to see and approve them.
+  if (!size && !review) return null
   const v = (data.variants ?? [])[0] as any
 
   return (
@@ -31,7 +33,7 @@ const ProductPackageReviewWidget = ({ data }: DetailWidgetProps<AdminProduct>) =
           <StatusBadge color="green">Conferidas</StatusBadge>
         ) : null}
       </div>
-      <Text>{PACKAGE_SIZE_LABELS[size] ?? size}</Text>
+      <Text>{size ? PACKAGE_SIZE_LABELS[size] ?? size : "Medidas importadas"}</Text>
       {v?.length ? (
         <Text size="small" className="text-ui-fg-subtle">{`${v.length} × ${v.width} × ${v.height} cm · ${v.weight} kg`}</Text>
       ) : null}
