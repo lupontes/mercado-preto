@@ -38,3 +38,6 @@ graphify-out/
 
 # Git worktrees isolados (superpowers:using-git-worktrees)
 .worktrees/
+
+# Scratch workspace of the superpowers SDD workflow (ledgers, briefs, review packages)
+.superpowers/
