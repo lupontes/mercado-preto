@@ -19,7 +19,7 @@ name: infra
 services:
 
   # ---------------------------------------------------------------------------
-  # PostgreSQL — banco principal (interno, sem porta externa)
+  # PostgreSQL — banco principal (port published only on 127.0.0.1; access via SSH tunnel)
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
@@ -40,7 +40,7 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Redis — cache e filas (interno, sem porta externa)
+  # Redis — cache e filas (port published only on 127.0.0.1; access via SSH tunnel)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -76,7 +76,7 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
-  # Evolution API — gateway WhatsApp (porta 8080 — NSG aberta)
+  # Evolution API — gateway WhatsApp (port 8080 published only on 127.0.0.1; access via SSH tunnel)
   # SERVER_URL aponta para o IP público do servidor OCI
   # ---------------------------------------------------------------------------
   evolution-api:
@@ -144,9 +144,9 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET}
 
       # CORS — the browser only talks to the public domain (nginx in front)
-      STORE_CORS: ${PUBLIC_URL}
-      ADMIN_CORS: ${PUBLIC_URL}
-      AUTH_CORS: ${PUBLIC_URL}
+      STORE_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
+      ADMIN_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
+      AUTH_CORS: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}
 
       # MercadoPago
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}
@@ -158,7 +158,7 @@ services:
       # Public backend URL: base for the Mercado Pago notification_url, the
       # uploads /static and the Mercado Livre callback. nginx strips the /api
       # prefix before the request reaches medusa.
-      BACKEND_URL: ${PUBLIC_URL}/api
+      BACKEND_URL: ${PUBLIC_URL:?PUBLIC_URL must be set in .env.oci}/api
 
       # Melhor Envio
       MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
