@@ -12,7 +12,7 @@ import PaymentMethodSelector, { type PaymentMethod } from '@/components/payment/
 import { fetchTestCashEnabled } from '@/lib/test-cash'
 import { createTestCashOrder } from './create-test-cash-order'
 import { createPreference, type Address, type CheckoutItem, type PreferenceData } from './create-preference'
-import { fetchShippingQuote } from './shipping-quote'
+import { fetchShippingQuote, shippingQuoteErrorMessage } from './shipping-quote'
 import ShippingOptions from './ShippingOptions'
 
 const MercadoPagoBrick = dynamic(
@@ -105,8 +105,8 @@ export default function CheckoutPage() {
     setLoading(true)
     try {
       await loadQuote()
-    } catch {
-      setError('Não foi possível calcular o frete. Verifique sua conexão e tente novamente.')
+    } catch (err) {
+      setError(shippingQuoteErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -126,8 +126,8 @@ export default function CheckoutPage() {
     try {
       await loadQuote()
       setStep('shipping')
-    } catch {
-      setError('Não foi possível calcular o frete. Verifique sua conexão e tente novamente.')
+    } catch (err) {
+      setError(shippingQuoteErrorMessage(err))
     } finally {
       setLoading(false)
     }

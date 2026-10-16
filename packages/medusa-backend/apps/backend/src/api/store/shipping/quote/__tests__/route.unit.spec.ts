@@ -50,10 +50,10 @@ describe("POST /store/shipping/quote", () => {
   })
 
   it("answers 400 when a variant does not exist", async () => {
-    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Variante não encontrada: v9"))
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
     const res = makeRes()
     await POST(makeReq({ postalCode: "01310100", items: [{ variantId: "v9", quantity: 1 }] }), res)
     expect(res._status).toBe(400)
-    expect(res._body.error).toBe("Variante não encontrada: v9")
+    expect(res._body.error).toBe("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente.")
   })
 })

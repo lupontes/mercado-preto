@@ -49,9 +49,9 @@ describe("resolveCheckoutShipping", () => {
   })
 
   it("answers 400 when the quote fails for an unknown variant or seller", async () => {
-    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Variante não encontrada: v9"))
+    ;(quoteShipping as jest.Mock).mockRejectedValue(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
     expect(await resolveCheckoutShipping(deps, request)).toEqual({
-      ok: false, status: 400, body: { error: "Variante não encontrada: v9" },
+      ok: false, status: 400, body: { error: "Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente." },
     })
   })
 })

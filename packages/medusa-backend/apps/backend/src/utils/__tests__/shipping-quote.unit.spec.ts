@@ -176,12 +176,26 @@ describe("quoteShipping", () => {
     expect(second.options.map((o) => o.tier)).toEqual(["economico", "rapido"])
   })
 
-  it("throws for a variant that does not exist", async () => {
+  it("tells the buyer a cart product is gone and logs the unknown variant id", async () => {
+    const logger = { error: jest.fn() }
     await expect(
       quoteShipping(
-        { query: makeQuery({ variants, products }), calculator: makeCalculator(), cache: new QuoteCache() },
+        { query: makeQuery({ variants, products }), calculator: makeCalculator(), cache: new QuoteCache(), logger },
         { postalCode: "01310100", items: [{ variantId: "nope", quantity: 1 }] }
       )
-    ).rejects.toThrow("nope")
+    ).rejects.toThrow(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("nope"))
+  })
+
+  it("tells the buyer a cart product is gone when its product has no seller", async () => {
+    const logger = { error: jest.fn() }
+    const orphan = [{ ...variants[0], id: "var-x", product_id: "prod-x" }]
+    await expect(
+      quoteShipping(
+        { query: makeQuery({ variants: orphan, products: [{ id: "prod-x", title: "Sem loja", seller: null }] }), calculator: makeCalculator(), cache: new QuoteCache(), logger },
+        { postalCode: "01310100", items: [{ variantId: "var-x", quantity: 1 }] }
+      )
+    ).rejects.toThrow(new Error("Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."))
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("prod-x"))
   })
 })

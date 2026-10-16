@@ -68,4 +68,22 @@ describe('CheckoutPage quote retry', () => {
     await user.click(await reachShippingStep(user, container))
     expect(await screen.findByText(/Não foi possível calcular o frete\. Verifique sua conexão/)).toBeInTheDocument()
   })
+
+  it("shows the backend's message when the quote is rejected", async () => {
+    const message = 'Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente.'
+    stub(async () => ({ ok: false, status: 400, json: async () => ({ error: message }) }))
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+    await user.click(await reachShippingStep(user, container))
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.queryByText(/Verifique sua conexão/)).not.toBeInTheDocument()
+  })
+
+  it('falls back to the connection hint when the rejection has no message', async () => {
+    stub(async () => ({ ok: false, status: 502, json: async () => { throw new SyntaxError('not json') } }))
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+    await user.click(await reachShippingStep(user, container))
+    expect(await screen.findByText(/Não foi possível calcular o frete\. Verifique sua conexão/)).toBeInTheDocument()
+  })
 })

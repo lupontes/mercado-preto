@@ -3,6 +3,16 @@ import { medusaBaseUrl } from '@/lib/medusa-url'
 
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 
+/** The backend refused the quote and told the buyer why (e.g. a product left the store). */
+export class ShippingQuoteRejected extends Error {}
+
+const CONNECTION_HINT = 'Não foi possível calcular o frete. Verifique sua conexão e tente novamente.'
+
+/** Buyer-facing text for a failed quote: the backend's reason when it gave one. */
+export function shippingQuoteErrorMessage(err: unknown): string {
+  return err instanceof ShippingQuoteRejected ? err.message : CONNECTION_HINT
+}
+
 export async function fetchShippingQuote(
   postalCode: string,
   items: Array<{ variantId: string; quantity: number }>
@@ -14,7 +24,8 @@ export async function fetchShippingQuote(
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error ?? 'Não foi possível calcular o frete.')
+    if (typeof body?.error === 'string' && body.error) throw new ShippingQuoteRejected(body.error)
+    throw new Error('Não foi possível calcular o frete.')
   }
   return res.json()
 }

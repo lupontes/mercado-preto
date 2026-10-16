@@ -33,6 +33,11 @@ export type ShippingQuote = { options: ShippingOption[]; unavailableSellers: Una
 
 export type QuoteItemInput = { variantId: string; quantity: number }
 
+// Shown to the buyer as-is (quote route and checkout answer it with 400), so it
+// carries no internal ids — those only go to the logs.
+export const CART_ITEM_UNAVAILABLE_MESSAGE =
+  "Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."
+
 const TIERS: Array<{ tier: ShippingTier; label: string; service: "PAC" | "SEDEX" }> = [
   { tier: "economico", label: "Econômico", service: "PAC" },
   { tier: "rapido", label: "Rápido", service: "SEDEX" },
@@ -98,7 +103,10 @@ export async function quoteShipping(
   })
   const variantById = new Map(variants.map((v: any) => [v.id, v]))
   for (const item of input.items) {
-    if (!variantById.has(item.variantId)) throw new Error(`Variante não encontrada: ${item.variantId}`)
+    if (!variantById.has(item.variantId)) {
+      deps.logger?.error(`[shipping-quote] variante não encontrada: ${item.variantId}`)
+      throw new Error(CART_ITEM_UNAVAILABLE_MESSAGE)
+    }
   }
 
   // Same product → seller resolution buildCheckoutSnapshot already relies on.
@@ -118,7 +126,10 @@ export async function quoteShipping(
   for (const item of input.items) {
     const variant: any = variantById.get(item.variantId)
     const product: any = productById.get(variant.product_id)
-    if (!product?.seller?.id) throw new Error(`Produto sem vendedor: ${variant.product_id}`)
+    if (!product?.seller?.id) {
+      deps.logger?.error(`[shipping-quote] produto sem vendedor: ${variant.product_id}`)
+      throw new Error(CART_ITEM_UNAVAILABLE_MESSAGE)
+    }
     const sellerId = product.seller.id
     if (!buckets.has(sellerId)) {
       buckets.set(sellerId, { sellerId, sellerName: product.seller.name, seller: product.seller, products: [], titles: [], oversized: false })
