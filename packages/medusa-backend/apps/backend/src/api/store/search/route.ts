@@ -3,6 +3,7 @@ import { getMeiliClient, PRODUCTS_INDEX, SELLERS_INDEX } from "../../../utils/me
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SELLER_MODULE } from "../../../modules/seller"
 import SellerModuleService from "../../../modules/seller/service"
+import { toPublicSeller } from "../../../utils/public-seller"
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const {
@@ -70,7 +71,10 @@ async function fallbackSearch(
         )
       : sellers
 
-    return res.json({ hits: filtered, total: filtered.length, query: q })
+    // Raw rows include passwordHash, cpfCnpj, email, pixKey and bank data;
+    // this endpoint is public, so only the public projection may leave.
+    const hits = filtered.map(toPublicSeller)
+    return res.json({ hits, total: hits.length, query: q })
   }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
