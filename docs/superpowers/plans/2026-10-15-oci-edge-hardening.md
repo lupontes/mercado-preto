@@ -24,7 +24,7 @@ netfilter-persistent, bash e Python 3 stdlib para os testes.
 - Portas públicas finais: só 22, 80 e 443.
 - `container_name` do nginx: `mercado-preto-nginx`.
 - `PUBLIC_URL=https://teste.mercadopreto.com.br`; `BACKEND_URL=${PUBLIC_URL}/api`; `STORE_CORS`, `ADMIN_CORS` e `AUTH_CORS` iguais a `${PUBLIC_URL}`.
-- O storefront do servidor usa `NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000`.
+- O storefront do servidor usa `NEXT_PUBLIC_MEDUSA_URL=http://127.0.0.1:9000`.
 - O `infra/nginx/nginx.conf` e o `infra/docker-compose.prod.yml` **não são alterados**.
 - Não usar `--remove-orphans`. Não subir o serviço `evolution-api`, que hoje está parado e fica fora do escopo.
 - Pré-requisito do deploy: #57 e #58 mergeados em `develop`.
@@ -588,7 +588,7 @@ PUBLIC_URL=https://teste.mercadopreto.com.br
 
 ```bash
 # Só o SSR usa esta URL; o navegador chama caminhos relativos via nginx.
-NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000
+NEXT_PUBLIC_MEDUSA_URL=http://127.0.0.1:9000
 NEXT_PUBLIC_SITE_URL=https://teste.mercadopreto.com.br
 ```
 
@@ -630,7 +630,7 @@ Atalho usado nos comandos: `S='ssh -i ~/.ssh/oci_vms ubuntu@168.138.148.67'`.
 
 - [ ] **Step 1: Pré-requisitos**
 
-Confirmar #57 e #58 mergeados: `gh pr view 57 --json state -q .state` e `gh pr view 58 --json state -q .state` → `MERGED`. Se não estiverem, parar e avisar o usuário.
+Confirmar #57 e #58 mergeados: `gh pr view 57 --json state -q .state` e `gh pr view 58 --json state -q .state` → `MERGED`. Confirmar também que a branch já contém o develop: `git fetch -q origin && git merge-base --is-ancestor origin/develop origin/feature/oci-edge-hardening` (exit 0). Se o #57 foi mergeado depois do último merge de develop nesta branch, fazer novo merge de develop (e publicar) antes de seguir. Se algo falhar, parar e avisar o usuário.
 
 - [ ] **Step 2: Smoke vermelho**
 
@@ -645,12 +645,25 @@ $S 'cd ~/marketplace && git fetch -q origin && git checkout -q <branch-da-implem
 $S 'cd ~/marketplace && T=$(date +%Y%m%d%H%M%S) && cp infra/.env.oci infra/.env.oci.bak.$T && cp apps/storefront/.env.local apps/storefront/.env.local.bak.$T && sudo iptables-save > ~/iptables.bak.$T && echo $T'
 ```
 
-Anote o timestamp `T` para o rollback.
+Anote o timestamp `T` para o rollback. O backup do iptables serve só de referência (o rollback não o restaura por inteiro).
 
-- [ ] **Step 4: Storefront com o backend em localhost**
+Antes do Step 5, mais duas checagens:
 
 ```bash
-$S 'cd ~/marketplace/apps/storefront && sed -i "s#^NEXT_PUBLIC_MEDUSA_URL=.*#NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000#" .env.local && grep ^NEXT_PUBLIC_ .env.local | cut -d= -f1,2 | grep -E "MEDUSA_URL|SITE_URL"'
+# uploads em volume nomeado; se não aparecer /app/static=infra_backend_uploads, copiar para fora
+$S "docker inspect mercado-preto-api -f '{{range .Mounts}}{{.Destination}}={{.Name}} {{end}}'"
+# só se faltar o volume: $S 'docker cp mercado-preto-api:/app/static ~/static.bak.$T'
+#   e, depois do Step 5: $S 'docker cp ~/static.bak.$T/. mercado-preto-api:/app/static'
+# nginx/certbot precisam pertencer aos projetos infra/nginx e infra/certbot
+$S "docker inspect -f '{{index .Config.Labels \"com.docker.compose.project\"}}/{{index .Config.Labels \"com.docker.compose.service\"}}' mercado-preto-nginx mercado-preto-certbot"
+```
+
+Expected: a segunda checagem imprime `infra/nginx` e `infra/certbot`; senão, parar (o `up` falharia com "name already in use").
+
+- [ ] **Step 4: Storefront com o backend em 127.0.0.1**
+
+```bash
+$S 'cd ~/marketplace/apps/storefront && sed -i "s#^NEXT_PUBLIC_MEDUSA_URL=.*#NEXT_PUBLIC_MEDUSA_URL=http://127.0.0.1:9000#" .env.local && grep ^NEXT_PUBLIC_ .env.local | cut -d= -f1,2 | grep -E "MEDUSA_URL|SITE_URL"'
 $S 'source ~/.nvm/nvm.sh >/dev/null; cd ~/marketplace/apps/storefront && pnpm build 2>&1 | grep -E "Compiled|Failed" && pm2 restart storefront'
 ```
 
@@ -689,11 +702,12 @@ Run: `infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67`
 Expected: tudo `ok`, exit 0.
 
 ```bash
+$S "docker inspect -f '{{.State.StartedAt}}' mercado-preto-nginx"   # anotar antes
 $S 'cd ~/marketplace/infra && docker compose -f docker-compose.oci.yml --env-file .env.oci up -d --force-recreate medusa && for i in $(seq 1 40); do curl -sf -o /dev/null localhost:9000/health && break; sleep 3; done'
 sleep 12; curl -s -o /dev/null -w "api via nginx após recriar medusa: %{http_code}\n" https://teste.mercadopreto.com.br/api/health
 ```
 
-Expected: `200`, sem reiniciar o nginx.
+Expected: `200`. Rodar de novo o `docker inspect ... StartedAt` do nginx: o valor deve ser igual ao anotado (nginx não reiniciou).
 
 - [ ] **Step 8: Ponta a ponta manual (com o usuário)**
 
@@ -707,13 +721,14 @@ Expected: `200`, sem reiniciar o nginx.
 
 - NSG da OCI: remover as regras de entrada de 3000, 7700, 8080 e 9000 (manter 22, 80 e 443);
 - painel da ClearSale: se a URL do webhook apontar para `:9000`, trocar por `https://teste.mercadopreto.com.br/api/webhooks/clearsale`;
-- depois do merge, voltar o servidor para `develop` (`git checkout develop && git pull --ff-only`). Sem rebuild: o conteúdo é o mesmo.
+- depois do merge, voltar o servidor para `develop` (`git checkout develop && git pull --ff-only`). Sem rebuild, mas só depois de confirmar `git diff --quiet origin/develop origin/feature/oci-edge-hardening -- apps/` (exit 0); se houver diferença, fazer rebuild do storefront.
 
 **Rollback (qualquer passo):**
 
 ```bash
 $S 'cd ~/marketplace && git checkout -q develop && cp infra/.env.oci.bak.$T infra/.env.oci && cp apps/storefront/.env.local.bak.$T apps/storefront/.env.local'
-$S 'sudo iptables-restore < ~/iptables.bak.$T && sudo netfilter-persistent save'
+# desfaz só o que o Step 6 mudou; um iptables-restore completo trocaria as chains DOCKER (nat/filter) por DNATs velhos de containers recriados
+$S 'sudo iptables -D INPUT -s 172.16.0.0/12 -p tcp -m tcp --dport 3000 -j ACCEPT; for p in 7700 8080 9000 3000; do sudo iptables -I INPUT -p tcp -m tcp --dport $p -j ACCEPT; done; sudo netfilter-persistent save'
 $S 'cd ~/marketplace/infra && docker compose -f docker-compose.oci.yml --env-file .env.oci up -d postgres redis meilisearch medusa certbot'
 # nginx antigo (config de develop):
 $S 'docker rm -f mercado-preto-nginx; cd ~/marketplace/infra && docker compose -f docker-compose.prod.yml up -d --no-deps nginx'

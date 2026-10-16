@@ -186,7 +186,7 @@ PUBLIC_URL=https://teste.mercadopreto.com.br
 MERCADOPAGO_ACCESS_TOKEN=TEST-...
 MERCADOPAGO_WEBHOOK_SECRET=
 
-MEILISEARCH_HOST=http://localhost:7700
+MEILISEARCH_HOST=http://localhost:7700   # dentro do Docker, o compose usa http://meilisearch:7700
 MEILISEARCH_API_KEY=<mesmo MEILI_MASTER_KEY>
 
 EVOLUTION_API_URL=http://localhost:8080
@@ -223,7 +223,7 @@ nano apps/storefront/.env.local
 
 ```env
 # Só o SSR usa esta URL; o navegador chama caminhos relativos via nginx.
-NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000
+NEXT_PUBLIC_MEDUSA_URL=http://127.0.0.1:9000
 NEXT_PUBLIC_SITE_URL=https://teste.mercadopreto.com.br
 NEXT_PUBLIC_PUBLISHABLE_KEY=pk_...       # obtido após seeds (ver Passo 7)
 NEXT_PUBLIC_REGION_ID=reg_...            # obtido após seeds (ver Passo 7)
@@ -387,7 +387,7 @@ curl -s https://teste.mercadopreto.com.br/api/health
 # Storefront
 curl -s -o /dev/null -w "%{http_code}" https://teste.mercadopreto.com.br/
 
-# Meilisearch e Evolution manager não são públicos: use túnel SSH
+# O Evolution manager não é público: use túnel SSH
 # ssh -i ~/.ssh/oci_vms -L 8080:127.0.0.1:8080 ubuntu@168.138.148.67
 # e abra http://localhost:8080/manager
 ```
@@ -481,7 +481,7 @@ infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 
 ## Observações
 
-- **Meilisearch**: no ambiente local (docker-compose.yml) a porta do host é `7701`. No OCI o Meilisearch não é publicado: só os containers da rede Docker o acessam (dashboard via túnel SSH).
+- **Meilisearch**: no ambiente local (docker-compose.yml) a porta do host é `7701`. No OCI o Meilisearch não é publicado: só os containers da rede Docker o acessam (sem porta publicada, nem em `127.0.0.1`). Para acesso eventual, use `docker exec mercado-preto-search ...` ou um túnel para o IP do container (`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' mercado-preto-search`).
 - **BACKEND_URL**: no OCI é derivado de `PUBLIC_URL` (HTTPS, `${PUBLIC_URL}/api`), então o `auto_return` do MercadoPago funciona.
 - **Evolution API volumes**: o diretório `evolution_data` contém as chaves de sessão do WhatsApp. Faça backup antes de destruir os volumes.
 - **Certificado HTTPS**: o Let's Encrypt emite certificados de 90 dias. A renovação é feita pelo serviço `certbot` do `docker-compose.oci.yml` (tenta a cada 12h; só renova a menos de 30 dias do vencimento) e o `mercado-preto-nginx` recarrega a cada 6h. Garanta que ele está rodando com `docker ps | grep certbot`; se não estiver: `docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d certbot`. Para conferir o vencimento: `echo | openssl s_client -connect teste.mercadopreto.com.br:443 -servername teste.mercadopreto.com.br 2>/dev/null | openssl x509 -noout -enddate`.
