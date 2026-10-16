@@ -268,8 +268,11 @@ docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d m
 # Aguardar o Medusa inicializar
 docker compose -f infra/docker-compose.oci.yml logs -f medusa
 # Aguardar: "Listening on http://0.0.0.0:9000"
+```
 
-# Conferir de fora do servidor:
+Da sua máquina, na raiz do repo (não no servidor):
+
+```bash
 infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
@@ -326,8 +329,11 @@ npm install -g pm2
 pm2 start "pnpm start" --name storefront --cwd ~/marketplace/apps/storefront
 pm2 save
 pm2 startup   # gerar comando de auto-start e executá-lo
+```
 
-# Conferir de fora do servidor:
+Da sua máquina, na raiz do repo (não no servidor):
+
+```bash
 infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
@@ -384,8 +390,11 @@ curl -s -o /dev/null -w "%{http_code}" https://teste.mercadopreto.com.br/
 # Meilisearch e Evolution manager não são públicos: use túnel SSH
 # ssh -i ~/.ssh/oci_vms -L 8080:127.0.0.1:8080 ubuntu@168.138.148.67
 # e abra http://localhost:8080/manager
+```
 
-# Conferir de fora do servidor:
+Da sua máquina, na raiz do repo (não no servidor):
+
+```bash
 infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
@@ -426,8 +435,11 @@ docker compose -f infra/docker-compose.oci.yml up -d medusa
 # que executa node .next/standalone/apps/storefront/server.js)
 cd ~/marketplace/apps/storefront
 pnpm build && pm2 restart storefront
+```
 
-# Conferir de fora do servidor:
+Da sua máquina, na raiz do repo (não no servidor):
+
+```bash
 infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
@@ -452,16 +464,16 @@ docker compose -f infra/docker-compose.oci.yml run --rm medusa npx medusa db:mig
 
 docker compose -f infra/docker-compose.oci.yml up -d medusa
 
-# Conferir de fora do servidor:
-infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
-
 # Rebuild storefront
 # (mesmo aviso do Passo 8: `pnpm start`/`pm2 restart` precisam continuar
 # apontando para o servidor standalone, nunca para `next start`)
 cd apps/storefront
 pnpm build && pm2 restart storefront
+```
 
-# Conferir de fora do servidor:
+Da sua máquina, na raiz do repo (não no servidor):
+
+```bash
 infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
@@ -469,7 +481,7 @@ infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 
 ## Observações
 
-- **Meilisearch**: no ambiente local (docker-compose.yml) a porta do host é `7701`. No servidor OCI usa-se `7700:7700` para bater com a porta aberta no NSG.
+- **Meilisearch**: no ambiente local (docker-compose.yml) a porta do host é `7701`. No OCI o Meilisearch não é publicado: só os containers da rede Docker o acessam (dashboard via túnel SSH).
 - **BACKEND_URL**: no OCI é derivado de `PUBLIC_URL` (HTTPS, `${PUBLIC_URL}/api`), então o `auto_return` do MercadoPago funciona.
 - **Evolution API volumes**: o diretório `evolution_data` contém as chaves de sessão do WhatsApp. Faça backup antes de destruir os volumes.
 - **Certificado HTTPS**: o Let's Encrypt emite certificados de 90 dias. A renovação é feita pelo serviço `certbot` do `docker-compose.oci.yml` (tenta a cada 12h; só renova a menos de 30 dias do vencimento) e o `mercado-preto-nginx` recarrega a cada 6h. Garanta que ele está rodando com `docker ps | grep certbot`; se não estiver: `docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d certbot`. Para conferir o vencimento: `echo | openssl s_client -connect teste.mercadopreto.com.br:443 -servername teste.mercadopreto.com.br 2>/dev/null | openssl x509 -noout -enddate`.
