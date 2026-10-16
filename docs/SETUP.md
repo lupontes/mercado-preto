@@ -104,9 +104,11 @@ MERCADOPAGO_WEBHOOK_SECRET=<hex string from MP dashboard>
 
 See [Section 5 — MercadoPago](#5-mercadopago) for how to obtain these values.
 
-### Melhor Envio [OPTIONAL]
+### Melhor Envio [REQUIRED outside local development]
 
-Without this token, the shipping endpoint returns fixed illustrative rates (PAC/SEDEX).
+Without `MELHOR_ENVIO_TOKEN`, only local development (`NODE_ENV=development`) gets fake quotes; in any other environment checkout cannot quote shipping.
+
+The API host follows `MARKETPLACE_SANDBOX`: production must set `MARKETPLACE_SANDBOX=false` so the production token hits the production host (`melhorenvio.com.br`) instead of the sandbox.
 
 ```env
 MELHOR_ENVIO_TOKEN=<sandbox JWT>
