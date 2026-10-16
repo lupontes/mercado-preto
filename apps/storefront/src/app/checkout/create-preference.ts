@@ -56,13 +56,19 @@ export async function createPreference(
   address: Address,
   shipping: ShippingOption
 ): Promise<CheckoutResult<PreferenceData>> {
-  const res = await fetch(`${medusaBaseUrl()}/store/checkout/preference`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-publishable-api-key': PUB_KEY,
-    },
-    body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
-  })
-  return readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference }))
+  // A dropped request rejects instead of resolving; without this the
+  // shipping step would keep spinning forever.
+  try {
+    const res = await fetch(`${medusaBaseUrl()}/store/checkout/preference`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-publishable-api-key': PUB_KEY,
+      },
+      body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
+    })
+    return await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference }))
+  } catch {
+    return { ok: false, status: 0, error: 'Erro ao preparar o pagamento.' }
+  }
 }
