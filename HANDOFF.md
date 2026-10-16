@@ -1,6 +1,22 @@
 # Handoff: Mercado Preto / MAB marketplace
 
-**Atualizado**: 2026-09-07
+**Atualizado**: 2026-10-15
+
+## Sessão 2026-10-15
+
+- **PM2 do storefront corrigido (PR #52, mergeado):** `start` agora roda o
+  servidor standalone (`HOSTNAME=0.0.0.0 node .next/standalone/apps/storefront/server.js`)
+  e um `postbuild` copia `public/` e `.next/static/` pro bundle. Validado no
+  servidor de teste, que voltou pra `develop` (`9c415fd`) e responde 200 no
+  domínio real.
+- **Build local do storefront quebrado: PR #53 aberto, aguardando revisão.** O
+  pnpm 11 ignorava os `overrides` de `@types/react` no `package.json` raiz;
+  movidos pro `pnpm-workspace.yaml`. Depois: `tsc` 0 erros nos dois apps,
+  build ok, 107 + 553 testes passando.
+- **Novo achado, não corrigido:** `test:admin` do backend nem inicializa
+  (`ERR_PACKAGE_PATH_NOT_EXPORTED: './module-runner'`): vitest 4.1.9
+  resolvido com vite 5.4.21 (vitest 4 exige vite 6 ou mais novo). Falha igual
+  em `develop`.
 
 ## Estado atual de `develop`
 
@@ -17,9 +33,6 @@ Todas as pendências conhecidas foram reconciliadas em `develop`:
   pertencia ao pedido do token — um comprador podia avaliar produto de
   vendedor diferente do seu; corrigido com um helper compartilhado
   (`utils/order-review-helpers.ts`) usado também pela rota de convite.
-  Achado à parte, fora do escopo: 170 erros de `tsc` pré-existentes no
-  backend (`admin/routes/*`, incompatibilidade React 19 com o UI kit do
-  Medusa admin) — confirmados anteriores a esta branch, não é regressão.
 - Botão "Falar com o vendedor" (WhatsApp) na página do produto — reaproveita
   o campo `phone` já existente no cadastro do vendedor, sem migração nova.
 - **Bug crítico corrigido: painel do vendedor estava com login quebrado desde
@@ -121,12 +134,6 @@ de ponta a ponta no domínio real após esses 5 fixes.
   na subida do backend — keyGenerator customizado em `api/middlewares.ts:46`
   não usa o helper `ipKeyGenerator` pra IPv6. Não impede o servidor de
   subir, mas vale corrigir.
-- PM2 do storefront loga `"next start" does not work with "output: standalone"`
-  e alguns ciclos de `[ELIFECYCLE] Command failed` no histórico — parece
-  pré-existente (config do `next.config` usa `output: standalone` mas o
-  `pm2` chama `next start` em vez de `node .next/standalone/server.js`).
-  Instância atual está estável (sem restart desde o deploy de hoje), mas é
-  provável causa de instabilidades esporádicas já vistas antes.
 - Manual do sistema atualizado (`docs/manual/manual-mercado-preto.html`,
   também publicado como Artifact) com as duas funcionalidades novas,
   seguindo o padrão de destaque "novidade" (badge no índice + moldura na
@@ -162,10 +169,3 @@ de ponta a ponta no domínio real após esses 5 fixes.
 - Lacunas de cobertura de teste identificadas no Raio-X, não atacadas ainda:
   4 subscribers, 4 scripts (um é migração de dados real — `import-mab-catalog.ts`),
   ~22 rotas de API, 14 páginas do storefront sem teste.
-- **170 erros de `tsc` pré-existentes no backend** (`packages/medusa-backend/apps/backend`),
-  todos em `src/admin/routes/{sellers,payouts,commissions}/*` — incompatibilidade
-  de tipos JSX entre React 19 e o UI kit do Medusa admin (`error TS2786`).
-  Confirmados anteriores à branch do sistema de avaliação (verificado num
-  worktree descartável no commit-base) — não é regressão de nenhum trabalho
-  recente, mas nunca foi corrigido. Não afeta o funcionamento em runtime, só
-  o typecheck.
