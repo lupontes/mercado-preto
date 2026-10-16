@@ -1,171 +1,90 @@
 # Handoff: Mercado Preto / MAB marketplace
 
-**Atualizado**: 2026-10-15
+**Atualizado**: 2026-10-16
 
-## Sessão 2026-10-15
+## Próximo passo
 
-- **PM2 do storefront corrigido (PR #52, mergeado):** `start` agora roda o
-  servidor standalone (`HOSTNAME=0.0.0.0 node .next/standalone/apps/storefront/server.js`)
-  e um `postbuild` copia `public/` e `.next/static/` pro bundle. Validado no
-  servidor de teste, que voltou pra `develop` (`9c415fd`) e responde 200 no
-  domínio real.
-- **Build local do storefront quebrado: PR #53 aberto, aguardando revisão.** O
-  pnpm 11 ignorava os `overrides` de `@types/react` no `package.json` raiz;
-  movidos pro `pnpm-workspace.yaml`. Depois: `tsc` 0 erros nos dois apps,
-  build ok, 107 + 553 testes passando.
-- **Novo achado, não corrigido:** `test:admin` do backend nem inicializa
-  (`ERR_PACKAGE_PATH_NOT_EXPORTED: './module-runner'`): vitest 4.1.9
-  resolvido com vite 5.4.21 (vitest 4 exige vite 6 ou mais novo). Falha igual
-  em `develop`.
+1. **Fechar `feature/shipping-per-seller`** (worktree `../marketplace-shipping`).
+   A onda de correções da revisão final foi interrompida. Lista completa em
+   `.superpowers/sdd/2026-10-15-frete-por-loja/final-fix-findings.md` (no worktree):
+   - feitos e publicados: #1 crítico (campos privados do vendedor via
+     `fields` na API da loja, `8047f13`), #2 e #3 (`bfb6ff9`, `44b7be8`);
+   - **em andamento, sem commit**: #4 (agrupar itens pelo vendedor da
+     *variante*, não pelo `productId` do cliente). São 8 arquivos modificados;
+   - faltam: #5 a #11. Depois, re-revisão, PR e deploy.
+2. **Falha de preço no checkout (segurança, bloqueia produção).** O backend
+   confia no preço vindo do navegador:
+   - `api/store/checkout/preference/route.ts`: o preço dos itens vem do
+     cliente. O frete o `shipping-per-seller` já recalcula no servidor;
+   - `api/store/checkout/payment/route.ts`: `transaction_amount` vem do
+     cliente e não é conferido com o snapshot;
+   - `api/webhooks/mercadopago/route.ts`: não compara o valor pago com o
+     total esperado.
 
-## Estado atual de `develop`
+   Fazer brainstorm, spec e plano **em cima de `shipping-per-seller`**.
+3. **Conferir se o achado crítico #1 também existe em `develop`.** O vínculo
+   seller↔product e o `fields` livre na API da loja são anteriores à branch.
+   Se existir, vira hotfix antes de produção.
 
-Todas as pendências conhecidas foram reconciliadas em `develop`:
+## Sessão 2026-10-15/16
 
-- **Sistema de avaliação de produtos** (módulo `review`, 10 tasks via SDD +
-  1 leva de fix da revisão final): comprador recebe e-mail (Brevo) com link
-  assinado (JWT, 30 dias) quando o pedido é concluído, avalia cada produto
-  do pedido em `/avaliar/{token}` sem precisar de conta, avaliação fica
-  `pending` até o vendedor aprovar na aba nova "Avaliações" do painel, só
-  então aparece na página do produto (nota média + comentários, nome
-  truncado por privacidade). Achado crítico da revisão final e já corrigido
-  antes do merge: `POST /store/reviews` não conferia se o `productId`
-  pertencia ao pedido do token — um comprador podia avaliar produto de
-  vendedor diferente do seu; corrigido com um helper compartilhado
-  (`utils/order-review-helpers.ts`) usado também pela rota de convite.
-- Botão "Falar com o vendedor" (WhatsApp) na página do produto — reaproveita
-  o campo `phone` já existente no cadastro do vendedor, sem migração nova.
-- **Bug crítico corrigido: painel do vendedor estava com login quebrado desde
-  4/9.** O merge de `fix/seller-session-cookie` só executou as Tasks 1-5 do
-  plano (`docs/superpowers/plans/2026-08-25-seller-session-cookie.md`) —
-  Tasks 6-9 (drop de `token` em `seller-store.ts` e nas 6 páginas do painel)
-  nunca foram feitas. Resultado: `isAuthenticated()` nunca era `true` após
-  login (o backend não retorna mais `token`, só cookie HttpOnly), então o
-  painel bounceava pra tela de login (ou ficava em loading infinito nas
-  páginas com `if (!token) return`). Completadas as 4 tasks que faltavam,
-  seguindo o plano já escrito à risca (TDD). Revisão feita em todo o
-  storefront confirmando que não sobrou nenhuma referência a
-  `token`/`isAuthenticated`/`persist` ligada à sessão do vendedor.
-- Integração com o Mercado Livre completa (módulo `marketplace-channel`, cliente HTTP,
-  job de renovação de token, rota de publicação, webhook de pedido, fluxo de
-  autorização OAuth com PKCE, endereço/CPF reais do comprador via API do ML) —
-  ver `docs/deploy/2026-09-04-mercado-livre-integration-runbook.md` pra ativar.
-  **Sem sandbox no ML** — teste com "usuários de teste" (até 10 por conta real),
-  mesmos endpoints de produção (ver claude-mem, achado 2026-09-06).
-- `fix/seller-session-cookie` e `fix/multi-seller-cart-order-split` (ponta real
-  `348cecc`, não o snapshot antigo que foi pra `main` via PR #39) — mergeados e
-  reconciliados à mão em `commission-on-payment.ts`/`order-placed-whatsapp.ts`.
-- `fix/commission-mercadopago-order-approved-event` (PR #40) — bug real
-  corrigido (comissão nunca era calculada pro checkout próprio).
-- PRs #12/#14 (ClearSale webhook) — mergeados, com correção de uma regressão
-  de segurança que um merge ingênuo teria reintroduzido.
-- `main` e `develop` reconciliados (só 2 commits-bolha de merge do GitHub
-  separam, sem conteúdo pendente).
-- Erro de `tsc` pré-existente corrigido (`nuvemshop-import`); duplicação de
-  verificação de JWT do vendedor unificada em `utils/seller-jwt.ts`.
-- Raio-X de completude do projeto publicado (Artifact) — cobre cobertura de
-  teste por módulo/rota/página, pendências documentadas, prontidão de deploy.
+- **Borda do OCI (#59, mergeado e em produção no servidor de teste):** o
+  nginx é gerenciado pelo `docker-compose.oci.yml` e só as portas 22, 80 e
+  443 ficam públicas. Validado com smoke externo, com o medusa recriado com
+  outro IP (o nginx não reiniciou) e com teste ponta a ponta: vendedor,
+  `/app`, upload de 5 MB e checkout no sandbox com webhook (pedido #40).
+- **Mergeados:**
+  - #52 (PM2 standalone);
+  - #53 (overrides do pnpm no `pnpm-workspace.yaml`);
+  - #55 (`test:admin` com vitest 3.2.7);
+  - #56 (rate limit do login por IP do socket);
+  - #57 (volume de uploads);
+  - #58 (`next/image` com o host do site).
+- **Regressão do #55:** ele não atualizou
+  `packages/medusa-backend/package-lock.json`, e o build Docker do backend
+  quebrou (`npm ci`). A correção está em `fix/backend-npm-lockfile-vitest`.
+  **O backend usa npm, não pnpm:** mudar dependência dele exige
+  `npm install` em `packages/medusa-backend`.
+- **Limpeza:**
+  - removidos 3 worktrees mergeados;
+  - removidas as branches locais e remotas já mergeadas;
+  - restam no remoto: `develop`, `main` e `feature/shipping-per-seller`.
 
-## Deploy de teste — 2026-09-07
+## Servidor de teste (168.138.148.67)
 
-Sistema de avaliação de produtos e botão "Falar com o vendedor" (WhatsApp)
-publicados no servidor de teste OCI (`168.138.148.67`). Backend com as
-migrações novas aplicadas (`channel_credential`, `channel_listing`,
-`review`), storefront reconstruído e servindo via PM2. Ambos respondendo
-200 no health check.
+- Deve rodar `develop`. **Sempre rebuildar o backend a partir da branch que
+  está no servidor:** em 16/10 a imagem `mercado-preto-api:oci` tinha sido
+  gerada a partir de `shipping-per-seller` e quebrou o frete da vitrine
+  (`/store/shipping/estimate` 404). A imagem antiga ficou como
+  `mercado-preto-api:oci-shipping-per-seller-bak`.
+- O banco já tem a migration de endereço do vendedor
+  (`Migration20261015120000`, colunas que aceitam vazio). Também tem dados
+  temporários do teste do frete por loja (lojas Axé e FIX, 6 produtos com
+  `package_review`). Ver `progress.md` do worktree.
+- Backups do deploy da borda, timestamp `20261016162327`: `.env.oci`,
+  `.env.local` e `~/iptables.bak.*`.
+- **Ações do usuário pendentes:**
+  - remover na NSG da OCI as regras de 3000, 7700, 8080 e 9000;
+  - conferir a URL do webhook da ClearSale;
+  - apagar o admin de teste `admin2@mercadopreto.com.br`.
 
-**Bugs de infra root-caused e corrigidos nesta sessão** (todos descobertos
-em cadeia, ao investigar por que o botão de WhatsApp e as avaliações não
-apareciam no domínio real mesmo após o deploy estar "correto"):
+## Achados abertos (fora de escopo)
 
-1. `DATABASE_URL` sem `?sslmode=disable` fazia o driver `pg` travar
-   indefinidamente (retry mudo a cada 60s) negociando TLS com um Postgres
-   sem SSL — travava `medusa db:migrate` por horas sem nenhum erro
-   logado. Corrigido em `infra/docker-compose.oci.yml` (PR #41/#42 — o
-   #41 fechou sem trazer a mudança real por causa de histórico
-   compartilhado com um commit revertido; ver PR #42 pra a correção que
-   de fato pegou).
-2. **Container Docker órfão servindo tráfego real**: o nginx que atende
-   `https://teste.mercadopreto.com.br` tinha `upstream storefront { server
-   storefront:3000; }` apontando pra um container `mercado-preto-storefront`
-   não gerenciado por nenhum compose deste repo, parado (sem rebuild) há
-   3+ dias. Todo o tráfego do domínio real servia uma build completamente
-   desatualizada, sem erro nenhum — só conteúdo sempre atrasado,
-   mascarando qualquer deploy feito via PM2 (a arquitetura real,
-   documentada em `docs/DEPLOY_OCI.md`). Corrigido apontando o upstream
-   pro gateway da rede bridge do Docker (`172.18.0.1:3000`, PR #43) — meio
-   frágil (IP fixo), o ideal seria adicionar esse nginx ao
-   `docker-compose.oci.yml` (hoje não gerenciado por nenhum compose) com
-   `extra_hosts: host.docker.internal:host-gateway`. Container órfão
-   **parado** (não removido — `docker rm` pendente de confirmação, ação
-   destrutiva).
-3. **Gotcha de bind-mount de arquivo único do Docker**: depois de corrigir
-   `nginx.conf` via `git pull` no servidor, `nginx -s reload` não pegava a
-   mudança — o `git checkout` recria o arquivo (novo inode) e quebra o
-   bind-mount de arquivo único, que segue o inode antigo. Precisa
-   `docker restart mercado-preto-nginx` (não só `reload`) depois de
-   qualquer `git pull` que toque `infra/nginx/nginx.conf`.
-4. `NEXT_PUBLIC_PUBLISHABLE_KEY` e `NEXT_PUBLIC_REGION_ID` em
-   `apps/storefront/.env.local` no servidor estavam desatualizados
-   (drift — não bate com o que existe hoje no banco). Como
-   `next: {revalidate: 60}` no `apiFetch` combinado com o comportamento
-   de "stale-if-error" do cache de dados do Next.js, isso ficou
-   **completamente mascarado**: toda revalidação em background falhava
-   silenciosamente e o Next continuava servindo pra sempre a última
-   resposta boa em cache. Só ficou visível depois de um `rm -rf .next`
-   (build limpo). Corrigido diretamente no `.env.local` do servidor (não
-   versionado, não tem PR).
-5. **Mixed content bloqueando toda chamada client-side à API**: com o
-   nginx corrigido (achado 2) e o cache limpo (achado 4), o botão de
-   WhatsApp e as avaliações passaram a funcionar (são server-side/SSR),
-   mas o login do vendedor continuava dando "Failed to fetch" — client-side,
-   `NEXT_PUBLIC_MEDUSA_URL` aponta pro backend em `http://` direto, e uma
-   página `https` bloqueia esse fetch como mixed content, sem erro de
-   servidor nenhum. Corrigido (PR #44): `api.ts`/`seller-api.ts`/
-   `review-api.ts` usam caminho relativo no navegador (server-side
-   continua com a URL direta); `nginx.conf` ganhou proxy pra `/store/` e
-   `/seller/` (só `/api/`, `/auth/`, `/admin/`, `/app/` existiam).
+- **Painel do vendedor sem upload de foto:** só aceita URL de imagem
+  externa. Feature a planejar.
+- **Evolution API parada:** as notificações por WhatsApp não saem.
+- **Regra `ACCEPT 19999` no iptables** sem nada escutando.
+- **`docker-compose.prod.yml`** ainda não segue o modelo do OCI (nginx no
+  compose, portas em `127.0.0.1`, `PUBLIC_URL`).
 
-Login do vendedor e aba "Avaliações" do painel confirmados funcionando
-de ponta a ponta no domínio real após esses 5 fixes.
+## Pendente (produto)
 
-**Achados à parte, não corrigidos ainda:**
-- `express-rate-limit` loga um `ValidationError` (`ERR_ERL_KEY_GEN_IPV6`)
-  na subida do backend — keyGenerator customizado em `api/middlewares.ts:46`
-  não usa o helper `ipKeyGenerator` pra IPv6. Não impede o servidor de
-  subir, mas vale corrigir.
-- Manual do sistema atualizado (`docs/manual/manual-mercado-preto.html`,
-  também publicado como Artifact) com as duas funcionalidades novas,
-  seguindo o padrão de destaque "novidade" (badge no índice + moldura na
-  seção) — **convenção a reaplicar em toda atualização futura de manual**.
-
-## Pendente
-
-- **Programa de fidelidade (pontos) — só desenho registrado, sem
-  implementação.** Spec em `docs/superpowers/specs/2026-09-07-loyalty-points-design.md`:
-  programa único da plataforma, saldo identificado por CPF/CNPJ (já
-  coletado no checkout, sem exigir conta), ganho automático em
-  `order.completed`, resgate como desconto direto na rota de checkout
-  (sem usar o módulo Promotions do Medusa). Retomar via
-  `superpowers:writing-plans` quando priorizado.
-- Validação jurídica/contábil do modelo de venda — memo em
-  `docs/juridico/2026-09-05-memo-titularidade-consignacao.md` (também
-  publicado como Artifact). **Hipótese revisada em 2026-09-06**: de
-  consignação para compra-e-revenda formal via nota fiscal de entrada, pra
-  satisfazer a exigência de "titularidade e direito de vender" do Mercado
-  Livre e do TikTok Shop — insolvência do Mercado Preto descartada como
-  risco pelo próprio operador do negócio. Sem confirmação de contador/
-  advogado ainda (ver §7 do memo pras perguntas pendentes).
-- **Lembrete permanente**: no próximo e-mail disparado para o Ailton,
-  anexar `docs/juridico/2026-09-05-memo-titularidade-consignacao.md` (ou o
-  link do Artifact acima).
-- **Ativação do Mercado Livre pausada deliberadamente em 2026-09-06** —
-  usuário decidiu não cadastrar a empresa Mercado Preto (CNPJ) como app/
-  vendedor real no ML antes da validação jurídica acima ser resolvida.
-  Nada foi cadastrado no painel do ML. Retomar pelo runbook
-  (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`) depois
-  que a validação sair. Ambiente de dev (backend local + túnel) também não
-  chegou a subir nesta sessão.
-- Lacunas de cobertura de teste identificadas no Raio-X, não atacadas ainda:
-  4 subscribers, 4 scripts (um é migração de dados real — `import-mab-catalog.ts`),
-  ~22 rotas de API, 14 páginas do storefront sem teste.
+- **Programa de fidelidade:** só o spec
+  (`docs/superpowers/specs/2026-09-07-loyalty-points-design.md`).
+- **Validação jurídica/contábil do modelo de venda:**
+  `docs/juridico/2026-09-05-memo-titularidade-consignacao.md`. **Lembrete:**
+  anexar ao próximo e-mail para o Ailton.
+- **Ativação do Mercado Livre:** pausada até a validação jurídica; ver o
+  runbook `docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`.
+- **Lacunas de cobertura de teste (item 5):** 4 subscribers, 4 scripts,
+  cerca de 22 rotas e 14 páginas. Precisa de spec própria.
