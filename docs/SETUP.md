@@ -104,13 +104,15 @@ MERCADOPAGO_WEBHOOK_SECRET=<hex string from MP dashboard>
 
 See [Section 5 — MercadoPago](#5-mercadopago) for how to obtain these values.
 
-### Melhor Envio [OPTIONAL]
+### Melhor Envio [REQUIRED outside local development]
 
-Without this token, the shipping endpoint returns fixed illustrative rates (PAC/SEDEX).
+Without `MELHOR_ENVIO_TOKEN`, only local development (`NODE_ENV=development`) gets fake quotes; in any other environment checkout cannot quote shipping.
+
+The API host follows `MARKETPLACE_SANDBOX`: production must set `MARKETPLACE_SANDBOX=false` so the production token hits the production host (`melhorenvio.com.br`) instead of the sandbox.
 
 ```env
 MELHOR_ENVIO_TOKEN=<sandbox JWT>
-MELHOR_ENVIO_ORIGIN_CEP=44300000         # ZIP code of the dispatch origin
+SHIPPING_HANDLING_DAYS=2                 # business days added to the carrier lead time
 ```
 
 See [Section 6 — Melhor Envio](#6-melhor-envio).
@@ -259,7 +261,7 @@ Register at https://melhorenvio.com.br. A sandbox environment is available separ
 3. Select scope: at minimum **Calcular fretes** (`shipping-calculate`)
 4. Copy the JWT and set it as `MELHOR_ENVIO_TOKEN`
 
-Set `MELHOR_ENVIO_ORIGIN_CEP` to the ZIP code of the physical origin of your shipments.
+The shipping origin is the registered address of each store (seller), not a global setting.
 
 The backend automatically uses the sandbox URL (`https://sandbox.melhorenvio.com.br`) when `NODE_ENV !== production`.
 
@@ -383,7 +385,7 @@ Next.js caches API responses for 60 seconds (`revalidate: 60`). Medusa also has 
 
 - The shipping estimate endpoint requires the `x-publishable-api-key` header
 - Verify `MELHOR_ENVIO_TOKEN` is set and the sandbox URL is being used in development
-- Check that `MELHOR_ENVIO_ORIGIN_CEP` is a valid Brazilian ZIP code
+- Check that each store has a valid Brazilian ZIP code in its registered address
 
 ### "Erro ao iniciar o pagamento" (MercadoPago)
 

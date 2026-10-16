@@ -4,6 +4,7 @@ import {
   Button,
   Container,
   Heading,
+  Input,
   Label,
   Prompt,
   StatusBadge,
@@ -17,8 +18,10 @@ import {
   useRejectSeller,
   useSuspendSeller,
   useActivateSeller,
+  useUpdateSeller,
   type Seller,
 } from "../../../hooks/sellers"
+import { hasShippingOrigin } from "../../../../utils/seller-address"
 
 const STATUS_LABELS: Record<Seller["status"], string> = {
   pending: "Pendente",
@@ -155,6 +158,67 @@ function SuspendDialog({ sellerId }: { sellerId: string }) {
   )
 }
 
+const ADDRESS_FIELDS = [
+  { key: "addressPostalCode", label: "CEP" },
+  { key: "addressStreet", label: "Rua" },
+  { key: "addressNumber", label: "Número" },
+  { key: "addressComplement", label: "Complemento" },
+  { key: "addressDistrict", label: "Bairro" },
+  { key: "addressCity", label: "Cidade" },
+  { key: "addressState", label: "UF" },
+] as const
+
+function ShippingAddressSection({ seller }: { seller: Seller }) {
+  const updateSeller = useUpdateSeller()
+  const [form, setForm] = useState({
+    addressPostalCode: seller.addressPostalCode ?? "",
+    addressStreet: seller.addressStreet ?? "",
+    addressNumber: seller.addressNumber ?? "",
+    addressComplement: seller.addressComplement ?? "",
+    addressDistrict: seller.addressDistrict ?? "",
+    addressCity: seller.addressCity ?? "",
+    addressState: seller.addressState ?? "",
+  })
+
+  const handleSave = () => {
+    updateSeller.mutate(
+      { id: seller.id, data: form },
+      {
+        onSuccess: () => toast.success("Endereço salvo"),
+        onError: (e: any) => toast.error(e?.message ?? "Não foi possível salvar o endereço"),
+      }
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4 border-t px-6 py-6">
+      <Heading level="h3">Endereço de envio</Heading>
+      {!hasShippingOrigin(seller) && (
+        <Text className="text-ui-fg-error">
+          Endereço de envio incompleto — a loja não pode vender nem ser aprovada.
+        </Text>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        {ADDRESS_FIELDS.map(({ key, label }) => (
+          <div key={key} className="flex flex-col gap-1">
+            <Label htmlFor={`seller-${key}`}>{label}</Label>
+            <Input
+              id={`seller-${key}`}
+              value={form[key]}
+              onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+            />
+          </div>
+        ))}
+      </div>
+      <div>
+        <Button size="small" isLoading={updateSeller.isPending} onClick={handleSave}>
+          Salvar endereço
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function SellerDetailPage() {
   const { id } = useParams()
   const { data } = useAdminSeller(id ?? "")
@@ -170,7 +234,7 @@ function SellerDetailPage() {
   const handleApprove = () => {
     approveSeller.mutate(seller.id, {
       onSuccess: () => toast.success("Vendedor aprovado"),
-      onError: () => toast.error("Não foi possível aprovar o vendedor"),
+      onError: (e: any) => toast.error(e?.message ?? "Não foi possível aprovar o vendedor"),
     })
   }
 
@@ -233,6 +297,8 @@ function SellerDetailPage() {
         <ProfileField label="Localização" value={seller.location} />
         <ProfileField label="Bio" value={seller.bio} />
       </div>
+
+      <ShippingAddressSection seller={seller} />
     </Container>
   )
 }

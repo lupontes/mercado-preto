@@ -13,6 +13,23 @@ export type Seller = {
   category: string | null
   status: "pending" | "approved" | "active" | "suspended"
   rejectionReason: string | null
+  addressPostalCode: string | null
+  addressStreet: string | null
+  addressNumber: string | null
+  addressComplement: string | null
+  addressDistrict: string | null
+  addressCity: string | null
+  addressState: string | null
+}
+
+export type SellerAddressInput = {
+  addressPostalCode: string
+  addressStreet: string
+  addressNumber: string
+  addressComplement?: string
+  addressDistrict: string
+  addressCity: string
+  addressState: string
 }
 
 type SellersResponse = { sellers: Seller[]; count: number }
@@ -88,6 +105,18 @@ export function useActivateSeller() {
         method: "POST",
       }),
     onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-sellers"] })
+      queryClient.invalidateQueries({ queryKey: ["admin-seller", id] })
+    },
+  })
+}
+
+export function useUpdateSeller() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<SellerAddressInput> }) =>
+      sdk.client.fetch<SellerResponse>(`/admin/sellers/${id}`, { method: "PUT", body: data }),
+    onSuccess: (_d, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-sellers"] })
       queryClient.invalidateQueries({ queryKey: ["admin-seller", id] })
     },

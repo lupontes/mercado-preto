@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
+import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
+import { validatePackage, suggestPackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 export default function NovoProdutoPage() {
@@ -19,6 +21,9 @@ export default function NovoProdutoPage() {
     sku: '',
     category_id: '',
   })
+  const [pkg, setPkg] = useState<PackageValue>({ size: 'medium' })
+  // The category suggestion only applies until the seller picks a size manually.
+  const [pkgTouched, setPkgTouched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -29,6 +34,12 @@ export default function NovoProdutoPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+
+    const pkgError = validatePackage(pkg)
+    if (pkgError) {
+      setError(pkgError)
+      return
+    }
     setLoading(true)
 
     try {
@@ -41,6 +52,8 @@ export default function NovoProdutoPage() {
         status: form.status,
         thumbnail: form.thumbnail || undefined,
         category_id: form.category_id || undefined,
+        packageSize: pkg.size,
+        ...(pkg.size === 'bulky' ? { packageDimensions: pkg.dimensions } : {}),
         variants: [
           {
             title: 'Padrão',
@@ -101,8 +114,17 @@ export default function NovoProdutoPage() {
         </div>
 
         <Field label="Categoria" htmlFor="category_id">
-          <CategorySelect id="category_id" value={form.category_id} onChange={(value) => set('category_id', value)} />
+          <CategorySelect
+            id="category_id"
+            value={form.category_id}
+            onChange={(value, name) => {
+              set('category_id', value)
+              if (!pkgTouched) setPkg({ size: suggestPackageSize(name) })
+            }}
+          />
         </Field>
+
+        <PackageSizeField value={pkg} onChange={(v) => { setPkgTouched(true); setPkg(v) }} />
 
         <Field label="URL da imagem principal" htmlFor="thumbnail">
           <input

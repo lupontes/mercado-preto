@@ -46,7 +46,7 @@ describe("CategorySelect", () => {
 
     await user.selectOptions(screen.getByRole("combobox"), "pcat_1")
 
-    expect(onChange).toHaveBeenCalledWith("pcat_1")
+    expect(onChange).toHaveBeenCalledWith("pcat_1", "Moda Africana")
   })
 
   it("logs and falls back to no categories when the fetch fails", async () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import type { SellerAddressFields } from './seller-address'
 
 export type SellerProfile = {
   id: string
@@ -11,7 +12,7 @@ export type SellerProfile = {
   bio?: string
   location?: string
   category?: string
-}
+} & SellerAddressFields
 
 export type SellerBanking = {
   pixKey?: string

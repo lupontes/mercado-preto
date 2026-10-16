@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
+import { sellerAddressSchema } from "../../../../utils/seller-address"
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Nome da loja obrigatório"),
@@ -12,7 +13,7 @@ const RegisterSchema = z.object({
   bio: z.string().max(500).optional(),
   location: z.string().optional(),
   category: z.string().optional(),
-})
+}).merge(sellerAddressSchema)
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)

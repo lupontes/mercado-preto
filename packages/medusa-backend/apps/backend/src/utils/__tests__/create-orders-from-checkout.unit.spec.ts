@@ -40,6 +40,30 @@ const twoSellerMeta: CheckoutMeta = {
 }
 
 describe("createOrdersFromCheckout", () => {
+  it("names the shipping method after the seller's real service and stores tier and service id", async () => {
+    const container = makeContainer()
+    const meta: CheckoutMeta = {
+      ...twoSellerMeta,
+      shipping: { id: "economico", name: "Econômico", price: 2500 },
+      seller_groups: twoSellerMeta.seller_groups!.map((g, i) => ({
+        ...g,
+        shipping: { tier: "economico", service: "PAC", serviceId: 1, price: g.shippingShare, deliveryDays: 9 + i },
+      })),
+    }
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta })
+    const input = container._orderService.createOrders.mock.calls[0][0]
+    expect(input[0].shipping_methods).toEqual([{ name: "Correios PAC", amount: 1500 }])
+    expect(input[0].metadata).toEqual(expect.objectContaining({ shipping_tier: "economico", shipping_service_id: 1 }))
+  })
+
+  it("keeps legacy snapshots working (groups without per-seller shipping)", async () => {
+    const container = makeContainer()
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta: twoSellerMeta })
+    const input = container._orderService.createOrders.mock.calls[0][0]
+    expect(input[0].shipping_methods).toEqual([{ name: "PAC", amount: 1500 }])
+    expect(input[0].metadata.shipping_service_id).toBeUndefined()
+  })
+
   it("creates one order per seller group with its own shipping share", async () => {
     const container = makeContainer()
 

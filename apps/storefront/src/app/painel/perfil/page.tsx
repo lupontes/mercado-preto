@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSellerStore } from '@/lib/seller-store'
 import { getMe, patchMe } from '@/lib/seller-api'
+import { fetchAddressByCep, hasShippingOrigin } from '@/lib/seller-address'
 import { Loader2, Check } from 'lucide-react'
 
 type Form = {
@@ -15,6 +16,30 @@ type Form = {
   bankAgency: string
   bankAccount: string
   bankAccountType: string
+  addressPostalCode: string
+  addressStreet: string
+  addressNumber: string
+  addressComplement: string
+  addressDistrict: string
+  addressCity: string
+  addressState: string
+}
+
+const ADDRESS_KEYS = [
+  'addressPostalCode', 'addressStreet', 'addressNumber', 'addressComplement',
+  'addressDistrict', 'addressCity', 'addressState',
+] as const
+
+// The backend treats the address as a single block and rejects an empty one,
+// so a fully blank address must be left out of the request body.
+function hasAnyAddress(f: Form): boolean {
+  return ADDRESS_KEYS.some((k) => f[k].trim().length > 0)
+}
+
+function omitAddress(f: Form): Partial<Form> {
+  const body: Partial<Form> = { ...f }
+  for (const k of ADDRESS_KEYS) delete body[k]
+  return body
 }
 
 const CATEGORIES = [
@@ -28,6 +53,8 @@ export default function PerfilPage() {
     bio: '', location: '', category: '',
     pixKey: '', pixKeyType: 'cpf',
     bankName: '', bankAgency: '', bankAccount: '', bankAccountType: 'checking',
+    addressPostalCode: '', addressStreet: '', addressNumber: '', addressComplement: '',
+    addressDistrict: '', addressCity: '', addressState: '',
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -48,6 +75,13 @@ export default function PerfilPage() {
           bankAgency: s.bankAgency ?? '',
           bankAccount: s.bankAccount ?? '',
           bankAccountType: s.bankAccountType ?? 'checking',
+          addressPostalCode: s.addressPostalCode ?? '',
+          addressStreet: s.addressStreet ?? '',
+          addressNumber: s.addressNumber ?? '',
+          addressComplement: s.addressComplement ?? '',
+          addressDistrict: s.addressDistrict ?? '',
+          addressCity: s.addressCity ?? '',
+          addressState: s.addressState ?? '',
         })
       })
       .finally(() => setLoading(false))
@@ -57,12 +91,26 @@ export default function PerfilPage() {
     setForm((f) => ({ ...f, [field]: value }))
   }
 
+  async function handleCepBlur() {
+    const found = await fetchAddressByCep(form.addressPostalCode)
+    if (!found) return
+    // City-level CEPs come back with empty street/district; keep what the
+    // seller already typed instead of wiping it.
+    setForm((f) => ({
+      ...f,
+      addressStreet: found.street || f.addressStreet,
+      addressDistrict: found.district || f.addressDistrict,
+      addressCity: found.city || f.addressCity,
+      addressState: found.state || f.addressState,
+    }))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     setSaving(true)
     try {
-      const data = await patchMe(form)
+      const data = await patchMe(hasAnyAddress(form) ? form : omitAddress(form))
       updateSeller(data.seller as any)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -130,6 +178,62 @@ export default function PerfilPage() {
           </Field>
         </section>
 
+        {/* Endereço de envio */}
+        <section className="bg-white rounded-xl border border-sand-dark p-5 space-y-4">
+          <h2 className="font-display font-bold text-onyx">Endereço de envio</h2>
+          <p className="text-xs text-onyx/50">
+            De onde seus produtos saem. O frete é calculado a partir deste endereço.
+          </p>
+
+          {!hasShippingOrigin(form) && (
+            <p className="text-sm text-onyx bg-amber/10 border border-amber/30 rounded-lg px-3 py-2">
+              Seus produtos não podem ser vendidos até o endereço de envio estar completo.
+            </p>
+          )}
+
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="CEP" htmlFor="addressPostalCode">
+              <input
+                id="addressPostalCode"
+                value={form.addressPostalCode}
+                onChange={(e) => set('addressPostalCode', e.target.value)}
+                onBlur={handleCepBlur}
+                className="input"
+                inputMode="numeric"
+                placeholder="00000-000"
+              />
+            </Field>
+          </div>
+
+          <Field label="Rua" htmlFor="addressStreet">
+            <input id="addressStreet" value={form.addressStreet} onChange={(e) => set('addressStreet', e.target.value)} className="input" />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Número" htmlFor="addressNumber">
+              <input id="addressNumber" value={form.addressNumber} onChange={(e) => set('addressNumber', e.target.value)} className="input" />
+            </Field>
+            <Field label="Complemento" htmlFor="addressComplement">
+              <input id="addressComplement" value={form.addressComplement} onChange={(e) => set('addressComplement', e.target.value)} className="input" />
+            </Field>
+          </div>
+
+          <Field label="Bairro" htmlFor="addressDistrict">
+            <input id="addressDistrict" value={form.addressDistrict} onChange={(e) => set('addressDistrict', e.target.value)} className="input" />
+          </Field>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <Field label="Cidade" htmlFor="addressCity">
+                <input id="addressCity" value={form.addressCity} onChange={(e) => set('addressCity', e.target.value)} className="input" />
+              </Field>
+            </div>
+            <Field label="UF" htmlFor="addressState">
+              <input id="addressState" value={form.addressState} onChange={(e) => set('addressState', e.target.value.toUpperCase())} className="input" maxLength={2} />
+            </Field>
+          </div>
+        </section>
+
         {/* Dados bancários / PIX */}
         <section className="bg-white rounded-xl border border-sand-dark p-5 space-y-4">
           <h2 className="font-display font-bold text-onyx">Dados para recebimento</h2>
@@ -191,10 +295,10 @@ export default function PerfilPage() {
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-onyx/60 mb-1">{label}</label>
+      <label htmlFor={htmlFor} className="block text-xs font-semibold text-onyx/60 mb-1">{label}</label>
       {children}
     </div>
   )

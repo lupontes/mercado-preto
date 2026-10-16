@@ -6,7 +6,18 @@ jest.mock("crypto", () => {
   return { ...actual, randomUUID: () => "fixed-uuid-1234" }
 })
 
+jest.mock("../../../../../utils/checkout-shipping", () => ({ resolveCheckoutShipping: jest.fn() }))
+jest.mock("../../../../../utils/melhor-envio", () => ({ getShippingCalculator: () => null }))
+import { resolveCheckoutShipping } from "../../../../../utils/checkout-shipping"
 import { GET, POST } from "../route"
+
+const shippingOption = {
+  tier: "economico" as const, label: "Econômico", total: 2500, deliveryDays: 11,
+  sellers: [
+    { sellerId: "seller-a", sellerName: "A", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 1500, deliveryDays: 9 },
+    { sellerId: "seller-b", sellerName: "B", tier: "economico" as const, service: "PAC" as const, serviceId: 1, price: 1000, deliveryDays: 7 },
+  ],
+}
 
 const validBody = {
   items: [
@@ -24,18 +35,19 @@ const validBody = {
     city: "Cachoeira",
     state: "BA",
   },
-  shipping: { id: "pac", name: "PAC", price: 2500 },
-  total: 15400,
+  shipping: { tier: "economico", expectedTotal: 2500 },
   document: "111.444.777-35",
 }
 
 function makeReq(body: unknown = validBody, overrides: { recordSnapshot?: jest.Mock; createOrders?: jest.Mock } = {}) {
-  const graph = jest.fn().mockResolvedValue({
-    data: [
-      { id: "prod-1", seller: { id: "seller-a" } },
-      { id: "prod-2", seller: { id: "seller-b" } },
-    ],
-  })
+  const productByVariant: Record<string, string> = { "var-1": "prod-1", "var-2": "prod-2", "var-orphan": "prod-orphan" }
+  const sellerByProduct: Record<string, string> = { "prod-1": "seller-a", "prod-2": "seller-b" }
+  const graph = jest.fn(async ({ entity, filters }: any) => ({
+    data:
+      entity === "product_variant"
+        ? filters.id.filter((id: string) => productByVariant[id]).map((id: string) => ({ id, product_id: productByVariant[id] }))
+        : filters.id.filter((id: string) => sellerByProduct[id]).map((id: string) => ({ id, seller: { id: sellerByProduct[id] } })),
+  }))
   const checkoutService = { recordSnapshot: overrides.recordSnapshot ?? jest.fn().mockResolvedValue(undefined) }
   const orderService = {
     listOrders: jest.fn().mockResolvedValue([]),
@@ -73,6 +85,8 @@ describe("/store/checkout/sandbox-cash", () => {
 
   beforeEach(() => {
     process.env = { ...original }
+    ;(resolveCheckoutShipping as jest.Mock).mockReset()
+    ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({ ok: true, option: shippingOption })
     delete process.env.MARKETPLACE_SANDBOX
     // The route must work with MercadoPago completely unavailable.
     delete process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -135,14 +149,53 @@ describe("/store/checkout/sandbox-cash", () => {
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
     })
 
-    it("returns 400 when a product has no seller", async () => {
-      const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], productId: "prod-orphan" }] })
+    it("returns 400 without quoting when the CEP does not have 8 digits", async () => {
+      const req = makeReq({ ...validBody, address: { ...validBody.address, cep: "4430-000" } })
       const res = makeRes()
 
       await POST(req, res)
 
       expect(res._status).toBe(400)
-      expect(res._body).toEqual({ error: "Produto sem vendedor associado.", productId: "prod-orphan" })
+      expect(resolveCheckoutShipping).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
+    it("returns 422 and creates nothing when shipping is unavailable", async () => {
+      ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
+        ok: false, status: 422, body: { error: "Frete indisponível para alguns produtos do carrinho", quote: {} },
+      })
+      const req = makeReq()
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(422)
+      expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
+    it("returns 409 and creates nothing when the shipping price changed", async () => {
+      ;(resolveCheckoutShipping as jest.Mock).mockResolvedValue({
+        ok: false, status: 409, body: { error: "O valor do frete foi atualizado", quote: {} },
+      })
+      const req = makeReq()
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(409)
+      expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
+    it("returns 400 when a variant's product has no seller", async () => {
+      const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], variantId: "var-orphan" }] })
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(400)
+      expect(res._body).toEqual({ error: "Produto sem vendedor associado.", variantId: "var-orphan" })
     })
 
     it("records the snapshot and creates one test_cash order per seller, without MercadoPago credentials", async () => {

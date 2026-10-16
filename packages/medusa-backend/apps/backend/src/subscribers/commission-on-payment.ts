@@ -13,7 +13,7 @@ import type MarketplaceChannelModuleService from "../modules/marketplace-channel
 // A parcela percentual escala naturalmente por pedido (soma dos produtos);
 // a parcela fixa é por PAGAMENTO, não por pedido — quando um pagamento vira
 // N pedidos (split multi-vendedor), ela é rateada proporcionalmente entre
-// eles (mesmo algoritmo de rateio do frete em seller-order-groups.ts),
+// eles (rateio proporcional ao subtotal de produtos, ver allocateFixedFee),
 // senão os vendedores absorveriam R$0,39 cada em vez de R$0,39 no total.
 const BANKING_FEE_PERCENT = 0.0299
 const BANKING_FEE_FIXED = 39

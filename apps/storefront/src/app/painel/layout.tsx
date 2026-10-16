@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useSellerStore, type SellerProfile } from '@/lib/seller-store'
 import { getMe, sellerLogout } from '@/lib/seller-api'
+import { hasShippingOrigin } from '@/lib/seller-address'
 import {
   LayoutDashboard,
   Package,
@@ -146,6 +147,13 @@ export default function PainelLayout({ children }: { children: React.ReactNode }
           </button>
           <p className="text-sm text-onyx/50">Portal do Vendedor</p>
         </header>
+
+        {!hasShippingOrigin(seller) && (
+          <div className="bg-amber/10 border-b border-amber/30 px-6 py-3 text-sm text-onyx">
+            Complete seu endereço de envio para que seus produtos possam ser vendidos.{' '}
+            <Link href="/painel/perfil" className="font-semibold underline">Completar endereço</Link>
+          </div>
+        )}
 
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>

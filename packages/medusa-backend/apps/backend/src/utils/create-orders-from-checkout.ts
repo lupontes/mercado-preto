@@ -81,12 +81,18 @@ export async function createOrdersFromCheckout({
         unit_price: i.price,
         ...(i.variant_id ? { variant_id: i.variant_id } : {}),
       })),
-      shipping_methods: shipping ? [{ name: shipping.name, amount: group.shippingShare }] : [],
+      shipping_methods: group.shipping
+        ? [{ name: `Correios ${group.shipping.service}`, amount: group.shippingShare }]
+        : shipping
+          ? [{ name: shipping.name, amount: group.shippingShare }]
+          : [],
       metadata: {
         mercadopago_external_reference: externalReference,
         seller_id: group.sellerId,
         buyer_document: meta.buyer_document,
         shipping_status: INITIAL_SHIPPING_STATUS,
+        // Cycle 3 buys exactly this label for the seller's package.
+        ...(group.shipping ? { shipping_tier: group.shipping.tier, shipping_service_id: group.shipping.serviceId } : {}),
         ...extraMetadata,
       },
     }))

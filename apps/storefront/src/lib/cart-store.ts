@@ -13,23 +13,38 @@ export type CartItem = {
   quantity: number
 }
 
-export type ShippingRate = {
-  id: string
-  name: string
-  company: string
+export type ShippingTier = 'economico' | 'rapido'
+
+export type SellerShipping = {
+  sellerId: string
+  sellerName: string
+  tier: ShippingTier
+  service: 'PAC' | 'SEDEX'
+  serviceId: number
   price: number
-  currency: string
-  delivery_time: string
+  deliveryDays: number
 }
+
+/** One choice the buyer sees: the sum of every store's PAC or SEDEX. */
+export type ShippingOption = { tier: ShippingTier; label: string; total: number; deliveryDays: number; sellers: SellerShipping[] }
+
+export type UnavailableSeller = {
+  sellerId: string
+  sellerName: string
+  reason: 'missing_address' | 'oversized' | 'quote_failed'
+  productTitles: string[]
+}
+
+export type ShippingQuote = { options: ShippingOption[]; unavailableSellers: UnavailableSeller[] }
 
 type CartStore = {
   items: CartItem[]
-  selectedShipping: ShippingRate | null
+  selectedShipping: ShippingOption | null
 
   addItem: (item: Omit<CartItem, 'quantity'>) => void
   removeItem: (variantId: string) => void
   updateQuantity: (variantId: string, quantity: number) => void
-  setShipping: (rate: ShippingRate | null) => void
+  setShipping: (option: ShippingOption | null) => void
   clear: () => void
 
   subtotal: () => number
@@ -51,14 +66,16 @@ export const useCartStore = create<CartStore>()(
               items: state.items.map((i) =>
                 i.variantId === item.variantId ? { ...i, quantity: i.quantity + 1 } : i
               ),
+              selectedShipping: null,
             }
           }
-          return { items: [...state.items, { ...item, quantity: 1 }] }
+          return { items: [...state.items, { ...item, quantity: 1 }], selectedShipping: null }
         })
       },
 
       removeItem: (variantId) => {
-        set((state) => ({ items: state.items.filter((i) => i.variantId !== variantId) }))
+        // The cart changed, so any previous quote is stale and must be requested again.
+        set((state) => ({ items: state.items.filter((i) => i.variantId !== variantId), selectedShipping: null }))
       },
 
       updateQuantity: (variantId, quantity) => {
@@ -68,10 +85,11 @@ export const useCartStore = create<CartStore>()(
         }
         set((state) => ({
           items: state.items.map((i) => (i.variantId === variantId ? { ...i, quantity } : i)),
+          selectedShipping: null,
         }))
       },
 
-      setShipping: (rate) => set({ selectedShipping: rate }),
+      setShipping: (option) => set({ selectedShipping: option }),
 
       clear: () => set({ items: [], selectedShipping: null }),
 
@@ -79,7 +97,7 @@ export const useCartStore = create<CartStore>()(
 
       total: () => {
         const { subtotal, selectedShipping } = get()
-        return subtotal() + (selectedShipping?.price ?? 0)
+        return subtotal() + (selectedShipping?.total ?? 0)
       },
 
       count: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
@@ -90,6 +108,11 @@ export const useCartStore = create<CartStore>()(
         typeof window !== 'undefined' ? localStorage : ({ getItem: () => null, setItem: () => {}, removeItem: () => {}, length: 0, clear: () => {}, key: () => null } as Storage)
       ),
       skipHydration: true,
+      version: 1,
+      // v0 stored a single carrier rate ({ id, price, ... }). It cannot be
+      // charged anymore, so the selection is dropped and the buyer re-quotes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      migrate: (persisted: any, version) => (version < 1 ? { ...persisted, selectedShipping: null } : persisted),
     }
   )
 )

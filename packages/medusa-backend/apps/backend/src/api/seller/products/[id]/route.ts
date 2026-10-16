@@ -4,6 +4,14 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import { categoryExists } from "../category-validation"
+import { resolveSellerPackage } from "../package"
+
+const packageFields = {
+  packageSize: z.enum(["small", "medium", "large", "bulky"]).optional(),
+  packageDimensions: z
+    .object({ weight: z.number().positive(), length: z.number().positive(), width: z.number().positive(), height: z.number().positive() })
+    .optional(),
+}
 
 const UpdateProductSchema = z.object({
   title: z.string().min(2).optional(),
@@ -18,6 +26,7 @@ const UpdateProductSchema = z.object({
       currency_code: z.string().length(3),
     })),
   })).optional(),
+  ...packageFields,
 })
 
 async function getSellerProduct(req: MedusaRequest, sellerId: string, productId: string) {
@@ -50,9 +59,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       "description",
       "thumbnail",
       "status",
+      "metadata",
       "categories.id",
       "categories.name",
       "variants.id",
+      "variants.weight",
+      "variants.length",
+      "variants.width",
+      "variants.height",
       "variants.prices.amount",
       "variants.prices.currency_code",
     ],
@@ -75,7 +89,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
 
   const productService = req.scope.resolve(Modules.PRODUCT)
 
-  const { category_id, ...rest } = parsed.data
+  const { category_id, packageSize, packageDimensions, ...rest } = parsed.data
   const updateData: Record<string, unknown> = { ...rest }
   // Zod's .optional() can't tell "key omitted" from "key sent as null" (both parse to undefined-ish),
   // so we check the raw body to get three states: absent (don't touch), null (clear), string (set).
@@ -87,6 +101,17 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
       return res.status(400).json({ error: "Categoria não encontrada" })
     }
     updateData.category_ids = category_id ? [category_id] : []
+  }
+
+  if (packageSize) {
+    const pkg = resolveSellerPackage(packageSize, packageDimensions)
+    if (!pkg.ok) return res.status(400).json({ error: pkg.error })
+    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: [current] } = await query.graph({ entity: "product", fields: ["id", "metadata"], filters: { id } })
+    const existing = (current?.metadata ?? {}) as Record<string, unknown>
+    // Re-review only when the seller measured the box; presets keep the team's verdict.
+    updateData.metadata = { ...existing, ...pkg.metadata }
+    await productService.updateProductVariants({ product_id: id }, pkg.dims)
   }
 
   const { result: [product] } = await updateProductsWorkflow(req.scope).run({

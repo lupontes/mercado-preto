@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPreference } from '../create-preference'
-import { fetchShippingRates } from '../shipping-rates'
+import { fetchShippingQuote } from '../shipping-quote'
 import { submitPayment } from '@/components/payment/MercadoPagoBrick'
 
 // The test server serves the storefront over https while NEXT_PUBLIC_MEDUSA_URL
@@ -9,7 +9,7 @@ import { submitPayment } from '@/components/payment/MercadoPagoBrick'
 // content before reaching the network. Checkout calls must stay relative.
 const INSECURE_BACKEND = 'http://168.138.148.67:9000'
 
-const RATE = { id: 'pac', name: 'PAC', company: 'Correios', price: 2500, currency: 'brl', delivery_time: '5 dias' }
+const OPTION = { tier: 'economico' as const, label: 'Econômico', total: 2500, deliveryDays: 11, sellers: [] }
 const ADDRESS = {
   firstName: 'João', lastName: 'Silva', email: 'joao@email.com', phone: '',
   document: '111.444.777-35', cep: '44300-000', address1: 'Rua X', address2: '',
@@ -21,7 +21,7 @@ describe('checkout calls in the browser', () => {
 
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_MEDUSA_URL', INSECURE_BACKEND)
-    fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ rates: [] }) })
+    fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ options: [], unavailableSellers: [] }) })
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -30,14 +30,14 @@ describe('checkout calls in the browser', () => {
     vi.unstubAllEnvs()
   })
 
-  it('fetchShippingRates uses a relative URL', async () => {
-    await fetchShippingRates('44300000')
+  it('fetchShippingQuote uses a relative URL', async () => {
+    await fetchShippingQuote('44300000', [{ variantId: 'var-1', quantity: 1 }])
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/store/shipping/estimate?cep=44300000')
+    expect(fetchMock.mock.calls[0][0]).toBe('/store/shipping/quote')
   })
 
   it('createPreference uses a relative URL', async () => {
-    await createPreference([{ title: 'Camiseta', quantity: 1, price: 7900, productId: 'prod-1' }], ADDRESS, RATE)
+    await createPreference([{ title: 'Camiseta', quantity: 1, price: 7900, variantId: 'var-1', productId: 'prod-1' }], ADDRESS, OPTION)
 
     expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/preference')
   })

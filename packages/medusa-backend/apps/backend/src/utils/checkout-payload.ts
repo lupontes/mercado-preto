@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { validateDocument } from "./validate-document"
 import { groupItemsBySeller, type SellerGroup } from "./seller-order-groups"
+import type { ShippingOption } from "./shipping-quote"
 import type { CheckoutMeta } from "./create-orders-from-checkout"
 
 // Shared by every checkout entry point (MercadoPago preference, test cash) so
@@ -11,27 +12,28 @@ export const checkoutRequestSchema = z.object({
       title: z.string(),
       quantity: z.number().int().positive(),
       price: z.number().int().positive(),
-      variantId: z.string().optional(),
+      variantId: z.string(),
       productId: z.string(),
     })
-  ).min(1),
+  ).min(1).max(50),
   address: z.object({
     firstName: z.string(),
     lastName: z.string(),
     email: z.string().email(),
     phone: z.string().optional(),
-    cep: z.string(),
+    // Same rule as /store/shipping/quote: the re-quote and the stored
+    // postal_code both need a real 8-digit CEP.
+    cep: z.string().refine((v) => v.replace(/\D/g, "").length === 8, "CEP inválido. Informe 8 dígitos."),
     address1: z.string(),
     address2: z.string().optional(),
     city: z.string(),
     state: z.string(),
   }),
   shipping: z.object({
-    id: z.string(),
-    name: z.string(),
-    price: z.number().int().nonnegative(),
+    tier: z.enum(["economico", "rapido"]),
+    // What the buyer saw; the server re-quotes and answers 409 if it changed.
+    expectedTotal: z.number().int().nonnegative(),
   }),
-  total: z.number().int().positive(),
   document: z.string().refine((v) => validateDocument(v).valid, {
     message: "CPF ou CNPJ inválido",
   }),
@@ -52,13 +54,22 @@ type ProductQuery = { graph: (args: any) => Promise<{ data: any[] }> }
 
 export async function buildCheckoutSnapshot(
   query: ProductQuery,
-  request: CheckoutRequest
-): Promise<{ payload: CheckoutSnapshotPayload } | { unresolvedProductId: string }> {
-  const { items, address, shipping, total, document } = request
+  request: CheckoutRequest,
+  option: ShippingOption
+): Promise<{ payload: CheckoutSnapshotPayload } | { unresolvedVariantId: string }> {
+  const { items, address, document } = request
   // checkoutRequestSchema already rejected invalid documents, so digits is set.
   const buyerDocument = validateDocument(document).digits as string
 
-  const productIds = [...new Set(items.map((i) => i.productId))]
+  // Resolve variant → product → seller exactly like quoteShipping, so each
+  // group gets the shipping quoted for the seller that really ships it.
+  const variantIds = [...new Set(items.map((i) => i.variantId))]
+  const { data: variants } = await query.graph({
+    entity: "product_variant",
+    fields: ["id", "product_id"],
+    filters: { id: variantIds },
+  })
+  const productIds = [...new Set((variants as any[]).map((v) => v.product_id))]
   const { data: products } = await query.graph({
     entity: "product",
     fields: ["id", "seller.id"],
@@ -68,10 +79,16 @@ export async function buildCheckoutSnapshot(
   for (const p of products as any[]) {
     if (p.seller?.id) sellerByProductId[p.id] = p.seller.id
   }
+  const sellerByVariantId: Record<string, string> = {}
+  for (const v of variants as any[]) {
+    const sellerId = sellerByProductId[v.product_id]
+    if (sellerId) sellerByVariantId[v.id] = sellerId
+  }
 
-  const grouped = groupItemsBySeller(items, sellerByProductId, shipping.price)
-  if ("unresolvedProductId" in grouped) {
-    return { unresolvedProductId: grouped.unresolvedProductId }
+  const shippingBySeller = Object.fromEntries(option.sellers.map((s) => [s.sellerId, s]))
+  const grouped = groupItemsBySeller(items, sellerByVariantId, shippingBySeller)
+  if ("unresolvedVariantId" in grouped) {
+    return { unresolvedVariantId: grouped.unresolvedVariantId }
   }
 
   return {
@@ -95,8 +112,8 @@ export async function buildCheckoutSnapshot(
         quantity: i.quantity,
         price: i.price,
       })),
-      shipping: { id: shipping.id, name: shipping.name, price: shipping.price },
-      total,
+      shipping: { id: option.tier, name: option.label, price: option.total },
+      total: items.reduce((sum, i) => sum + i.price * i.quantity, 0) + option.total,
     },
   }
 }
