@@ -20,7 +20,7 @@ expect_status api-health "200" "$BASE/api/health"
 expect_status http-redirect "301" "http://$DOMAIN/"
 
 # An image the storefront actually renders: both the optimized and the raw URL.
-NEXT_IMG="$(curl -s -m 15 "$BASE/" | grep -oE '/_next/image\?url=[^"]+' | head -1 | sed 's/&amp;/\&/g')"
+NEXT_IMG="$(curl -s -m 15 "$BASE/" | grep -oE '/_next/image\?url=[^" ]+' | head -1 | sed 's/&amp;/\&/g')"
 if [[ -z "$NEXT_IMG" ]]; then
   fail "image: no /_next/image found on home"
 else
