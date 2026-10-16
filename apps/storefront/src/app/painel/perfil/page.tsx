@@ -94,12 +94,14 @@ export default function PerfilPage() {
   async function handleCepBlur() {
     const found = await fetchAddressByCep(form.addressPostalCode)
     if (!found) return
+    // City-level CEPs come back with empty street/district; keep what the
+    // seller already typed instead of wiping it.
     setForm((f) => ({
       ...f,
-      addressStreet: found.street,
-      addressDistrict: found.district,
-      addressCity: found.city,
-      addressState: found.state,
+      addressStreet: found.street || f.addressStreet,
+      addressDistrict: found.district || f.addressDistrict,
+      addressCity: found.city || f.addressCity,
+      addressState: found.state || f.addressState,
     }))
   }
 

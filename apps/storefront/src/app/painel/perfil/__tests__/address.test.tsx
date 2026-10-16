@@ -43,6 +43,27 @@ describe("PerfilPage shipping address", () => {
     }))
   })
 
+  it("keeps the typed street and district when ViaCEP only knows the city", async () => {
+    const user = userEvent.setup()
+    vi.spyOn(sellerApi, "getMe").mockResolvedValue({ seller })
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ logradouro: "", bairro: "", localidade: "Cachoeira", uf: "BA" }),
+    }))
+
+    render(<PerfilPage />)
+
+    await user.type(await screen.findByLabelText("Rua"), "Rua do Rosário")
+    await user.type(screen.getByLabelText("Bairro"), "Centro Histórico")
+    await user.type(screen.getByLabelText("CEP"), "44300000")
+    await user.tab()
+
+    await waitFor(() => expect(screen.getByLabelText("Cidade")).toHaveValue("Cachoeira"))
+    expect(screen.getByLabelText("UF")).toHaveValue("BA")
+    expect(screen.getByLabelText("Rua")).toHaveValue("Rua do Rosário")
+    expect(screen.getByLabelText("Bairro")).toHaveValue("Centro Histórico")
+  })
+
   it("omits the address block from the body when every address field is empty", async () => {
     const user = userEvent.setup()
     vi.spyOn(sellerApi, "getMe").mockResolvedValue({ seller })
