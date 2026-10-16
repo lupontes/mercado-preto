@@ -28,11 +28,17 @@ const option = {
   ],
 }
 
-function makeQuery(sellers: Record<string, string>) {
+const productByVariant: Record<string, string> = { "var-1": "prod-1", "var-2": "prod-2" }
+
+// Same two lookups quoteShipping does: variant → product, then product → seller.
+function makeQuery(sellerByProduct: Record<string, string>) {
   return {
-    graph: jest.fn().mockResolvedValue({
-      data: Object.entries(sellers).map(([id, sellerId]) => ({ id, seller: { id: sellerId } })),
-    }),
+    graph: jest.fn(async ({ entity, filters }: any) => ({
+      data:
+        entity === "product_variant"
+          ? filters.id.filter((id: string) => productByVariant[id]).map((id: string) => ({ id, product_id: productByVariant[id] }))
+          : filters.id.filter((id: string) => sellerByProduct[id]).map((id: string) => ({ id, seller: { id: sellerByProduct[id] } })),
+    })),
   }
 }
 
@@ -56,6 +62,11 @@ describe("buildCheckoutSnapshot", () => {
 
     const result = await buildCheckoutSnapshot(query, request, option)
 
+    expect(query.graph).toHaveBeenCalledWith({
+      entity: "product_variant",
+      fields: ["id", "product_id"],
+      filters: { id: ["var-1", "var-2"] },
+    })
     expect(query.graph).toHaveBeenCalledWith({
       entity: "product",
       fields: ["id", "seller.id"],
@@ -84,11 +95,31 @@ describe("buildCheckoutSnapshot", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, shipping: { id: "pac", name: "PAC", price: 1 } }).success).toBe(false)
   })
 
-  it("returns unresolvedProductId when a product has no seller", async () => {
+  it("returns unresolvedVariantId when a variant's product has no seller", async () => {
     const query = makeQuery({ "prod-1": "seller-a" })
 
     const result = await buildCheckoutSnapshot(query, request, option)
 
-    expect(result).toEqual({ unresolvedProductId: "prod-2" })
+    expect(result).toEqual({ unresolvedVariantId: "var-2" })
+  })
+
+  it("groups by the variant's seller even when the browser sends another seller's productId", async () => {
+    const query = makeQuery({ "prod-1": "seller-a", "prod-2": "seller-b" })
+    const tampered: CheckoutRequest = {
+      ...request,
+      items: [
+        { ...request.items[0], productId: "prod-2" },
+        { ...request.items[1], productId: "prod-1" },
+      ],
+    }
+
+    const result = await buildCheckoutSnapshot(query, tampered, option)
+
+    if (!("payload" in result)) throw new Error("expected payload")
+    expect(result.payload.seller_groups.map((g) => [g.sellerId, g.subtotal, g.shippingShare])).toEqual([
+      ["seller-a", 2 * 7900, 2500],
+      ["seller-b", 5000, 3000],
+    ])
+    expect(query.graph).not.toHaveBeenCalledWith(expect.objectContaining({ filters: { id: ["prod-2", "prod-1"] } }))
   })
 })

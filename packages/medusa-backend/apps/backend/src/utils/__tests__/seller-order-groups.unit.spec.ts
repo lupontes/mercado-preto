@@ -12,7 +12,7 @@ describe("groupItemsBySeller", () => {
   it("uses each seller's real shipping price as its share and keeps the chosen service", () => {
     const result = groupItemsBySeller(
       [item({ productId: "prod-1", price: 7900 }), item({ productId: "prod-2", price: 5000, variantId: "var-2" })],
-      { "prod-1": "seller-a", "prod-2": "seller-b" },
+      { "var-1": "seller-a", "var-2": "seller-b" },
       { "seller-a": pac("seller-a", 3679), "seller-b": pac("seller-b", 8190) }
     )
     if (!("groups" in result)) throw new Error("expected groups")
@@ -26,7 +26,7 @@ describe("groupItemsBySeller", () => {
   it("groups several items of the same seller into one group", () => {
     const result = groupItemsBySeller(
       [item({ price: 1000 }), item({ price: 500, quantity: 2, variantId: "var-2" })],
-      { "prod-1": "seller-a" },
+      { "var-1": "seller-a", "var-2": "seller-a" },
       { "seller-a": pac("seller-a", 2000) }
     )
     if (!("groups" in result)) throw new Error("expected groups")
@@ -35,7 +35,17 @@ describe("groupItemsBySeller", () => {
     expect(result.groups[0].items).toHaveLength(2)
   })
 
-  it("reports a product without seller", () => {
-    expect(groupItemsBySeller([item({ productId: "x" })], {}, {})).toEqual({ unresolvedProductId: "x" })
+  it("reports a variant without seller", () => {
+    expect(groupItemsBySeller([item({ variantId: "x" })], {}, {})).toEqual({ unresolvedVariantId: "x" })
+  })
+
+  it("groups by the variant's seller and ignores the productId sent by the browser", () => {
+    const result = groupItemsBySeller(
+      [item({ variantId: "var-1", productId: "prod-of-seller-b" })],
+      { "var-1": "seller-a" },
+      { "seller-a": pac("seller-a", 2000), "seller-b": pac("seller-b", 1) }
+    )
+    if (!("groups" in result)) throw new Error("expected groups")
+    expect(result.groups.map((g) => [g.sellerId, g.shippingShare])).toEqual([["seller-a", 2000]])
   })
 })

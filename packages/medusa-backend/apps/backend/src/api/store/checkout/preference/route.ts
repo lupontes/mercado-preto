@@ -33,10 +33,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const option = shipping.option
 
   const built = await buildCheckoutSnapshot(query, parsed.data, option)
-  if ("unresolvedProductId" in built) {
+  if ("unresolvedVariantId" in built) {
     return res.status(400).json({
       error: "Produto sem vendedor associado.",
-      productId: built.unresolvedProductId,
+      variantId: built.unresolvedVariantId,
     })
   }
   const checkoutSnapshotPayload = built.payload

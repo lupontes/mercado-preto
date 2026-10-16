@@ -40,12 +40,14 @@ const validBody = {
 }
 
 function makeReq(body: unknown = validBody, overrides: { recordSnapshot?: jest.Mock; createOrders?: jest.Mock } = {}) {
-  const graph = jest.fn().mockResolvedValue({
-    data: [
-      { id: "prod-1", seller: { id: "seller-a" } },
-      { id: "prod-2", seller: { id: "seller-b" } },
-    ],
-  })
+  const productByVariant: Record<string, string> = { "var-1": "prod-1", "var-2": "prod-2", "var-orphan": "prod-orphan" }
+  const sellerByProduct: Record<string, string> = { "prod-1": "seller-a", "prod-2": "seller-b" }
+  const graph = jest.fn(async ({ entity, filters }: any) => ({
+    data:
+      entity === "product_variant"
+        ? filters.id.filter((id: string) => productByVariant[id]).map((id: string) => ({ id, product_id: productByVariant[id] }))
+        : filters.id.filter((id: string) => sellerByProduct[id]).map((id: string) => ({ id, seller: { id: sellerByProduct[id] } })),
+  }))
   const checkoutService = { recordSnapshot: overrides.recordSnapshot ?? jest.fn().mockResolvedValue(undefined) }
   const orderService = {
     listOrders: jest.fn().mockResolvedValue([]),
@@ -175,14 +177,14 @@ describe("/store/checkout/sandbox-cash", () => {
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
     })
 
-    it("returns 400 when a product has no seller", async () => {
-      const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], productId: "prod-orphan" }] })
+    it("returns 400 when a variant's product has no seller", async () => {
+      const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], variantId: "var-orphan" }] })
       const res = makeRes()
 
       await POST(req, res)
 
       expect(res._status).toBe(400)
-      expect(res._body).toEqual({ error: "Produto sem vendedor associado.", productId: "prod-orphan" })
+      expect(res._body).toEqual({ error: "Produto sem vendedor associado.", variantId: "var-orphan" })
     })
 
     it("records the snapshot and creates one test_cash order per seller, without MercadoPago credentials", async () => {

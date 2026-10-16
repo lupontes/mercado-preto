@@ -24,9 +24,13 @@ const makeReq = (
     BACKEND_URL: "",
     ...env,
   })
-  const graph = jest.fn().mockResolvedValue({
-    data: Object.entries(sellerByProductId).map(([id, sellerId]) => ({ id, seller: { id: sellerId } })),
-  })
+  // Variants in these tests are "var-N" and belong to "prod-N".
+  const graph = jest.fn(async ({ entity, filters }: any) => ({
+    data:
+      entity === "product_variant"
+        ? filters.id.map((id: string) => ({ id, product_id: id.replace("var-", "prod-") }))
+        : filters.id.filter((id: string) => sellerByProductId[id]).map((id: string) => ({ id, seller: { id: sellerByProductId[id] } })),
+  }))
   const mockCheckoutService = {
     recordSnapshot: jest.fn().mockResolvedValue(undefined),
     attachPreferenceId: jest.fn().mockResolvedValue(undefined),
@@ -248,6 +252,7 @@ describe("POST /store/checkout/preference", () => {
 
     expect(res._status).toBe(400)
     expect((res._body as any).error).toBe("Produto sem vendedor associado.")
+    expect((res._body as any).variantId).toBe("var-1")
   })
 
   it("writes seller_groups (not seller_id) to the preference metadata", async () => {

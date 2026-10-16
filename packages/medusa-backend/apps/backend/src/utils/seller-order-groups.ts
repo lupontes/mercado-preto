@@ -4,7 +4,7 @@ export type PreferenceItem = {
   title: string
   quantity: number
   price: number
-  variantId?: string
+  variantId: string
   productId: string
 }
 
@@ -17,20 +17,25 @@ export type SellerGroup = {
   items: Array<{ variant_id?: string; title: string; quantity: number; price: number }>
 }
 
-/** One group per seller; each group's shipping is that seller's real quote. */
+/**
+ * One group per seller; each group's shipping is that seller's real quote.
+ * Sellers are keyed by variant (resolved server-side, like the quote) — the
+ * browser's productId is never trusted, or a tampered cart could pair one
+ * seller's items with another seller's shipping.
+ */
 export function groupItemsBySeller(
   items: PreferenceItem[],
-  sellerByProductId: Record<string, string>,
+  sellerByVariantId: Record<string, string>,
   shippingBySeller: Record<string, SellerShipping>
-): { groups: SellerGroup[] } | { unresolvedProductId: string } {
+): { groups: SellerGroup[] } | { unresolvedVariantId: string } {
   for (const item of items) {
-    if (!sellerByProductId[item.productId]) return { unresolvedProductId: item.productId }
+    if (!sellerByVariantId[item.variantId]) return { unresolvedVariantId: item.variantId }
   }
 
   const order: string[] = []
   const bySeller = new Map<string, { subtotal: number; items: SellerGroup["items"] }>()
   for (const item of items) {
-    const sellerId = sellerByProductId[item.productId]
+    const sellerId = sellerByVariantId[item.variantId]
     if (!bySeller.has(sellerId)) {
       bySeller.set(sellerId, { subtotal: 0, items: [] })
       order.push(sellerId)

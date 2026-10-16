@@ -54,12 +54,20 @@ export async function buildCheckoutSnapshot(
   query: ProductQuery,
   request: CheckoutRequest,
   option: ShippingOption
-): Promise<{ payload: CheckoutSnapshotPayload } | { unresolvedProductId: string }> {
+): Promise<{ payload: CheckoutSnapshotPayload } | { unresolvedVariantId: string }> {
   const { items, address, document } = request
   // checkoutRequestSchema already rejected invalid documents, so digits is set.
   const buyerDocument = validateDocument(document).digits as string
 
-  const productIds = [...new Set(items.map((i) => i.productId))]
+  // Resolve variant → product → seller exactly like quoteShipping, so each
+  // group gets the shipping quoted for the seller that really ships it.
+  const variantIds = [...new Set(items.map((i) => i.variantId))]
+  const { data: variants } = await query.graph({
+    entity: "product_variant",
+    fields: ["id", "product_id"],
+    filters: { id: variantIds },
+  })
+  const productIds = [...new Set((variants as any[]).map((v) => v.product_id))]
   const { data: products } = await query.graph({
     entity: "product",
     fields: ["id", "seller.id"],
@@ -69,11 +77,16 @@ export async function buildCheckoutSnapshot(
   for (const p of products as any[]) {
     if (p.seller?.id) sellerByProductId[p.id] = p.seller.id
   }
+  const sellerByVariantId: Record<string, string> = {}
+  for (const v of variants as any[]) {
+    const sellerId = sellerByProductId[v.product_id]
+    if (sellerId) sellerByVariantId[v.id] = sellerId
+  }
 
   const shippingBySeller = Object.fromEntries(option.sellers.map((s) => [s.sellerId, s]))
-  const grouped = groupItemsBySeller(items, sellerByProductId, shippingBySeller)
-  if ("unresolvedProductId" in grouped) {
-    return { unresolvedProductId: grouped.unresolvedProductId }
+  const grouped = groupItemsBySeller(items, sellerByVariantId, shippingBySeller)
+  if ("unresolvedVariantId" in grouped) {
+    return { unresolvedVariantId: grouped.unresolvedVariantId }
   }
 
   return {
