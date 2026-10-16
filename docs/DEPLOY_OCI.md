@@ -12,35 +12,33 @@
 
 ### Portas abertas (NSG Oracle Cloud + iptables)
 
-| Porta | Protocolo | Serviço | Descrição | Restrição |
-|-------|-----------|---------|-----------|-----------|
-| `22` | TCP | SSH | Acesso remoto | Chave pública |
-| `9000` | TCP | Medusa backend | API + Admin | Acesso externo |
-| `3000` | TCP | Next.js storefront | Vitrine pública | Acesso externo |
-| `8080` | TCP | Evolution API | WhatsApp (Baileys) | Acesso externo |
-| `7700` | TCP | Meilisearch | Dashboard de busca | Pode ser restrito ao IP da equipe |
-| `19999` | TCP | Netdata | Monitoramento | Dashboard de métricas |
+| Porta | Protocolo | Serviço | Descrição |
+|-------|-----------|---------|-----------|
+| `22` | TCP | SSH | Acesso remoto (chave pública) |
+| `80` | TCP | nginx | Redireciona para 443; desafio ACME do certbot |
+| `443` | TCP | nginx | Única entrada pública: vitrine, `/api`, `/app`, `/store`, `/seller`... |
 
-### Configuração de Firewall (UFW + iptables)
+Todo o resto fica interno. Postgres (5433), Redis (6380), Evolution (8080) e
+Medusa (9000) são publicados só em `127.0.0.1`. O Meilisearch não é
+publicado. O storefront (3000, PM2 no host) só aceita conexões das redes
+Docker. Para acessar um serviço interno, use túnel SSH, por exemplo
+`ssh -i ~/.ssh/oci_vms -L 9000:127.0.0.1:9000 ubuntu@168.138.148.67`.
+
+### Firewall do host (iptables + netfilter-persistent)
+
+O servidor não usa UFW. Regras relevantes na chain `INPUT`, antes do `REJECT` final:
 
 ```bash
-# UFW
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp
-sudo ufw allow 3000/tcp
-sudo ufw allow 9000/tcp
-sudo ufw allow 8080/tcp
-sudo ufw allow 7700/tcp
-sudo ufw allow 19999/tcp
-sudo ufw --force enable
-
-# iptables (backup para persistência)
-for port in 22 3000 9000 8080 7700 19999; do
-  sudo iptables -I INPUT -p tcp --dport $port -j ACCEPT
-done
+sudo iptables -I INPUT -p tcp --dport 80  -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+# Storefront (PM2): só o nginx, que chega pelas redes Docker
+sudo iptables -I INPUT -s 172.16.0.0/12 -p tcp --dport 3000 -j ACCEPT
 sudo netfilter-persistent save
 ```
+
+Portas publicadas pelo Docker não passam pela chain `INPUT`. Por isso elas são
+fechadas no `docker-compose.oci.yml` (bind em `127.0.0.1`), e não no iptables.
+A NSG da OCI libera só 22, 80 e 443, como segunda camada.
 
 ---
 
@@ -49,14 +47,13 @@ sudo netfilter-persistent save
 ```
 Internet
   │
-  ├── :9000 → Medusa backend (container)
-  ├── :3000 → Next.js storefront (processo Node.js)
-  ├── :8080 → Evolution API (container)
-  ├── :7700 → Meilisearch (container)
-  └── :19999 → Netdata (monitoramento)
+  ├── :80/:443 → nginx (container, compose OCI)
+  │                ├── /api /app /auth /admin /store /seller → medusa:9000
+  │                └── /  → host.docker.internal:3000 → storefront (PM2 no host)
+  └── :22 → SSH
 
-Interno (sem porta externa):
-  PostgreSQL, Redis
+Interno (127.0.0.1 ou rede Docker):
+  Medusa 9000, PostgreSQL 5433, Redis 6380, Evolution 8080, Meilisearch 7700
 ```
 
 O storefront roda como processo Node.js direto no host (não containerizado), pois é um monorepo pnpm e o build é feito no próprio servidor.
@@ -181,13 +178,13 @@ REDIS_URL=redis://localhost:6380
 JWT_SECRET=<mesmo JWT_SECRET do .env.oci>
 COOKIE_SECRET=<mesmo COOKIE_SECRET do .env.oci>
 
-STORE_CORS=http://168.138.148.67:3000
-ADMIN_CORS=http://168.138.148.67:9000
-AUTH_CORS=http://168.138.148.67:3000,http://168.138.148.67:9000
+# No OCI, estes valores vêm do compose a partir de PUBLIC_URL (.env.oci)
+PUBLIC_URL=https://teste.mercadopreto.com.br
+# STORE_CORS / ADMIN_CORS / AUTH_CORS = ${PUBLIC_URL}
+# BACKEND_URL = ${PUBLIC_URL}/api
 
 MERCADOPAGO_ACCESS_TOKEN=TEST-...
 MERCADOPAGO_WEBHOOK_SECRET=
-BACKEND_URL=http://168.138.148.67:9000
 
 MEILISEARCH_HOST=http://localhost:7700
 MEILISEARCH_API_KEY=<mesmo MEILI_MASTER_KEY>
@@ -225,7 +222,9 @@ nano apps/storefront/.env.local
 ```
 
 ```env
-NEXT_PUBLIC_MEDUSA_URL=http://168.138.148.67:9000
+# Só o SSR usa esta URL; o navegador chama caminhos relativos via nginx.
+NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000
+NEXT_PUBLIC_SITE_URL=https://teste.mercadopreto.com.br
 NEXT_PUBLIC_PUBLISHABLE_KEY=pk_...       # obtido após seeds (ver Passo 7)
 NEXT_PUBLIC_REGION_ID=reg_...            # obtido após seeds (ver Passo 7)
 NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=TEST-...
@@ -269,6 +268,9 @@ docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d m
 # Aguardar o Medusa inicializar
 docker compose -f infra/docker-compose.oci.yml logs -f medusa
 # Aguardar: "Listening on http://0.0.0.0:9000"
+
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
 ---
@@ -277,13 +279,13 @@ docker compose -f infra/docker-compose.oci.yml logs -f medusa
 
 ```bash
 # Verificar que o backend está respondendo
-curl -s http://168.138.148.67:9000/health
+curl -s https://teste.mercadopreto.com.br/api/health
 
 # Criar usuário admin
 docker exec mercado-preto-api node_modules/.bin/medusa user -e admin@mercadopreto.com.br -p <senha>
 
 # Acessar o painel admin e configurar:
-# http://168.138.148.67:9000/app
+# https://teste.mercadopreto.com.br/app
 # 1. Settings → Regions → criar região "Brasil" (moeda BRL, país BR)
 #    → copiar o ID da URL (reg_xxx) → usar em NEXT_PUBLIC_REGION_ID
 # 2. Settings → API Keys → criar Publishable Key
@@ -313,7 +315,7 @@ pnpm build
 # package.json já chama `node .next/standalone/apps/storefront/server.js`,
 # com `HOSTNAME=0.0.0.0` fixo: o server standalone escuta em
 # `process.env.HOSTNAME`, e se o PM2 herdar o nome da máquina nessa variável
-# o nginx (no Docker, via 172.18.0.1:3000) deixa de alcançar o storefront.
+# ... o nginx (no Docker, via host.docker.internal:3000) deixa de alcançar o storefront.
 pnpm start &
 ```
 
@@ -324,6 +326,9 @@ npm install -g pm2
 pm2 start "pnpm start" --name storefront --cwd ~/marketplace/apps/storefront
 pm2 save
 pm2 startup   # gerar comando de auto-start e executá-lo
+
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
 ---
@@ -334,13 +339,13 @@ pm2 startup   # gerar comando de auto-start e executá-lo
 
 ```bash
 # 1. Criar instância
-curl -X POST http://168.138.148.67:8080/instance/create \
+curl -X POST http://127.0.0.1:8080/instance/create \
   -H "apikey: <EVOLUTION_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"instanceName":"mercadopreto","integration":"WHATSAPP-BAILEYS"}'
 
 # 2. Conectar via pairing code (substitua <NUMERO> pelo seu WhatsApp com DDD)
-curl "http://168.138.148.67:8080/instance/connect/mercadopreto?number=<NUMERO>" \
+curl "http://127.0.0.1:8080/instance/connect/mercadopreto?number=<NUMERO>" \
   -H "apikey: <EVOLUTION_API_KEY>"
 
 # Exemplo: number=5511999999999 (formato: 55 + DDD + número)
@@ -349,7 +354,7 @@ curl "http://168.138.148.67:8080/instance/connect/mercadopreto?number=<NUMERO>" 
 #    No WhatsApp: Dispositivos vinculados → Vincular dispositivo → Digitar código
 
 # 4. Confirmar conexão
-curl http://168.138.148.67:8080/instance/fetchInstances \
+curl http://127.0.0.1:8080/instance/fetchInstances \
   -H "apikey: <EVOLUTION_API_KEY>"
 ```
 
@@ -359,7 +364,7 @@ Se o pairing code não funcionar, verificar:
 
 1. **Número correto:** Formato `55` + DDD + número (ex: `5511999999999`)
 2. **WhatsApp atualizado:** Versão mais recente do WhatsApp no celular
-3. **Reiniciar instância:** `curl -X DELETE http://168.138.148.67:8080/instance/delete/mercadopreto -H "apikey: <EVOLUTION_API_KEY>"` e refazer o processo
+3. **Reiniciar instância:** `curl -X DELETE http://127.0.0.1:8080/instance/delete/mercadopreto -H "apikey: <EVOLUTION_API_KEY>"` e refazer o processo
 4. **Alternativa:** Usar VPS residencial (IP não-datacenter) ou API oficial WhatsApp Business
 
 ---
@@ -368,31 +373,31 @@ Se o pairing code não funcionar, verificar:
 
 ```bash
 # Medusa API
-curl -s http://168.138.148.67:9000/health
+curl -s https://teste.mercadopreto.com.br/api/health
 
 # Admin panel
-# http://168.138.148.67:9000/app
+# https://teste.mercadopreto.com.br/app
 
 # Storefront
-curl -s -o /dev/null -w "%{http_code}" http://168.138.148.67:3000
+curl -s -o /dev/null -w "%{http_code}" https://teste.mercadopreto.com.br/
 
-# Meilisearch dashboard
-# http://168.138.148.67:7700
+# Meilisearch e Evolution manager não são públicos: use túnel SSH
+# ssh -i ~/.ssh/oci_vms -L 8080:127.0.0.1:8080 ubuntu@168.138.148.67
+# e abra http://localhost:8080/manager
 
-# Evolution API manager
-# http://168.138.148.67:8080/manager
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
 ### URLs de acesso
 
 | Serviço | URL |
 |---------|-----|
-| Medusa API | http://168.138.148.67:9000 |
-| Medusa Admin | http://168.138.148.67:9000/app |
-| Storefront | http://168.138.148.67:3000 |
-| Evolution API | http://168.138.148.67:8080 |
-| Meilisearch | http://168.138.148.67:7700 |
-| Netdata | http://168.138.148.67:19999 |
+| Medusa API | https://teste.mercadopreto.com.br/api |
+| Medusa Admin | https://teste.mercadopreto.com.br/app |
+| Storefront | https://teste.mercadopreto.com.br |
+| Evolution API | interno (túnel SSH para `127.0.0.1:8080`) |
+| Meilisearch | interno (rede Docker, porta 7700) |
 
 ---
 
@@ -421,6 +426,9 @@ docker compose -f infra/docker-compose.oci.yml up -d medusa
 # que executa node .next/standalone/apps/storefront/server.js)
 cd ~/marketplace/apps/storefront
 pnpm build && pm2 restart storefront
+
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
 ---
@@ -444,11 +452,17 @@ docker compose -f infra/docker-compose.oci.yml run --rm medusa npx medusa db:mig
 
 docker compose -f infra/docker-compose.oci.yml up -d medusa
 
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
+
 # Rebuild storefront
 # (mesmo aviso do Passo 8: `pnpm start`/`pm2 restart` precisam continuar
 # apontando para o servidor standalone, nunca para `next start`)
 cd apps/storefront
 pnpm build && pm2 restart storefront
+
+# Conferir de fora do servidor:
+infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 ```
 
 ---
@@ -456,7 +470,7 @@ pnpm build && pm2 restart storefront
 ## Observações
 
 - **Meilisearch**: no ambiente local (docker-compose.yml) a porta do host é `7701`. No servidor OCI usa-se `7700:7700` para bater com a porta aberta no NSG.
-- **BACKEND_URL**: em testes aponta para o IP público sem HTTPS. O MercadoPago exige HTTPS em produção — nesse caso o `auto_return` fica desabilitado automaticamente pelo backend.
+- **BACKEND_URL**: no OCI é derivado de `PUBLIC_URL` (HTTPS, `${PUBLIC_URL}/api`), então o `auto_return` do MercadoPago funciona.
 - **Evolution API volumes**: o diretório `evolution_data` contém as chaves de sessão do WhatsApp. Faça backup antes de destruir os volumes.
 - **Certificado HTTPS**: o Let's Encrypt emite certificados de 90 dias. A renovação é feita pelo serviço `certbot` do `docker-compose.oci.yml` (tenta a cada 12h; só renova a menos de 30 dias do vencimento) e o `mercado-preto-nginx` recarrega a cada 6h. Garanta que ele está rodando com `docker ps | grep certbot`; se não estiver: `docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d certbot`. Para conferir o vencimento: `echo | openssl s_client -connect teste.mercadopreto.com.br:443 -servername teste.mercadopreto.com.br 2>/dev/null | openssl x509 -noout -enddate`.
 - **PM2**: mantém o storefront rodando como daemon no servidor. Use `pm2 logs storefront` para acompanhar erros em tempo real.
