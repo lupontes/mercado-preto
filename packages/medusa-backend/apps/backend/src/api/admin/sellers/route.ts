@@ -3,6 +3,7 @@ import { z } from "zod"
 import { SELLER_MODULE } from "../../../modules/seller"
 import SellerModuleService from "../../../modules/seller/service"
 import { sellerAddressSchema } from "../../../utils/seller-address"
+import { toAdminSeller } from "../../../utils/admin-seller"
 
 const CreateSellerSchema = z.object({
   name: z.string().min(2),
@@ -29,7 +30,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const count = await sellerService.listSellers(filters).then((s) => s.length)
 
-  res.json({ sellers, count, limit: Number(limit), offset: Number(offset) })
+  res.json({ sellers: sellers.map((s: any) => toAdminSeller(s)), count, limit: Number(limit), offset: Number(offset) })
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -41,5 +42,5 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const seller = await sellerService.createSellers(parsed.data)
-  res.status(201).json({ seller })
+  res.status(201).json({ seller: toAdminSeller(seller as any) })
 }

@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import { SELLER_MODULE } from "../../../../../modules/seller"
 import SellerModuleService from "../../../../../modules/seller/service"
 import { hasShippingOrigin } from "../../../../../utils/seller-address"
+import { toAdminSeller } from "../../../../../utils/admin-seller"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
@@ -22,5 +23,5 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const eventBus = req.scope.resolve(Modules.EVENT_BUS)
   await eventBus.emit({ name: "seller.approved", data: { id: seller.id } })
 
-  res.json({ seller })
+  res.json({ seller: toAdminSeller(seller as any) })
 }

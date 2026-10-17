@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { SELLER_MODULE } from "../../../../../modules/seller"
 import SellerModuleService from "../../../../../modules/seller/service"
+import { toAdminSeller } from "../../../../../utils/admin-seller"
 
 const RejectSchema = z.object({
   reason: z.string().min(1, "Motivo é obrigatório"),
@@ -22,5 +23,5 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const seller = await sellerService.rejectSeller(id, parsed.data.reason)
-  res.json({ seller })
+  res.json({ seller: toAdminSeller(seller as any) })
 }
