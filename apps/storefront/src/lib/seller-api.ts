@@ -138,3 +138,26 @@ export async function updateReviewStatus(id: string, status: 'published' | 'reje
     body: JSON.stringify({ status }),
   })
 }
+
+// Multipart upload: sellerFetch forces a JSON Content-Type, and the browser
+// must set the multipart boundary itself.
+export async function uploadSellerImage(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  let res: Response
+  try {
+    res = await fetch(`${medusaBaseUrl()}/seller/uploads`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    })
+  } catch {
+    // The browser's own text ("Failed to fetch") is English and unhelpful on a phone.
+    throw new Error('Não foi possível enviar a foto. Confira sua conexão e tente novamente.')
+  }
+  const body = await res.json().catch(() => null)
+  if (!res.ok || typeof body?.url !== 'string') {
+    throw new Error(body?.error ?? 'Não foi possível enviar a foto. Tente novamente.')
+  }
+  return body.url
+}

@@ -4,6 +4,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 import { verifySellerToken } from "../utils/seller-jwt"
 import { findForbiddenSellerField } from "../utils/store-fields-guard"
+import { sellerImageUpload } from "./seller/uploads/upload-middlewares"
 
 export function sellerCors(req: any, res: any, next: any) {
   const origin = req.headers.origin as string | undefined
@@ -107,6 +108,15 @@ export const shippingQuoteRateLimit = rateLimit({
   keyGenerator: rateLimitKeyGenerator,
 })
 
+// Keyed by seller so one account cannot fill the uploads volume; the IP is
+// only a fallback for requests that somehow lack a seller.
+export const sellerUploadRateLimit = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  message: { error: "Muitos envios em pouco tempo. Aguarde alguns minutos." },
+  keyGenerator: (req: any) => req.sellerId ?? rateLimitKeyGenerator(req),
+})
+
 export default defineMiddlewares({
   routes: [
     {
@@ -116,6 +126,13 @@ export default defineMiddlewares({
     {
       matcher: "/seller",
       middlewares: [sellerCors, sellerAuth],
+    },
+    {
+      // Medusa registers the "/seller" auth above before this child route, so
+      // multer never reads the body of an unauthenticated request.
+      matcher: "/seller/uploads",
+      methods: ["POST"],
+      middlewares: [sellerUploadRateLimit, sellerImageUpload],
     },
     {
       matcher: "/store/sellers/login",

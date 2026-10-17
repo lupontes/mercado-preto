@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getSellerProduct, updateSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
+import ProductImageField from '@/components/product/ProductImageField'
 import { validatePackage, type PackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
@@ -36,6 +37,8 @@ export default function EditarProdutoPage() {
   const [variantId, setVariantId] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Saving mid-upload would store the product without the photo.
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -166,16 +169,10 @@ export default function EditarProdutoPage() {
 
         <PackageSizeField value={pkg} onChange={(v) => { setPkgTouched(true); setPkg(v) }} />
 
-        <Field label="URL da imagem principal" htmlFor="thumbnail">
-          <input
-            id="thumbnail"
-            type="url"
-            value={form.thumbnail}
-            onChange={(e) => set('thumbnail', e.target.value)}
-            className="input"
-            placeholder="https://..."
-          />
-        </Field>
+        <div>
+          <p className="block text-xs font-semibold text-onyx/60 mb-1">Foto principal</p>
+          <ProductImageField value={form.thumbnail} onChange={(url) => set('thumbnail', url)} onUploadingChange={setUploadingImage} />
+        </div>
 
         {error && (
           <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
@@ -190,7 +187,7 @@ export default function EditarProdutoPage() {
           </Link>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || uploadingImage}
             className="flex-1 rounded-xl bg-amber py-2.5 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}

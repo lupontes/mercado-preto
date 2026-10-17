@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createSellerProduct } from '@/lib/seller-api'
 import { CategorySelect } from '@/components/product/CategorySelect'
 import PackageSizeField, { type PackageValue } from '@/components/product/PackageSizeField'
+import ProductImageField from '@/components/product/ProductImageField'
 import { validatePackage, suggestPackageSize } from '@/lib/package-size'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
@@ -25,6 +26,8 @@ export default function NovoProdutoPage() {
   // The category suggestion only applies until the seller picks a size manually.
   const [pkgTouched, setPkgTouched] = useState(false)
   const [loading, setLoading] = useState(false)
+  // Saving mid-upload would store the product without the photo.
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState('')
 
   function set(field: keyof typeof form, value: string) {
@@ -126,17 +129,10 @@ export default function NovoProdutoPage() {
 
         <PackageSizeField value={pkg} onChange={(v) => { setPkgTouched(true); setPkg(v) }} />
 
-        <Field label="URL da imagem principal" htmlFor="thumbnail">
-          <input
-            id="thumbnail"
-            type="url"
-            value={form.thumbnail}
-            onChange={(e) => set('thumbnail', e.target.value)}
-            className="input"
-            placeholder="https://..."
-          />
-          <p className="text-xs text-onyx/40 mt-1">Cole a URL de uma imagem hospedada (ex: Google Drive, Imgur)</p>
-        </Field>
+        <div>
+          <p className="block text-xs font-semibold text-onyx/60 mb-1">Foto principal</p>
+          <ProductImageField value={form.thumbnail} onChange={(url) => set('thumbnail', url)} onUploadingChange={setUploadingImage} />
+        </div>
 
         <Field label="Visibilidade" htmlFor="status">
           <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
@@ -158,7 +154,7 @@ export default function NovoProdutoPage() {
           </Link>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || uploadingImage}
             className="flex-1 rounded-xl bg-amber py-2.5 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
