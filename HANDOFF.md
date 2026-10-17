@@ -4,18 +4,22 @@
 
 ## Próximo passo
 
-1. **Falha de preço no checkout (segurança, bloqueia produção)** — em
-   brainstorming na branch `fix/checkout-server-side-pricing` (a partir de
-   `develop`). O backend confia no preço vindo do navegador:
-   - `api/store/checkout/preference/route.ts`: o preço dos itens vem do
-     cliente. O frete já é recalculado no servidor (#63);
-   - `api/store/checkout/payment/route.ts`: `transaction_amount` vem do
-     cliente e não é conferido com o snapshot;
-   - `api/webhooks/mercadopago/route.ts`: não compara o valor pago com o
-     total esperado.
-2. **Deploy do #63 no servidor de teste ainda não feito.** Antes: rodar a
-   migration do módulo seller, configurar `MELHOR_ENVIO_TOKEN`, manter
-   `MARKETPLACE_SANDBOX` coerente com o ambiente.
+1. **Preço do checkout no servidor:** implementado e revisado na branch
+   `fix/checkout-server-side-pricing`, ainda sem PR. Spec em
+   `docs/superpowers/specs/2026-10-17-checkout-preco-no-servidor-design.md`
+   e plano em `docs/superpowers/plans/2026-10-17-checkout-preco-no-servidor.md`.
+   Próximo passo: abrir o PR para `develop`.
+2. **Deploy no servidor de teste (#63 + este ciclo), ainda não feito:**
+   - rodar as migrations `seller` e `checkout` com `docker compose run` na
+     imagem nova, **antes** de subir o container;
+   - configurar `MELHOR_ENVIO_TOKEN` e manter `MARKETPLACE_SANDBOX` coerente
+     com o ambiente;
+   - subir o **backend antes da vitrine**. A vitrine antiga funciona com o
+     backend novo, mas o contrário não;
+   - depois do deploy, listar os `checkout_snapshot` com `status` nulo.
+     Foram criados antes da mudança, com o preço do cliente;
+   - teste ponta a ponta: preço adulterado no DevTools deve dar 409, e um
+     checkout normal no sandbox deve ser aprovado pelo webhook.
 3. **Branch local `fix/rate-limit-ipv6-keygen`** (`f68cf82`, 14/09, não está
    no remoto): verificar se ficou obsoleta após o #56.
 
