@@ -24,11 +24,16 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    número de envio. **Adiado pelo usuário em 17/10.**
 5. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
    teste `admin2@mercadopreto.com.br`.
-6. **[UX] Erros do checkout:**
-   - o Brick mostra só "Erro ao processar pagamento.", mesmo quando o
-     Mercado Pago explica o motivo (por exemplo, o código 2034);
-   - depois de um 422 de frete, a seleção é apagada em vez de pré-selecionar
-     a opção que sobrou.
+6. ~~Erros do checkout~~: feito no #69 e testado ponta a ponta em 17/10.
+   Ficaram para depois:
+   - **[segurança]** `MercadoPagoBrick.tsx` grava no console do navegador o
+     `brickData`, que inclui os dados do pagador;
+   - o `handleError` do Brick mostra ao comprador a mensagem crua do SDK;
+   - `JSON.stringify(err)` no `catch` de `checkout/payment/route.ts` pode
+     lançar com objeto circular;
+   - as tabelas de `utils/mercadopago-messages.ts` herdam as chaves do
+     protótipo;
+   - depois de uma recusa, o formulário do cartão volta em branco.
 7. **[feature] Painel do vendedor sem upload de foto:** só aceita URL externa.
 8. **[qualidade] Lacunas de cobertura de testes:** 4 subscribers, 4 scripts,
    cerca de 22 rotas e 14 páginas. Precisa de spec própria.
@@ -48,10 +53,11 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 
 ## Sessão 2026-10-17
 
-- **Mergeados e no servidor de teste** (`develop` em `f263272`):
+- **Mergeados e no servidor de teste** (`develop` em `3530e09`):
   - #65: preço do checkout calculado no servidor;
   - #66: correção do build;
-  - #67: Econômico com loja local.
+  - #67: Econômico com loja local;
+  - #69: mensagens de erro do checkout.
 
   Também ficou no ar o #63 (frete por loja), com as migrations `seller` e
   `checkout` aplicadas.
@@ -60,7 +66,14 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
   - o Mercado Pago cobra o total do snapshot;
   - um pagamento aprovado gerou 2 pedidos, um por loja (#41 e #42);
   - uma nova cobrança no pedido pago responde 409;
-  - frete com os Correios reais para loja local e para loja distante.
+  - frete com os Correios reais para loja local e para loja distante;
+  - #69: o cartão `FUND` mostra o motivo e mantém o carrinho; o `APRO` no
+    mesmo pedido foi aprovado e gerou o pedido #43.
+- **Teste de cartão sem digitar em site público:** rodar a vitrine local
+  com `NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000`, abrir um túnel com
+  `ssh -L 9000:127.0.0.1:9000` e usar os cartões sandbox em
+  `http://localhost:3000/checkout`. O túnel cai às vezes; rodar o `ssh` num
+  laço que reconecta.
 - **Lição:** rodar `npx tsc --noEmit -p .` no backend antes do PR. O build
   Docker quebra com erros de tipo que o Jest não pega.
 
@@ -71,7 +84,8 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 - Backups de 17/10:
   - banco: `~/db-backup-20261017101227.sql.gz`;
   - imagens: `mercado-preto-api:oci-bak-20261017101227` e
-    `mercado-preto-api:oci-bak-20261017111607`.
+    `mercado-preto-api:oci-bak-20261017111607`, além de
+    `mercado-preto-api:oci-bak-20261017154245`, anterior ao #69.
 - **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
   `@testuser.com` (erro 2034).
-- O banco tem dados de teste das lojas Axé e FIX, e os pedidos #38 a #42.
+- O banco tem dados de teste das lojas Axé e FIX, e os pedidos #38 a #43.
