@@ -1,7 +1,8 @@
 import { type SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
 import { SELLER_MODULE } from "../modules/seller"
-import SellerModuleService from "../modules/seller/service"
+import SellerModuleService, { SETUP_TOKEN_TTL_MS } from "../modules/seller/service"
 import { sendBrevoEmail } from "../utils/email"
+import { sellerPasswordLink } from "../utils/seller-password-link"
 
 export default async function sellerApprovedEmail({
   event,
@@ -12,7 +13,10 @@ export default async function sellerApprovedEmail({
   const [seller] = await sellerService.listSellers({ id: sellerId })
   if (!seller) return
 
-  const setPasswordUrl = `${process.env.STORE_CORS?.split(",")[0] || "http://localhost:3000"}/vendedor/configurar-senha?email=${encodeURIComponent(seller.email)}`
+  // The link carries a one-time token: knowing the seller's e-mail must never be
+  // enough to set their password.
+  const token = await sellerService.issuePasswordToken(seller.id, SETUP_TOKEN_TTL_MS)
+  const setPasswordUrl = sellerPasswordLink(token)
 
   await sendBrevoEmail(
     seller.email,

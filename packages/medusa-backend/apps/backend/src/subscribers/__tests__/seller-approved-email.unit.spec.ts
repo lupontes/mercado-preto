@@ -1,4 +1,5 @@
 import sellerApprovedEmail from "../seller-approved-email"
+import { SETUP_TOKEN_TTL_MS } from "../../modules/seller/service"
 
 function makeContainer(overrides: Record<string, unknown>) {
   return {
@@ -18,8 +19,10 @@ const seller = {
 
 describe("sellerApprovedEmail", () => {
   const original = { ...process.env }
+  let issuePasswordToken: jest.Mock
 
   beforeEach(() => {
+    issuePasswordToken = jest.fn().mockResolvedValue("tok-setup")
     global.fetch = jest.fn().mockResolvedValue({ ok: true })
     process.env.BREVO_API_KEY = "brevo-key"
     process.env.MARKETPLACE_SANDBOX = "true"
@@ -36,7 +39,7 @@ describe("sellerApprovedEmail", () => {
 
     await sellerApprovedEmail({
       event: { data: { id: "seller_1" } },
-      container: makeContainer({ seller: { listSellers } }),
+      container: makeContainer({ seller: { listSellers, issuePasswordToken } }),
     } as any)
 
     expect(global.fetch).not.toHaveBeenCalled()
@@ -47,7 +50,7 @@ describe("sellerApprovedEmail", () => {
 
     await sellerApprovedEmail({
       event: { data: { id: "seller_1" } },
-      container: makeContainer({ seller: { listSellers } }),
+      container: makeContainer({ seller: { listSellers, issuePasswordToken } }),
     } as any)
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
@@ -61,7 +64,7 @@ describe("sellerApprovedEmail", () => {
 
     await sellerApprovedEmail({
       event: { data: { id: "seller_1" } },
-      container: makeContainer({ seller: { listSellers } }),
+      container: makeContainer({ seller: { listSellers, issuePasswordToken } }),
     } as any)
 
     expect(global.fetch).not.toHaveBeenCalled()
@@ -75,10 +78,25 @@ describe("sellerApprovedEmail", () => {
 
     await sellerApprovedEmail({
       event: { data: { id: "seller_1" } },
-      container: makeContainer({ seller: { listSellers } }),
+      container: makeContainer({ seller: { listSellers, issuePasswordToken } }),
     } as any)
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
     expect(body.to).toEqual([{ email: "loja-real@example.com" }])
+  })
+
+  it("links to the password page with a seven-day token and without the e-mail", async () => {
+    process.env.STORE_CORS = "https://teste.mercadopreto.com.br"
+    const listSellers = jest.fn().mockResolvedValue([seller])
+
+    await sellerApprovedEmail({
+      event: { data: { id: "seller_1" } },
+      container: makeContainer({ seller: { listSellers, issuePasswordToken } }),
+    } as any)
+
+    expect(issuePasswordToken).toHaveBeenCalledWith("seller_1", SETUP_TOKEN_TTL_MS)
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+    expect(body.htmlContent).toContain("https://teste.mercadopreto.com.br/vendedor/configurar-senha?token=tok-setup")
+    expect(body.htmlContent).not.toContain("email=")
   })
 })
