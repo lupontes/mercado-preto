@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react'
+import type { IBrickError } from '@mercadopago/sdk-react/esm/bricks/util/types/common'
 import { medusaBaseUrl } from '@/lib/medusa-url'
 
 const MP_PUBLIC_KEY = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY ?? ''
@@ -63,28 +64,28 @@ export default function MercadoPagoBrick({
   }, [])
 
   async function handleSubmit(brickData: Record<string, unknown>): Promise<void> {
-    // IPaymentFormData nests the actual payment fields inside .formData
+    // IPaymentFormData nests the actual payment fields inside .formData.
+    // Nothing from it is logged: it carries the payer's e-mail and document.
     const paymentFields = (brickData.formData ?? brickData) as Record<string, unknown>
-    console.log('[MercadoPagoBrick] brickData:', JSON.stringify(brickData, null, 2))
-    console.log('[MercadoPagoBrick] paymentFields:', JSON.stringify(paymentFields, null, 2))
 
     try {
       const data = await submitPayment(paymentFields, externalReference)
-      console.log('[MercadoPagoBrick] response:', JSON.stringify(data))
-
       onSuccess(String(data.payment_id))
     } catch (err) {
-      console.error('[MercadoPagoBrick] fetch error:', err)
-      const msg = (err as Error)?.message ?? 'Erro ao processar pagamento.'
-      onError(msg)
+      onError((err as Error)?.message ?? 'Erro ao processar pagamento.')
       throw err
     }
   }
 
-  function handleError(err: unknown) {
-    console.error('[MercadoPagoBrick] brick error:', err)
-    const msg = (err as { message?: string })?.message ?? 'Erro no formulário de pagamento.'
-    onError(msg)
+  // The SDK's own text is English and technical, so the buyer gets a short
+  // instruction; the cause stays in the console for debugging.
+  function handleError(err: IBrickError) {
+    console.error(`[MercadoPagoBrick] brick error: ${err?.type} ${err?.cause}`)
+    onError(
+      err?.type === 'critical'
+        ? 'Não foi possível carregar o pagamento. Recarregue a página e tente de novo.'
+        : 'Confira os dados do pagamento e tente de novo.'
+    )
   }
 
   return (
