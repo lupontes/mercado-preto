@@ -24,8 +24,14 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   "2034": "Não foi possível usar este e-mail no pagamento. Confira o e-mail ou use outro.",
 }
 
+// Keys come from Mercado Pago, so a value like "constructor" must not reach
+// Object.prototype.
+function lookup(table: Record<string, string>, key: string): string | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined
+}
+
 export function rejectionMessage(statusDetail: string | null | undefined): string {
-  return (statusDetail && REJECTION_MESSAGES[statusDetail]) || DEFAULT_REJECTION_MESSAGE
+  return (statusDetail && lookup(REJECTION_MESSAGES, statusDetail)) || DEFAULT_REJECTION_MESSAGE
 }
 
 // The SDK rejects with either an Error or a plain API error object whose
@@ -34,9 +40,19 @@ export function paymentErrorMessage(err: unknown): string {
   const cause = (err as { cause?: unknown } | null)?.cause
   if (Array.isArray(cause)) {
     for (const entry of cause) {
-      const message = ERROR_CODE_MESSAGES[String((entry as { code?: unknown })?.code)]
+      const message = lookup(ERROR_CODE_MESSAGES, String((entry as { code?: unknown })?.code))
       if (message) return message
     }
   }
   return DEFAULT_PAYMENT_ERROR_MESSAGE
+}
+
+/** Text for the server log only. Never throws, so the error path always answers. */
+export function describeMercadoPagoError(err: unknown): string {
+  if (err instanceof Error) return err.message
+  try {
+    return JSON.stringify(err) ?? String(err)
+  } catch {
+    return String(err)
+  }
 }
