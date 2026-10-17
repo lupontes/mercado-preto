@@ -2,92 +2,71 @@
 
 **Atualizado**: 2026-10-17
 
-## Próximo passo
+**Fluxo de branches deste projeto:** `develop → release → main`. Este projeto
+não usa `alpha` nem `beta` (decisão do usuário em 17/10).
 
-1. **Preço do checkout no servidor:** implementado e revisado na branch
-   `fix/checkout-server-side-pricing`, ainda sem PR. Spec em
-   `docs/superpowers/specs/2026-10-17-checkout-preco-no-servidor-design.md`
-   e plano em `docs/superpowers/plans/2026-10-17-checkout-preco-no-servidor.md`.
-   Próximo passo: abrir o PR para `develop`.
-2. **Deploy no servidor de teste (#63 + este ciclo), ainda não feito:**
-   - rodar as migrations `seller` e `checkout` com `docker compose run` na
-     imagem nova, **antes** de subir o container;
-   - configurar `MELHOR_ENVIO_TOKEN` e manter `MARKETPLACE_SANDBOX` coerente
-     com o ambiente;
-   - subir o **backend antes da vitrine**. A vitrine antiga funciona com o
-     backend novo, mas o contrário não;
-   - depois do deploy, listar os `checkout_snapshot` com `status` nulo.
-     Foram criados antes da mudança, com o preço do cliente;
-   - teste ponta a ponta: preço adulterado no DevTools deve dar 409, e um
-     checkout normal no sandbox deve ser aprovado pelo webhook.
-3. **Branch local `fix/rate-limit-ipv6-keygen`** (`f68cf82`, 14/09, não está
-   no remoto): verificar se ficou obsoleta após o #56.
+## Fila de pendências (por prioridade)
 
-## Sessão 2026-10-16/17
+1. **[segurança] Regra `ACCEPT 19999` no iptables do servidor de teste.**
+   Nada escuta nessa porta. Remover a regra e persistir.
+2. **[segurança, usuário] NSG da OCI:** remover as regras das portas 3000,
+   7700, 8080 e 9000. Hoje o iptables já bloqueia essas portas.
+3. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
+   nginx no compose, portas em `127.0.0.1` e `PUBLIC_URL`. Bloqueia a ida a
+   produção.
+4. **[produção] Evolution API parada:** não há container. As confirmações de
+   pedido por WhatsApp não saem. A `.env.oci` tem `EVOLUTION_API_KEY` e
+   `EVOLUTION_API_INSTANCE`, e `EVOLUTION_WEBHOOK_SECRET` está vazio.
+5. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
+   teste `admin2@mercadopreto.com.br`.
+6. **[UX] Erros do checkout:**
+   - o Brick mostra só "Erro ao processar pagamento.", mesmo quando o
+     Mercado Pago explica o motivo (por exemplo, o código 2034);
+   - depois de um 422 de frete, a seleção é apagada em vez de pré-selecionar
+     a opção que sobrou.
+7. **[feature] Painel do vendedor sem upload de foto:** só aceita URL externa.
+8. **[qualidade] Lacunas de cobertura de testes:** 4 subscribers, 4 scripts,
+   cerca de 22 rotas e 14 páginas. Precisa de spec própria.
+9. **[produto] Programa de fidelidade:** só existe o spec
+   (`docs/superpowers/specs/2026-09-07-loyalty-points-design.md`).
+10. **[limpeza]**
+    - a branch local `fix/rate-limit-ipv6-keygen` (`f68cf82`) está obsoleta,
+      porque `develop` já usa `ipKeyGenerator`. Apagar, com confirmação do
+      usuário;
+    - 39 `checkout_snapshot` com `status` nulo, anteriores a 17/10, ainda
+      guardam o preço enviado pelo cliente. Não afetam pedidos novos.
 
-- Mergeados: #62 (campos privados do vendedor em `develop`), #63
-  (`feature/shipping-per-seller`, 11 achados da revisão final corrigidos),
-  #64 (tipagem jest-dom do admin). Worktree `../marketplace-shipping` removido.
+**Do usuário, fora do código:** a validação jurídica e contábil
+(`docs/juridico/2026-09-05-memo-titularidade-consignacao.md`). Anexar ao
+próximo e-mail para o Ailton. A ativação do Mercado Livre fica pausada até
+essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`).
 
-## Sessão 2026-10-15/16
+## Sessão 2026-10-17
 
-- **Borda do OCI (#59, mergeado e em produção no servidor de teste):** o
-  nginx é gerenciado pelo `docker-compose.oci.yml` e só as portas 22, 80 e
-  443 ficam públicas. Validado com smoke externo, com o medusa recriado com
-  outro IP (o nginx não reiniciou) e com teste ponta a ponta: vendedor,
-  `/app`, upload de 5 MB e checkout no sandbox com webhook (pedido #40).
-- **Mergeados:**
-  - #52 (PM2 standalone);
-  - #53 (overrides do pnpm no `pnpm-workspace.yaml`);
-  - #55 (`test:admin` com vitest 3.2.7);
-  - #56 (rate limit do login por IP do socket);
-  - #57 (volume de uploads);
-  - #58 (`next/image` com o host do site).
-- **Regressão do #55:** ele não atualizou
-  `packages/medusa-backend/package-lock.json`, e o build Docker do backend
-  quebrou (`npm ci`). A correção está em `fix/backend-npm-lockfile-vitest`.
-  **O backend usa npm, não pnpm:** mudar dependência dele exige
-  `npm install` em `packages/medusa-backend`.
-- **Limpeza:**
-  - removidos 3 worktrees mergeados;
-  - removidas as branches locais e remotas já mergeadas;
-  - restam no remoto: `develop`, `main` e `feature/shipping-per-seller`.
+- **Mergeados e no servidor de teste** (`develop` em `f263272`):
+  - #65: preço do checkout calculado no servidor;
+  - #66: correção do build;
+  - #67: Econômico com loja local.
+
+  Também ficou no ar o #63 (frete por loja), com as migrations `seller` e
+  `checkout` aplicadas.
+- **Testado ponta a ponta no sandbox:**
+  - preço adulterado responde 409;
+  - o Mercado Pago cobra o total do snapshot;
+  - um pagamento aprovado gerou 2 pedidos, um por loja (#41 e #42);
+  - uma nova cobrança no pedido pago responde 409;
+  - frete com os Correios reais para loja local e para loja distante.
+- **Lição:** rodar `npx tsc --noEmit -p .` no backend antes do PR. O build
+  Docker quebra com erros de tipo que o Jest não pega.
 
 ## Servidor de teste (168.138.148.67)
 
-- Deve rodar `develop`. **Sempre rebuildar o backend a partir da branch que
-  está no servidor:** em 16/10 a imagem `mercado-preto-api:oci` tinha sido
-  gerada a partir de `shipping-per-seller` e quebrou o frete da vitrine
-  (`/store/shipping/estimate` 404). A imagem antiga ficou como
-  `mercado-preto-api:oci-shipping-per-seller-bak`.
-- O banco já tem a migration de endereço do vendedor
-  (`Migration20261015120000`, colunas que aceitam vazio). Também tem dados
-  temporários do teste do frete por loja (lojas Axé e FIX, 6 produtos com
-  `package_review`). Ver `progress.md` do worktree.
-- Backups do deploy da borda, timestamp `20261016162327`: `.env.oci`,
-  `.env.local` e `~/iptables.bak.*`.
-- **Ações do usuário pendentes:**
-  - remover na NSG da OCI as regras de 3000, 7700, 8080 e 9000;
-  - conferir a URL do webhook da ClearSale;
-  - apagar o admin de teste `admin2@mercadopreto.com.br`.
-
-## Achados abertos (fora de escopo)
-
-- **Painel do vendedor sem upload de foto:** só aceita URL de imagem
-  externa. Feature a planejar.
-- **Evolution API parada:** as notificações por WhatsApp não saem.
-- **Regra `ACCEPT 19999` no iptables** sem nada escutando.
-- **`docker-compose.prod.yml`** ainda não segue o modelo do OCI (nginx no
-  compose, portas em `127.0.0.1`, `PUBLIC_URL`).
-
-## Pendente (produto)
-
-- **Programa de fidelidade:** só o spec
-  (`docs/superpowers/specs/2026-09-07-loyalty-points-design.md`).
-- **Validação jurídica/contábil do modelo de venda:**
-  `docs/juridico/2026-09-05-memo-titularidade-consignacao.md`. **Lembrete:**
-  anexar ao próximo e-mail para o Ailton.
-- **Ativação do Mercado Livre:** pausada até a validação jurídica; ver o
-  runbook `docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`.
-- **Lacunas de cobertura de teste (item 5):** 4 subscribers, 4 scripts,
-  cerca de 22 rotas e 14 páginas. Precisa de spec própria.
+- Roda `develop`. O procedimento de deploy está em `docs/DEPLOY_OCI.md`:
+  migrations antes de subir o container, e o backend antes da vitrine.
+- Backups de 17/10:
+  - banco: `~/db-backup-20261017101227.sql.gz`;
+  - imagens: `mercado-preto-api:oci-bak-20261017101227` e
+    `mercado-preto-api:oci-bak-20261017111607`.
+- **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
+  `@testuser.com` (erro 2034).
+- O banco tem dados de teste das lojas Axé e FIX, e os pedidos #38 a #42.
