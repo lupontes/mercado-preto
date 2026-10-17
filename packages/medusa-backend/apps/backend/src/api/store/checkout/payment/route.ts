@@ -4,6 +4,7 @@ import { MercadoPagoConfig, Payment } from "mercadopago"
 import { z } from "zod"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
 import type CheckoutModuleService from "../../../../modules/checkout/service"
+import { paymentErrorMessage, rejectionMessage } from "../../../../utils/mercadopago-messages"
 
 const schema = z.object({
   token: z.string().optional(),
@@ -107,9 +108,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       status: payment.status,
       status_detail: payment.status_detail,
       point_of_interaction: payment.point_of_interaction,
+      // The snapshot stays pending, so the buyer can retry on the same order.
+      ...(payment.status === "rejected" ? { message: rejectionMessage(payment.status_detail) } : {}),
     })
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : JSON.stringify(err)
-    res.status(500).json({ error: "Erro ao processar pagamento.", detail: msg })
+    const raw = err instanceof Error ? err.message : JSON.stringify(err)
+    logger.error(`[checkout/payment] falha no Mercado Pago para ${external_reference}: ${raw}`)
+    res.status(502).json({ error: paymentErrorMessage(err) })
   }
 }
