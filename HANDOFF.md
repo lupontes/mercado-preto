@@ -13,7 +13,9 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    7700, 8080 e 9000. Hoje o iptables já bloqueia essas portas.
 3. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
    nginx no compose, portas em `127.0.0.1` e `PUBLIC_URL`. Bloqueia a ida a
-   produção.
+   produção. **Parado:** a produção vai rodar em outro provedor, ainda não
+   escolhido, no domínio `mercadopreto.com.br`. O domínio hoje aponta para a
+   loja atual, então a troca do DNS precisa ser planejada.
 4. **[produção] Evolution API parada:** não há container. As confirmações de
    pedido por WhatsApp não saem. A `.env.oci` tem `EVOLUTION_API_KEY` e
    `EVOLUTION_API_INSTANCE`, e `EVOLUTION_WEBHOOK_SECRET` está vazio.
