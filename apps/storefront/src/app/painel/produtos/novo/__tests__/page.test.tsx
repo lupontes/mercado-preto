@@ -89,4 +89,33 @@ describe("NovoProdutoPage", () => {
     expect(await screen.findByText("Dados inválidos")).toBeInTheDocument()
     expect(push).not.toHaveBeenCalled()
   })
+
+  it("submits the uploaded photo as the product thumbnail", async () => {
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    vi.spyOn(sellerApi, "uploadSellerImage").mockResolvedValue("https://teste.mercadopreto.com.br/static/produto-x.jpg")
+    const createSellerProduct = vi.spyOn(sellerApi, "createSellerProduct").mockResolvedValue({ product: { id: "prod_1" } })
+    const user = userEvent.setup()
+
+    render(<NovoProdutoPage />)
+    await fillRequiredFields(user)
+    await user.upload(screen.getByLabelText("Escolher foto"), new File([new Uint8Array(1024)], 'foto.jpg', { type: 'image/jpeg' }))
+    await screen.findByAltText("Foto principal do produto")
+    await user.click(screen.getByRole("button", { name: "Criar produto" }))
+
+    await waitFor(() => expect(createSellerProduct).toHaveBeenCalled())
+    expect(createSellerProduct).toHaveBeenCalledWith(expect.objectContaining({ thumbnail: "https://teste.mercadopreto.com.br/static/produto-x.jpg" }))
+  })
+
+  it("blocks saving while the photo is still uploading", async () => {
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    vi.spyOn(sellerApi, "uploadSellerImage").mockReturnValue(new Promise<string>(() => {}))
+    const user = userEvent.setup()
+
+    render(<NovoProdutoPage />)
+    await fillRequiredFields(user)
+    await user.upload(screen.getByLabelText("Escolher foto"), new File([new Uint8Array(1024)], 'foto.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByText("Enviando foto...")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Criar produto" })).toBeDisabled()
+  })
 })

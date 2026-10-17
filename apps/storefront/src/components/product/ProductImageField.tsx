@@ -51,7 +51,6 @@ export default function ProductImageField({ value, onChange, onUploadingChange }
       <div className="flex items-center gap-3">
         {value ? (
           // A plain <img>: a pasted address may come from any host, which next/image would refuse.
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="Foto principal do produto" className="h-20 w-20 rounded-lg object-cover border border-onyx/10" />
         ) : (
           <div className="h-20 w-20 rounded-lg border border-dashed border-onyx/20 flex items-center justify-center text-onyx/30">

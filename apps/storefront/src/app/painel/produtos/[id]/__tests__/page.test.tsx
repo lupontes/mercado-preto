@@ -92,4 +92,21 @@ describe("EditarProdutoPage", () => {
     expect(await screen.findByText("Preço inválido")).toBeInTheDocument()
     expect(updateSellerProduct).not.toHaveBeenCalled()
   })
+
+  it("submits a newly uploaded photo as the thumbnail", async () => {
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    vi.spyOn(sellerApi, "uploadSellerImage").mockResolvedValue("https://teste.mercadopreto.com.br/static/produto-x.jpg")
+    const updateSellerProduct = vi.spyOn(sellerApi, "updateSellerProduct").mockResolvedValue({ product: baseProduct })
+    const user = userEvent.setup()
+
+    render(<EditarProdutoPage />)
+    await screen.findByDisplayValue("Turbante Afro Premium")
+    await user.upload(screen.getByLabelText("Escolher foto"), new File([new Uint8Array(1024)], 'foto.jpg', { type: 'image/jpeg' }))
+    await screen.findByAltText("Foto principal do produto")
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }))
+
+    await waitFor(() => expect(updateSellerProduct).toHaveBeenCalled())
+    expect(updateSellerProduct).toHaveBeenCalledWith("prod_1", expect.objectContaining({ thumbnail: "https://teste.mercadopreto.com.br/static/produto-x.jpg" }))
+  })
 })
