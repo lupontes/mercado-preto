@@ -1,15 +1,20 @@
 // Mirrors the real shape of meilisearch@0.58: the class is exported as
 // `Meilisearch` (lowercase s), with no `MeiliSearch` or default — exactly
 // what broke /store/search with "MeiliSearch is not a constructor".
+const updateSettings = jest.fn().mockResolvedValue({})
 jest.mock("meilisearch", () => ({
   Meilisearch: class {
     constructor(public config: { host: string; apiKey?: string }) {}
-    index() {}
-    createIndex() {}
+    index() {
+      return { updateSettings }
+    }
+    createIndex() {
+      return Promise.resolve({})
+    }
   },
 }))
 
-import { getMeiliClient } from "../meilisearch"
+import { getMeiliClient, meiliFilterValue, resetMeiliSetupForTests } from "../meilisearch"
 
 describe("getMeiliClient", () => {
   const originalHost = process.env.MEILISEARCH_HOST
@@ -35,5 +40,39 @@ describe("getMeiliClient", () => {
     expect(client).not.toBeNull()
     expect(typeof client!.index).toBe("function")
     expect(typeof client!.createIndex).toBe("function")
+  })
+})
+
+describe("index settings", () => {
+  const originalHost = process.env.MEILISEARCH_HOST
+
+  afterEach(() => {
+    process.env.MEILISEARCH_HOST = originalHost
+  })
+
+  it("applies the index settings once per process, on first use", async () => {
+    process.env.MEILISEARCH_HOST = "http://localhost:7700"
+    resetMeiliSetupForTests()
+    updateSettings.mockClear()
+
+    await getMeiliClient()
+    await getMeiliClient()
+
+    // One call per index (products and sellers), and only once.
+    expect(updateSettings).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("meiliFilterValue", () => {
+  it("quotes a plain value", () => {
+    expect(meiliFilterValue("a")).toBe('"a"')
+  })
+
+  it("escapes quotes so a value cannot change the filter", () => {
+    expect(meiliFilterValue('x" OR status = "draft')).toBe('"x\\" OR status = \\"draft"')
+  })
+
+  it("escapes backslashes", () => {
+    expect(meiliFilterValue("a\\b")).toBe('"a\\\\b"')
   })
 })

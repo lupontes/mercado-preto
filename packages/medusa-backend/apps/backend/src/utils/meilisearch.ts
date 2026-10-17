@@ -16,8 +16,26 @@ async function getClient() {
   return new MeiliSearch({ host, apiKey })
 }
 
-export function getMeiliClient() {
-  return getClient()
+// Filters and sorting only work once the index settings exist. Applying them
+// on first use means a fresh environment works without a manual reindex.
+let setup: Promise<void> | null = null
+
+export async function getMeiliClient() {
+  const client = await getClient()
+  if (client) {
+    setup ??= ensureIndexes()
+    await setup
+  }
+  return client
+}
+
+export function resetMeiliSetupForTests(): void {
+  setup = null
+}
+
+/** Quotes a value for a Meilisearch filter so it cannot alter the expression. */
+export function meiliFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
 export async function ensureIndexes(): Promise<void> {
