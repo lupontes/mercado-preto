@@ -7,8 +7,8 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
 
 ## Fila de pendências (por prioridade)
 
-1. **[segurança] Regra `ACCEPT 19999` no iptables do servidor de teste.**
-   Nada escuta nessa porta. Remover a regra e persistir.
+1. ~~Regra `ACCEPT 19999` no iptables~~: removida em 17/10. Ela só existia
+   em memória, e o backup está em `~/iptables.bak.*`.
 2. **[segurança, usuário] NSG da OCI:** remover as regras das portas 3000,
    7700, 8080 e 9000. Hoje o iptables já bloqueia essas portas.
 3. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
@@ -17,6 +17,9 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
 4. **[produção] Evolution API parada:** não há container. As confirmações de
    pedido por WhatsApp não saem. A `.env.oci` tem `EVOLUTION_API_KEY` e
    `EVOLUTION_API_INSTANCE`, e `EVOLUTION_WEBHOOK_SECRET` está vazio.
+   O banco `evolution` não existe mais, e a imagem `2.4.0-rc2` não está
+   baixada. Para reativar, é preciso escanear o QR Code com o celular do
+   número de envio. **Adiado pelo usuário em 17/10.**
 5. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
    teste `admin2@mercadopreto.com.br`.
 6. **[UX] Erros do checkout:**
