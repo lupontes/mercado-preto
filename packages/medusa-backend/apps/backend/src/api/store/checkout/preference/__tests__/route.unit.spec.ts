@@ -327,7 +327,8 @@ describe("POST /store/checkout/preference", () => {
         items: [expect.objectContaining({ title: "Camiseta", quantity: 1, price: 7900 })],
         shipping: { id: "economico", name: "Econômico", price: 2500 },
         total: 10400,
-      })
+      }),
+      { status: "pending" }
     )
     const recordCallOrder = req._checkoutService.recordSnapshot.mock.invocationCallOrder[0]
     const createCallOrder = mockPreferenceCreate.mock.invocationCallOrder[0]

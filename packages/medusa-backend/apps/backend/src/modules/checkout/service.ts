@@ -10,6 +10,15 @@ type InitialSnapshotState = {
   ordersCreatedAt?: Date
 }
 
+/**
+ * How long an order-creation claim holds before another notification may take it
+ * over. A claim left behind by a crashed worker or a failed release would
+ * otherwise block the snapshot forever. Re-taking it is safe because order
+ * creation skips the (reference, seller) pairs that already have orders; the
+ * window only needs to exceed the time a healthy creation takes.
+ */
+export const STALE_ORDER_CLAIM_MINUTES = 10
+
 class CheckoutModuleService extends MedusaService({ CheckoutSnapshot }) {
   async recordSnapshot(
     externalReference: string,
@@ -57,9 +66,10 @@ class CheckoutModuleService extends MedusaService({ CheckoutSnapshot }) {
   ): Promise<boolean> {
     const rows = await this.runUpdate(
       `update "checkout_snapshot" set "ordersCreatedAt" = now()
-       where "externalReference" = ? and "ordersCreatedAt" is null and deleted_at is null
+       where "externalReference" = ? and deleted_at is null
+         and ("ordersCreatedAt" is null or "ordersCreatedAt" < now() - make_interval(mins => ?))
        returning id`,
-      [externalReference],
+      [externalReference, STALE_ORDER_CLAIM_MINUTES],
       sharedContext
     )
     return rows.length === 1

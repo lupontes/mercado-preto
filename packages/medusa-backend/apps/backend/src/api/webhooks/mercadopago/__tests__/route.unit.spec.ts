@@ -616,7 +616,7 @@ describe("POST /webhooks/mercadopago", () => {
       expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
     })
 
-    it("skips silently when orders were already claimed", async () => {
+    it("warns with the ref and payment id when orders were already claimed", async () => {
       mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
       const req = makeReq({ type: "payment", data: { id: "42" } })
       req._checkoutService.findByExternalReference.mockResolvedValue(
@@ -630,6 +630,28 @@ describe("POST /webhooks/mercadopago", () => {
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
       expect(req._eventBusService.emit).not.toHaveBeenCalled()
       expect(req._logger.error).not.toHaveBeenCalled()
+      const warnings = req._logger.warn.mock.calls.map((c: unknown[]) => c.map(String).join(" ")).join("\n")
+      expect(warnings).toContain(ref)
+      expect(warnings).toContain("42")
+      expect(res._status).toBe(200)
+    })
+
+    it("logs and creates nothing when MP redelivers the same mismatched payment", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 0.01 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "amount_mismatch", paymentId: "42" })
+      )
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._logger.error).not.toHaveBeenCalled()
+      const infos = req._logger.info.mock.calls.map((c: unknown[]) => c.map(String).join(" ")).join("\n")
+      expect(infos).toContain(ref)
+      expect(infos).toContain("amount_mismatch")
+      expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
       expect(res._status).toBe(200)
     })
 
@@ -683,6 +705,26 @@ describe("POST /webhooks/mercadopago", () => {
 
       expect(req._checkoutService.releaseOrderCreation).toHaveBeenCalledWith(ref)
       expect(req._logger.error).toHaveBeenCalled()
+      expect(req._eventBusService.emit).not.toHaveBeenCalled()
+      expect(res._status).toBe(500)
+    })
+
+    it("answers 500 and asks for manual action when releasing the claim also throws", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      req._orderService.createOrders.mockRejectedValue(new Error("db down"))
+      req._checkoutService.releaseOrderCreation.mockRejectedValue(new Error("release failed"))
+      const res = makeRes()
+
+      await POST(req, res)
+
+      const logs = errorLogs(req)
+      expect(logs).toContain("ação manual necessária")
+      expect(logs).toContain(ref)
+      expect(logs).toContain("42")
+      expect(logs).toContain("db down")
+      expect(logs).toContain("release failed")
       expect(req._eventBusService.emit).not.toHaveBeenCalled()
       expect(res._status).toBe(500)
     })

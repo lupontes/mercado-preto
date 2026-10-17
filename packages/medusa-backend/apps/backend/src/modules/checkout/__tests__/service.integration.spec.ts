@@ -7,7 +7,7 @@ jest.setTimeout(60000)
 moduleIntegrationTestRunner<CheckoutModuleService>({
   moduleName: CHECKOUT_MODULE,
   resolve: "./src/modules/checkout",
-  testSuite: ({ service }) => {
+  testSuite: ({ service, MikroOrmWrapper }) => {
     describe("CheckoutModuleService snapshot transitions (real Postgres)", () => {
       it("transitions a new snapshot from pending exactly once", async () => {
         await service.recordSnapshot("ref-1", { total: 100 })
@@ -57,6 +57,31 @@ moduleIntegrationTestRunner<CheckoutModuleService>({
 
         await service.releaseOrderCreation("ref-5")
         expect(await service.claimOrderCreation("ref-5")).toBe(true)
+      })
+
+      // Set through SQL so the age is measured against the database clock, the
+      // same clock the claim's staleness check uses.
+      async function claimedMinutesAgo(externalReference: string, minutes: number) {
+        await MikroOrmWrapper.forkManager().execute(
+          `update "checkout_snapshot" set "ordersCreatedAt" = now() - make_interval(mins => ?)
+           where "externalReference" = ?`,
+          [minutes, externalReference]
+        )
+      }
+
+      it("lets a stale claim be taken again", async () => {
+        await service.recordSnapshot("ref-6", { total: 100 })
+        await claimedMinutesAgo("ref-6", 11)
+
+        expect(await service.claimOrderCreation("ref-6")).toBe(true)
+        expect(await service.claimOrderCreation("ref-6")).toBe(false)
+      })
+
+      it("keeps a recent claim", async () => {
+        await service.recordSnapshot("ref-7", { total: 100 })
+        await claimedMinutesAgo("ref-7", 1)
+
+        expect(await service.claimOrderCreation("ref-7")).toBe(false)
       })
     })
   },

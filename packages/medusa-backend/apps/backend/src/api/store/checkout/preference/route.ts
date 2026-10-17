@@ -52,7 +52,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
 
   try {
-    await checkoutService.recordSnapshot(externalReference, checkoutSnapshotPayload)
+    await checkoutService.recordSnapshot(externalReference, checkoutSnapshotPayload, { status: "pending" })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
     return res.status(500).json({ error: "Erro ao salvar snapshot do checkout.", detail: msg })

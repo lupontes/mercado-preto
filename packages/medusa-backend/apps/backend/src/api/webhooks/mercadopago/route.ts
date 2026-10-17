@@ -148,6 +148,14 @@ async function settleSnapshotPayment(
   }
 
   if (current.status === "amount_mismatch") {
+    // A redelivery of the payment that caused the mismatch was already logged as
+    // an error when it lost; repeating the error would read as a second payment.
+    if (String(current.paymentId) === paymentId) {
+      logger.info(
+        `[mercadopago/webhook] reenvio do payment ${paymentId} para ref ${ref}, já marcada amount_mismatch por ele — nada a fazer`
+      )
+      return 200
+    }
     logger.error(
       `[mercadopago/webhook] payment ${paymentId} (${paid} centavos) bloqueado: ref ${ref} já está em amount_mismatch (payment ${current.paymentId}) — pedido NÃO criado, estornar manualmente`
     )
@@ -169,7 +177,12 @@ async function settleSnapshotPayment(
     return 200
   }
 
-  if (!(await checkoutService.claimOrderCreation(ref))) return 200
+  if (!(await checkoutService.claimOrderCreation(ref))) {
+    logger.warn(
+      `[mercadopago/webhook] criação de pedidos da ref ${ref} já reivindicada por outra notificação — payment ${paymentId} ignorado`
+    )
+    return 200
+  }
 
   let createdOrders: Array<{ id: string }>
   try {
@@ -178,7 +191,19 @@ async function settleSnapshotPayment(
     // A failed creation is recoverable: release the claim and answer 500 so MP
     // redelivers; otherwise the snapshot would stay claimed with no orders and
     // no notification would ever arrive to retry it.
-    await checkoutService.releaseOrderCreation(ref)
+    try {
+      await checkoutService.releaseOrderCreation(ref)
+    } catch (releaseErr) {
+      // The claim stays until it goes stale, so redeliveries are refused meanwhile
+      // and a human must check that the buyer got their orders.
+      logger.error(
+        `[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}, e falha ao liberar a reivindicação — ação manual necessária. Erro da criação:`,
+        err,
+        "Erro ao liberar:",
+        releaseErr
+      )
+      return 500
+    }
     logger.error(`[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}:`, err)
     return 500
   }
