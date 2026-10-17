@@ -16,7 +16,9 @@ const makeReq = (
   body: unknown,
   env: Record<string, string> = {},
   sellerByProductId: Record<string, string> = { "prod-1": "seller-1" },
-  checkoutServiceOverrides: Record<string, unknown> = {}
+  checkoutServiceOverrides: Record<string, unknown> = {},
+  // Database price per variant in cents; null means the variant has no brl price.
+  priceByVariantId: Record<string, number | null> = {}
 ) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
@@ -24,11 +26,21 @@ const makeReq = (
     BACKEND_URL: "",
     ...env,
   })
-  // Variants in these tests are "var-N" and belong to "prod-N".
+  // Variants in these tests are "var-N" and belong to "prod-N". The same fake answers
+  // both the price/title resolution and the seller lookup.
+  const titleByVariantId: Record<string, string> = { "var-1": "Camiseta", "var-2": "Sabonete" }
   const graph = jest.fn(async ({ entity, filters }: any) => ({
     data:
       entity === "product_variant"
-        ? filters.id.map((id: string) => ({ id, product_id: id.replace("var-", "prod-") }))
+        ? filters.id.map((id: string) => {
+            const price = id in priceByVariantId ? priceByVariantId[id] : 7900
+            return {
+              id,
+              product_id: id.replace("var-", "prod-"),
+              prices: price === null ? [] : [{ amount: price, currency_code: "brl" }],
+              product: { title: titleByVariantId[id] ?? id },
+            }
+          })
         : filters.id.filter((id: string) => sellerByProductId[id]).map((id: string) => ({ id, seller: { id: sellerByProductId[id] } })),
   }))
   const mockCheckoutService = {
@@ -109,6 +121,7 @@ describe("POST /store/checkout/preference", () => {
       init_point: "https://mp.com/pay",
       sandbox_init_point: "https://sandbox.mp.com/pay",
       external_reference: "fixed-uuid-1234",
+      total: 10400,
     })
   })
 
@@ -277,7 +290,10 @@ describe("POST /store/checkout/preference", () => {
         { title: "Sabonete", quantity: 1, price: 2500, variantId: "var-2", productId: "prod-2" },
       ],
     }
-    await POST(makeReq(body, {}, { "prod-1": "seller-1", "prod-2": "seller-2" }), makeRes())
+    await POST(
+      makeReq(body, {}, { "prod-1": "seller-1", "prod-2": "seller-2" }, {}, { "var-1": 7500, "var-2": 2500 }),
+      makeRes()
+    )
 
     const created = mockPreferenceCreate.mock.calls[0][0].body
     expect(created.metadata.seller_groups).toHaveLength(2)
@@ -367,5 +383,52 @@ describe("POST /store/checkout/preference", () => {
     expect(res._status).toBe(409)
     expect(mockPreferenceCreate).not.toHaveBeenCalled()
     expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+  })
+
+  it("charges the database price, not the client's", async () => {
+    const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], price: 1 }] })
+    const res = makeRes()
+
+    await POST(req, res)
+
+    expect(res._status).toBe(409)
+    expect((res._body as any).priceChanges).toEqual([{ variantId: "var-1", price: 7900, title: "Camiseta" }])
+    expect(resolveCheckoutShipping).not.toHaveBeenCalled()
+    expect(mockPreferenceCreate).not.toHaveBeenCalled()
+    expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+  })
+
+  it("uses database title and price in the MP items and snapshot", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+    const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], title: "Tampered" }] })
+
+    await POST(req, makeRes())
+
+    const item = mockPreferenceCreate.mock.calls[0][0].body.items[0]
+    expect(item.title).toBe("Camiseta")
+    expect(item.unit_price).toBe(79)
+    const snapshot = req._checkoutService.recordSnapshot.mock.calls[0][1]
+    expect(snapshot.items[0].title).toBe("Camiseta")
+  })
+
+  it("returns total in cents", async () => {
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1" })
+    const req = makeReq(validBody)
+    const res = makeRes()
+
+    await POST(req, res)
+
+    const snapshot = req._checkoutService.recordSnapshot.mock.calls[0][1]
+    expect(res._body.total).toBe(snapshot.total)
+  })
+
+  it("answers 400 for a variant without brl price", async () => {
+    const res = makeRes()
+
+    await POST(makeReq(validBody, {}, undefined, {}, { "var-1": null }), res)
+
+    expect(res._status).toBe(400)
+    expect(resolveCheckoutShipping).not.toHaveBeenCalled()
+    expect(mockPreferenceCreate).not.toHaveBeenCalled()
   })
 })

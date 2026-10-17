@@ -40,12 +40,23 @@ const validBody = {
 }
 
 function makeReq(body: unknown = validBody, overrides: { recordSnapshot?: jest.Mock; createOrders?: jest.Mock } = {}) {
+  // Database prices and titles, answered by the same fake that resolves sellers.
+  const variantData: Record<string, { price: number; title: string }> = {
+    "var-1": { price: 7900, title: "Camiseta" },
+    "var-2": { price: 5000, title: "Boné" },
+    "var-orphan": { price: 7900, title: "Órfão" },
+  }
   const productByVariant: Record<string, string> = { "var-1": "prod-1", "var-2": "prod-2", "var-orphan": "prod-orphan" }
   const sellerByProduct: Record<string, string> = { "prod-1": "seller-a", "prod-2": "seller-b" }
   const graph = jest.fn(async ({ entity, filters }: any) => ({
     data:
       entity === "product_variant"
-        ? filters.id.filter((id: string) => productByVariant[id]).map((id: string) => ({ id, product_id: productByVariant[id] }))
+        ? filters.id.filter((id: string) => productByVariant[id]).map((id: string) => ({
+              id,
+              product_id: productByVariant[id],
+              prices: [{ amount: variantData[id].price, currency_code: "brl" }],
+              product: { title: variantData[id].title },
+            }))
         : filters.id.filter((id: string) => sellerByProduct[id]).map((id: string) => ({ id, seller: { id: sellerByProduct[id] } })),
   }))
   const checkoutService = { recordSnapshot: overrides.recordSnapshot ?? jest.fn().mockResolvedValue(undefined) }
@@ -188,6 +199,19 @@ describe("/store/checkout/sandbox-cash", () => {
       expect(req._orderService.createOrders).not.toHaveBeenCalled()
     })
 
+    it("returns 409 and creates nothing when the client price was tampered with", async () => {
+      const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], price: 1 }, validBody.items[1]] })
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(res._status).toBe(409)
+      expect((res._body as any).priceChanges).toEqual([{ variantId: "var-1", price: 7900, title: "Camiseta" }])
+      expect(resolveCheckoutShipping).not.toHaveBeenCalled()
+      expect(req._checkoutService.recordSnapshot).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+    })
+
     it("returns 400 when a variant's product has no seller", async () => {
       const req = makeReq({ ...validBody, items: [{ ...validBody.items[0], variantId: "var-orphan" }] })
       const res = makeRes()
@@ -208,7 +232,8 @@ describe("/store/checkout/sandbox-cash", () => {
       expect(res._body).toEqual({ external_reference: "fixed-uuid-1234" })
       expect(req._checkoutService.recordSnapshot).toHaveBeenCalledWith(
         "fixed-uuid-1234",
-        expect.objectContaining({ buyer_document: "11144477735", total: 15400 })
+        expect.objectContaining({ buyer_document: "11144477735", total: 15400 }),
+        { status: "paid", ordersCreatedAt: expect.any(Date) }
       )
       const input = req._orderService.createOrders.mock.calls[0][0]
       expect(input.map((o: any) => o.metadata.seller_id)).toEqual(["seller-a", "seller-b"])

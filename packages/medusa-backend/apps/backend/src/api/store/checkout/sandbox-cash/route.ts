@@ -7,6 +7,7 @@ import {
   TEST_CASH_PAYMENT_METHOD,
 } from "../../../../utils/sandbox-cash"
 import { buildCheckoutSnapshot, checkoutRequestSchema } from "../../../../utils/checkout-payload"
+import { resolveCheckoutItems } from "../../../../utils/checkout-items"
 import { resolveCheckoutShipping } from "../../../../utils/checkout-shipping"
 import { getShippingCalculator } from "../../../../utils/melhor-envio"
 import { defaultQuoteCache } from "../../../../utils/shipping-quote"
@@ -38,13 +39,17 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const logger = req.scope.resolve("logger")
+  const resolved = await resolveCheckoutItems(query, parsed.data.items)
+  if (!resolved.ok) return res.status(resolved.status).json(resolved.body)
+  const request = { ...parsed.data, items: resolved.items }
+
   const shipping = await resolveCheckoutShipping(
     { query, calculator: getShippingCalculator(), cache: defaultQuoteCache, logger },
-    parsed.data
+    request
   )
   if (!shipping.ok) return res.status(shipping.status).json(shipping.body)
 
-  const built = await buildCheckoutSnapshot(query, parsed.data, shipping.option)
+  const built = await buildCheckoutSnapshot(query, request, shipping.option)
   if ("unresolvedVariantId" in built) {
     return res.status(400).json({
       error: "Produto sem vendedor associado.",
@@ -56,7 +61,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   try {
     const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
-    await checkoutService.recordSnapshot(externalReference, built.payload)
+    await checkoutService.recordSnapshot(externalReference, built.payload, {
+      status: "paid",
+      ordersCreatedAt: new Date(),
+    })
 
     const createdOrders = await createOrdersFromCheckout({
       container: req.scope,
