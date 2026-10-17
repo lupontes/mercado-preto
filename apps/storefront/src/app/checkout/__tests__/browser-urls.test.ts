@@ -43,7 +43,7 @@ describe('checkout calls in the browser', () => {
   })
 
   it('submitPayment uses a relative URL', async () => {
-    await submitPayment({}, 'ref-1', 10400)
+    await submitPayment({}, 'ref-1')
 
     expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/payment')
   })

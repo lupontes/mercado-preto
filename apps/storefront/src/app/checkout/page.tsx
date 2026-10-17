@@ -36,7 +36,7 @@ async function fetchCep(cep: string) {
 }
 
 export default function CheckoutPage() {
-  const { items, subtotal, selectedShipping, setShipping, clear } = useCartStore()
+  const { items, subtotal, selectedShipping, setShipping, applyPriceChanges, clear } = useCartStore()
   const router = useRouter()
 
   const [step, setStep] = useState<Step>('address')
@@ -156,7 +156,11 @@ export default function CheckoutPage() {
       : await createPreference(checkoutItems(), address, selectedShipping)
 
     if (!result.ok) {
-      if (result.status === 409 && result.quote) {
+      if (result.status === 409 && result.priceChanges) {
+        // Catalog prices moved since the item was added: adopt them and let the buyer re-confirm.
+        applyPriceChanges(result.priceChanges)
+        setError('O preço de alguns produtos foi atualizado. Confira e continue.')
+      } else if (result.status === 409 && result.quote) {
         // The price moved since the buyer chose: show the new one and let them confirm.
         setQuote(result.quote)
         const updated = result.quote.options.find((o) => o.tier === selectedShipping.tier) ?? null
@@ -379,7 +383,7 @@ export default function CheckoutPage() {
                 <MercadoPagoBrick
                   preferenceId={preferenceData.preferenceId}
                   externalReference={preferenceData.externalReference}
-                  amountCents={totalCents}
+                  amountCents={preferenceData.totalCents}
                   onSuccess={handlePaymentSuccess}
                   onError={handlePaymentError}
                 />

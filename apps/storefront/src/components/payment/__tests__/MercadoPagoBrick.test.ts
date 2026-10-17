@@ -13,7 +13,7 @@ describe("submitPayment", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await submitPayment({ token: "card_tok" }, "ext_ref_1", 19725)
+    await submitPayment({ token: "card_tok" }, "ext_ref_1")
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/store/checkout/payment"),
@@ -25,6 +25,16 @@ describe("submitPayment", () => {
     expect(calledUrl).not.toContain("/api/checkout/payment")
   })
 
+  it("does not send transaction_amount: the server charges its own snapshot total", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payment_id: "pay_1" }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await submitPayment({ token: "card_tok" }, "ext_ref_1")
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body).toEqual({ token: "card_tok", external_reference: "ext_ref_1" })
+  })
+
   it("throws the backend error message when the response is not ok", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -33,6 +43,6 @@ describe("submitPayment", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await expect(submitPayment({ token: "card_tok" }, "ext_ref_1", 19725)).rejects.toThrow("not found")
+    await expect(submitPayment({ token: "card_tok" }, "ext_ref_1")).rejects.toThrow("not found")
   })
 })

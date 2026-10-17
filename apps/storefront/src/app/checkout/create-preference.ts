@@ -1,4 +1,4 @@
-import type { ShippingOption, ShippingQuote } from '@/lib/cart-store'
+import type { PriceChange, ShippingOption, ShippingQuote } from '@/lib/cart-store'
 import { medusaBaseUrl } from '@/lib/medusa-url'
 
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
@@ -19,6 +19,8 @@ export type Address = {
 export type PreferenceData = {
   preferenceId: string
   externalReference: string
+  // Total the server computed from the database prices; the Brick must charge this, not the cart's.
+  totalCents: number
 }
 
 export type CheckoutItem = {
@@ -31,7 +33,7 @@ export type CheckoutItem = {
 
 export type CheckoutResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; error: string; quote?: ShippingQuote }
+  | { ok: false; status: number; error: string; quote?: ShippingQuote; priceChanges?: PriceChange[] }
 
 // Shared by every checkout submission so the backend receives the same shape
 // regardless of payment method. Only the tier and the total the buyer saw are
@@ -48,7 +50,7 @@ export async function readCheckoutResponse<T>(res: Response, pick: (body: any) =
   // A 2xx with an unreadable body must not look like a successful checkout.
   if (res.ok && body === null) return { ok: false, status: res.status, error: 'Erro ao preparar o pagamento.' }
   if (res.ok) return { ok: true, data: pick(body) }
-  return { ok: false, status: res.status, error: body?.error ?? 'Erro ao preparar o pagamento.', quote: body?.quote }
+  return { ok: false, status: res.status, error: body?.error ?? 'Erro ao preparar o pagamento.', quote: body?.quote, priceChanges: body?.priceChanges }
 }
 
 export async function createPreference(
@@ -67,7 +69,7 @@ export async function createPreference(
       },
       body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
     })
-    return await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference }))
+    return await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference, totalCents: b.total }))
   } catch {
     return { ok: false, status: 0, error: 'Erro ao preparar o pagamento.' }
   }
