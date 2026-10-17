@@ -36,8 +36,19 @@ describe('ShippingOptions', () => {
     render(<ShippingOptions quote={twoSellers} selected={twoSellers.options[0]} onSelect={vi.fn()} onRetry={vi.fn()} />)
     expect(screen.getByText('Seu pedido sai de 2 lojas e chega em 2 pacotes separados.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'ver detalhes' }))
-    expect(screen.getByText('Loja A')).toBeInTheDocument()
+    expect(screen.getByText('Loja A — PAC')).toBeInTheDocument()
     expect(screen.getByText(price(3679))).toBeInTheDocument()
+  })
+
+  it('shows which Correios service each store uses when an option mixes them', async () => {
+    // A same-city store has no PAC, so its Econômico goes by SEDEX.
+    const mixed = { tier: 'economico' as const, label: 'Econômico', total: 3297, deliveryDays: 9, sellers: [seller('a', 'Loja A', 'SEDEX', 1297), seller('b', 'Loja B', 'PAC', 2000)] }
+    render(<ShippingOptions quote={{ ...twoSellers, options: [mixed, twoSellers.options[1]] }} selected={mixed} onSelect={vi.fn()} onRetry={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: 'ver detalhes' }))
+    expect(screen.getByText('Loja A — SEDEX')).toBeInTheDocument()
+    expect(screen.getByText(price(1297))).toBeInTheDocument()
+    expect(screen.getByText('Loja B — PAC')).toBeInTheDocument()
+    expect(screen.getByText(price(2000))).toBeInTheDocument()
   })
 
   it('renders only the tiers that came back', () => {
