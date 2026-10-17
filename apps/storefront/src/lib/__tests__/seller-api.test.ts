@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getSellerProduct, getSellerReviews, sellerLogin, sellerLogout, setSellerPassword, updateReviewStatus } from "../seller-api"
+import { getSellerProduct, getSellerReviews, requestSellerPasswordLink, sellerLogin, sellerLogout, setSellerPassword, updateReviewStatus } from "../seller-api"
 
 describe("getSellerProduct", () => {
   afterEach(() => {
@@ -90,7 +90,7 @@ describe("setSellerPassword", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await setSellerPassword("joao@teste.com", "novaSenha123")
+    await setSellerPassword("tok", "novaSenha123")
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/store/sellers/set-password"),
@@ -107,7 +107,44 @@ describe("setSellerPassword", () => {
     })
     vi.stubGlobal("fetch", fetchMock)
 
-    await expect(setSellerPassword("joao@teste.com", "novaSenha123")).rejects.toThrow("Token inválido")
+    await expect(setSellerPassword("tok", "novaSenha123")).rejects.toThrow("Token inválido")
+  })
+})
+
+describe("password link body", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("sends the token and the password, without the e-mail", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "ok" }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await setSellerPassword("tok", "senhaNova1")
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: "tok", password: "senhaNova1" })
+  })
+
+  it("never sends the page URL, which carries the token, as the Referer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "ok" }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await setSellerPassword("tok", "senhaNova1")
+    await requestSellerPasswordLink("a@b.com")
+
+    expect(fetchMock.mock.calls[0][1].referrerPolicy).toBe("no-referrer")
+    expect(fetchMock.mock.calls[1][1].referrerPolicy).toBe("no-referrer")
+  })
+
+  it("asks for a link with only the e-mail", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "ok" }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await requestSellerPasswordLink("a@b.com")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/store/sellers/set-password"),
+      expect.objectContaining({ headers: expect.objectContaining({ "x-publishable-api-key": expect.any(String) }) })
+    )
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.com" })
   })
 })
 

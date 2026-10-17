@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SELLER_MODULE } from "../../../../../modules/seller"
 import SellerModuleService from "../../../../../modules/seller/service"
+import { toAdminSeller } from "../../../../../utils/admin-seller"
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
@@ -12,5 +13,5 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const seller = await sellerService.activateSeller(id)
-  res.json({ seller })
+  res.json({ seller: toAdminSeller(seller as any) })
 }

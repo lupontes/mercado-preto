@@ -1,25 +1,24 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2, CheckCircle } from 'lucide-react'
-import { setSellerPassword } from '@/lib/seller-api'
+import { requestSellerPasswordLink, setSellerPassword } from '@/lib/seller-api'
 
 function ConfigurarSenhaForm() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const email = searchParams.get('email') ?? ''
+  const token = useSearchParams().get('token') ?? ''
+  // The link from the approval or reset e-mail carries a one-time token;
+  // without one, the seller can only ask for a new link.
+  return token ? <SetPasswordForm token={token} /> : <RequestLinkForm />
+}
 
+function SetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
-
-  useEffect(() => {
-    if (!email) router.replace('/painel/login')
-  }, [email, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,7 +35,7 @@ function ConfigurarSenhaForm() {
 
     setLoading(true)
     try {
-      await setSellerPassword(email, password)
+      await setSellerPassword(token, password)
       setDone(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado')
@@ -68,18 +67,9 @@ function ConfigurarSenhaForm() {
       <h1 className="font-display font-black text-xl text-onyx mb-6">Configure sua senha</h1>
 
       <div>
-        <label className="block text-xs font-semibold text-onyx/60 mb-1">E-mail</label>
+        <label htmlFor="password" className="block text-xs font-semibold text-onyx/60 mb-1">Nova senha</label>
         <input
-          type="email"
-          value={email}
-          readOnly
-          className="input bg-onyx/5 cursor-not-allowed"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-semibold text-onyx/60 mb-1">Nova senha</label>
-        <input
+          id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -91,8 +81,9 @@ function ConfigurarSenhaForm() {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-onyx/60 mb-1">Confirmar senha</label>
+        <label htmlFor="confirm" className="block text-xs font-semibold text-onyx/60 mb-1">Confirmar senha</label>
         <input
+          id="confirm"
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
@@ -100,6 +91,74 @@ function ConfigurarSenhaForm() {
           placeholder="Repita a senha"
           required
           autoComplete="new-password"
+        />
+      </div>
+
+      {error && (
+        <div className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2 space-y-1">
+          <p>{error}</p>
+          <Link href="/vendedor/configurar-senha" className="underline">
+            Pedir um novo link
+          </Link>
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+        Salvar senha
+      </button>
+    </form>
+  )
+}
+
+function RequestLinkForm() {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const { message } = await requestSellerPasswordLink(email)
+      setMessage(message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro inesperado')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (message) {
+    return (
+      <div className="text-center space-y-4">
+        <CheckCircle className="mx-auto h-12 w-12 text-amber" />
+        <p className="text-sm text-onyx/70">{message}</p>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h1 className="font-display font-black text-xl text-onyx">Esqueceu a senha?</h1>
+      <p className="text-sm text-onyx/60">Informe o e-mail da sua loja e enviaremos um link para criar uma nova senha.</p>
+
+      <div>
+        <label htmlFor="email" className="block text-xs font-semibold text-onyx/60 mb-1">E-mail</label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input"
+          required
+          autoComplete="email"
         />
       </div>
 
@@ -113,7 +172,7 @@ function ConfigurarSenhaForm() {
         className="w-full rounded-xl bg-amber py-3 font-display font-bold text-onyx hover:bg-amber-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-        Salvar senha
+        Enviar link
       </button>
     </form>
   )

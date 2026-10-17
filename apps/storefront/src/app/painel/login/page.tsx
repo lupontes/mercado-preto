@@ -89,6 +89,12 @@ export default function PainelLoginPage() {
           </button>
         </form>
 
+        <p className="text-center text-xs mt-4">
+          <Link href="/vendedor/configurar-senha" className="text-amber hover:underline">
+            Esqueci minha senha
+          </Link>
+        </p>
+
         <p className="text-center text-cream/40 text-xs mt-6">
           Ainda não é vendedor?{' '}
           <Link href="/vender" className="text-amber hover:underline">

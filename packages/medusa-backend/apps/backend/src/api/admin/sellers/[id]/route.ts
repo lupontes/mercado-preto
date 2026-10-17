@@ -3,6 +3,7 @@ import { z } from "zod"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
 import { parseAddressBlock } from "../../../../utils/seller-address"
+import { toAdminSeller } from "../../../../utils/admin-seller"
 
 const UpdateSellerSchema = z.object({
   name: z.string().min(2).optional(),
@@ -27,7 +28,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Vendedor não encontrado" })
   }
 
-  res.json({ seller })
+  res.json({ seller: toAdminSeller(seller as any) })
 }
 
 export async function PUT(req: MedusaRequest, res: MedusaResponse) {
@@ -48,5 +49,5 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     data: { ...parsed.data, ...(block.address ?? {}) },
   })
 
-  res.json({ seller })
+  res.json({ seller: toAdminSeller(seller as any) })
 }
