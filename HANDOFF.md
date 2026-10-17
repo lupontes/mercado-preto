@@ -52,28 +52,11 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 
 ## Sessão 2026-10-17
 
-- **Mergeados e no servidor de teste** (`develop` em `5cf2205`):
-  - #65: preço do checkout calculado no servidor;
-  - #66: correção do build;
-  - #67: Econômico com loja local;
-  - #69: mensagens de erro do checkout;
-  - #70: pendências do #69;
-  - #72: upload de foto do produto.
-
-  Também ficou no ar o #63 (frete por loja), com as migrations `seller` e
-  `checkout` aplicadas.
-- **Testado ponta a ponta no sandbox:**
-  - preço adulterado responde 409;
-  - o Mercado Pago cobra o total do snapshot;
-  - um pagamento aprovado gerou 2 pedidos, um por loja (#41 e #42);
-  - uma nova cobrança no pedido pago responde 409;
-  - frete com os Correios reais para loja local e para loja distante;
-  - #69: o cartão `FUND` mostra o motivo e mantém o carrinho; o `APRO` no
-    mesmo pedido foi aprovado e gerou o pedido #43.
-- **Teste de cartão:** vitrine local com túnel SSH para o backend (passo a
-  passo no claude-mem).
-- **Lição:** rodar `npx tsc --noEmit -p .` no backend antes do PR. O build
-  Docker quebra com erros de tipo que o Jest não pega.
+- **No servidor de teste** (`develop` em `5cf2205`): #63, #65, #66, #67, #69,
+  #70 e #72, com as migrations `seller` e `checkout` aplicadas. Tudo testado
+  ponta a ponta (checkout no sandbox gerou os pedidos #41 a #43).
+- Como testar cartão e login de vendedora sem digitar segredos no servidor,
+  e as lições de build (tsc do backend, lockfiles npm e pnpm): claude-mem.
 
 ## Servidor de teste (168.138.148.67)
 
