@@ -19,24 +19,17 @@ async function buildSellerDocument(container: any, sellerId: string) {
   }
 }
 
-export async function sellerApprovedIndex({ event, container }: SubscriberArgs<{ id: string }>) {
+// Only active stores are searchable. Any other status (or a deleted seller)
+// is removed, so a suspension takes the store out of search right away.
+export default async function sellerSearchIndex({ event, container }: SubscriberArgs<{ id: string }>) {
   const doc = await buildSellerDocument(container, event.data.id)
-  if (doc) await indexSeller(doc)
-}
-
-export async function sellerUpdatedIndex({ event, container }: SubscriberArgs<{ id: string }>) {
-  const doc = await buildSellerDocument(container, event.data.id)
-  if (doc) {
-    if (doc.status === "suspended") {
-      await removeSeller(doc.id)
-    } else {
-      await indexSeller(doc)
-    }
+  if (doc?.status === "active") {
+    await indexSeller(doc)
+  } else {
+    await removeSeller(event.data.id)
   }
 }
 
-export default sellerApprovedIndex
-
 export const config: SubscriberConfig = {
-  event: "seller.approved",
+  event: ["seller.approved", "seller.status_changed"],
 }
