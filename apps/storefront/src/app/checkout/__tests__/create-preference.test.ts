@@ -24,6 +24,16 @@ describe('createPreference', () => {
     })
   })
 
+  it('fails instead of handing the Brick an undefined amount when an older backend omits the total', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ preference_id: 'pref-1', external_reference: 'ref-1' }),
+    }))
+
+    expect(await createPreference(items, address, shipping)).toEqual({
+      ok: false, status: 200, error: 'Erro ao preparar o pagamento.',
+    })
+  })
+
   it('turns a network failure into a failed result instead of rejecting', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
 

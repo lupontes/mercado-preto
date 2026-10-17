@@ -93,8 +93,9 @@ export const useCartStore = create<CartStore>()(
       },
 
       // Keeps the stored item shape untouched (only price/title are overwritten)
-      // so carts persisted by older builds still hydrate. Shipping is kept: its
-      // quote depends on weight and destination, not on price.
+      // so carts persisted by older builds still hydrate. Shipping is kept even
+      // though the quote's insurance value uses the price: the server re-quotes
+      // with database prices and answers a shipping 409 if the total moved.
       applyPriceChanges: (changes) => {
         set((state) => ({
           items: state.items.map((i) => {

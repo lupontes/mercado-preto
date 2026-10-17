@@ -69,7 +69,13 @@ export async function createPreference(
       },
       body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
     })
-    return await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference, totalCents: b.total }))
+    const result = await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference, totalCents: b.total }))
+    // A backend deployed before the server-side total would answer 200 without it,
+    // and the Brick would charge an undefined amount.
+    if (result.ok && typeof result.data.totalCents !== 'number') {
+      return { ok: false, status: res.status, error: 'Erro ao preparar o pagamento.' }
+    }
+    return result
   } catch {
     return { ok: false, status: 0, error: 'Erro ao preparar o pagamento.' }
   }
