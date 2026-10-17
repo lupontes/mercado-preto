@@ -1,5 +1,6 @@
 import {
   DEFAULT_PAYMENT_ERROR_MESSAGE,
+  describeMercadoPagoError,
   DEFAULT_REJECTION_MESSAGE,
   paymentErrorMessage,
   rejectionMessage,
@@ -48,5 +49,36 @@ describe("paymentErrorMessage", () => {
   ])("falls back to the default for %s", (_label, err) => {
     expect(paymentErrorMessage(err)).toBe("Não foi possível processar o pagamento. Tente novamente em instantes.")
     expect(DEFAULT_PAYMENT_ERROR_MESSAGE).toBe("Não foi possível processar o pagamento. Tente novamente em instantes.")
+  })
+})
+
+describe("prototype keys", () => {
+  it.each(["constructor", "toString", "__proto__"])("treats %s as an unknown status_detail", (detail) => {
+    expect(rejectionMessage(detail)).toBe(DEFAULT_REJECTION_MESSAGE)
+  })
+
+  it.each(["constructor", "toString", "__proto__"])("treats %s as an unknown error code", (code) => {
+    expect(paymentErrorMessage({ cause: [{ code }] })).toBe(DEFAULT_PAYMENT_ERROR_MESSAGE)
+  })
+})
+
+describe("describeMercadoPagoError", () => {
+  it("uses the message of an Error", () => {
+    expect(describeMercadoPagoError(new Error("boom"))).toBe("boom")
+  })
+
+  it("serializes a plain API error object", () => {
+    expect(describeMercadoPagoError({ message: "Invalid users involved", cause: [{ code: 2034 }] })).toContain("2034")
+  })
+
+  it("never throws on a circular object", () => {
+    const err: Record<string, unknown> = { message: "loop" }
+    err.self = err
+    expect(() => describeMercadoPagoError(err)).not.toThrow()
+    expect(typeof describeMercadoPagoError(err)).toBe("string")
+  })
+
+  it("never throws on a BigInt value", () => {
+    expect(() => describeMercadoPagoError({ amount: BigInt(1) })).not.toThrow()
   })
 })

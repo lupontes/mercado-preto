@@ -179,6 +179,19 @@ describe("POST /store/checkout/payment", () => {
     expect(args[0]).toContain("card rejected")
   })
 
+  it("still answers 502 and logs when the MP error is a circular object", async () => {
+    const err: Record<string, unknown> = { message: "loop" }
+    err.self = err
+    mockPaymentCreate.mockRejectedValue(err)
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(502)
+    expect(res._body).toEqual({ error: "Não foi possível processar o pagamento. Tente novamente em instantes." })
+    expect(logger.error).toHaveBeenCalledTimes(1)
+  })
+
   it("translates MP error 2034", async () => {
     mockPaymentCreate.mockRejectedValue({ message: "Invalid users involved", cause: [{ code: 2034 }] })
 
