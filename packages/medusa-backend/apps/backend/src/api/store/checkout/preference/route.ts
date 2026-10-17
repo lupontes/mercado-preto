@@ -3,6 +3,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Preference } from "mercadopago"
 import { buildCheckoutSnapshot, checkoutRequestSchema } from "../../../../utils/checkout-payload"
+import { resolveCheckoutItems } from "../../../../utils/checkout-items"
 import { resolveCheckoutShipping } from "../../../../utils/checkout-shipping"
 import { getShippingCalculator } from "../../../../utils/melhor-envio"
 import { defaultQuoteCache } from "../../../../utils/shipping-quote"
@@ -20,19 +21,24 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
 
-  const { items, address } = parsed.data
   const storeCors = process.env.STORE_CORS?.split(",")[0] ?? "http://localhost:3000"
   const backendUrl = process.env.BACKEND_URL
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const resolved = await resolveCheckoutItems(query, parsed.data.items)
+  if (!resolved.ok) return res.status(resolved.status).json(resolved.body)
+  // From here on only database-resolved items are used, never the browser's price/title.
+  const request = { ...parsed.data, items: resolved.items }
+  const { items, address } = request
+
   const shipping = await resolveCheckoutShipping(
     { query, calculator: getShippingCalculator(), cache: defaultQuoteCache, logger: req.scope.resolve("logger") },
-    parsed.data
+    request
   )
   if (!shipping.ok) return res.status(shipping.status).json(shipping.body)
   const option = shipping.option
 
-  const built = await buildCheckoutSnapshot(query, parsed.data, option)
+  const built = await buildCheckoutSnapshot(query, request, option)
   if ("unresolvedVariantId" in built) {
     return res.status(400).json({
       error: "Produto sem vendedor associado.",
@@ -46,7 +52,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
 
   try {
-    await checkoutService.recordSnapshot(externalReference, checkoutSnapshotPayload)
+    await checkoutService.recordSnapshot(externalReference, checkoutSnapshotPayload, { status: "pending" })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
     return res.status(500).json({ error: "Erro ao salvar snapshot do checkout.", detail: msg })
@@ -122,6 +128,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       init_point: result.init_point,
       sandbox_init_point: result.sandbox_init_point,
       external_reference: externalReference,
+      total: checkoutSnapshotPayload.total,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : JSON.stringify(err)

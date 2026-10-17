@@ -1,30 +1,33 @@
 # Handoff: Mercado Preto / MAB marketplace
 
-**Atualizado**: 2026-10-16
+**Atualizado**: 2026-10-17
 
 ## Próximo passo
 
-1. **Fechar `feature/shipping-per-seller`** (worktree `../marketplace-shipping`).
-   A onda de correções da revisão final foi interrompida. Lista completa em
-   `.superpowers/sdd/2026-10-15-frete-por-loja/final-fix-findings.md` (no worktree):
-   - feitos e publicados: #1 crítico (campos privados do vendedor via
-     `fields` na API da loja, `8047f13`), #2 e #3 (`bfb6ff9`, `44b7be8`);
-   - **em andamento, sem commit**: #4 (agrupar itens pelo vendedor da
-     *variante*, não pelo `productId` do cliente). São 8 arquivos modificados;
-   - faltam: #5 a #11. Depois, re-revisão, PR e deploy.
-2. **Falha de preço no checkout (segurança, bloqueia produção).** O backend
-   confia no preço vindo do navegador:
-   - `api/store/checkout/preference/route.ts`: o preço dos itens vem do
-     cliente. O frete o `shipping-per-seller` já recalcula no servidor;
-   - `api/store/checkout/payment/route.ts`: `transaction_amount` vem do
-     cliente e não é conferido com o snapshot;
-   - `api/webhooks/mercadopago/route.ts`: não compara o valor pago com o
-     total esperado.
+1. **Preço do checkout no servidor:** implementado e revisado na branch
+   `fix/checkout-server-side-pricing`, ainda sem PR. Spec em
+   `docs/superpowers/specs/2026-10-17-checkout-preco-no-servidor-design.md`
+   e plano em `docs/superpowers/plans/2026-10-17-checkout-preco-no-servidor.md`.
+   Próximo passo: abrir o PR para `develop`.
+2. **Deploy no servidor de teste (#63 + este ciclo), ainda não feito:**
+   - rodar as migrations `seller` e `checkout` com `docker compose run` na
+     imagem nova, **antes** de subir o container;
+   - configurar `MELHOR_ENVIO_TOKEN` e manter `MARKETPLACE_SANDBOX` coerente
+     com o ambiente;
+   - subir o **backend antes da vitrine**. A vitrine antiga funciona com o
+     backend novo, mas o contrário não;
+   - depois do deploy, listar os `checkout_snapshot` com `status` nulo.
+     Foram criados antes da mudança, com o preço do cliente;
+   - teste ponta a ponta: preço adulterado no DevTools deve dar 409, e um
+     checkout normal no sandbox deve ser aprovado pelo webhook.
+3. **Branch local `fix/rate-limit-ipv6-keygen`** (`f68cf82`, 14/09, não está
+   no remoto): verificar se ficou obsoleta após o #56.
 
-   Fazer brainstorm, spec e plano **em cima de `shipping-per-seller`**.
-3. **Conferir se o achado crítico #1 também existe em `develop`.** O vínculo
-   seller↔product e o `fields` livre na API da loja são anteriores à branch.
-   Se existir, vira hotfix antes de produção.
+## Sessão 2026-10-16/17
+
+- Mergeados: #62 (campos privados do vendedor em `develop`), #63
+  (`feature/shipping-per-seller`, 11 achados da revisão final corrigidos),
+  #64 (tipagem jest-dom do admin). Worktree `../marketplace-shipping` removido.
 
 ## Sessão 2026-10-15/16
 

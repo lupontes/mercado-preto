@@ -13,8 +13,7 @@ const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 // forwarded to a Medusa route that doesn't exist, so it must never be used here.
 export async function submitPayment(
   paymentFields: Record<string, unknown>,
-  externalReference: string,
-  amountCents: number
+  externalReference: string
 ): Promise<{ payment_id: string }> {
   const res = await fetch(`${medusaBaseUrl()}/store/checkout/payment`, {
     method: 'POST',
@@ -24,8 +23,8 @@ export async function submitPayment(
     },
     body: JSON.stringify({
       ...paymentFields,
+      // The amount is deliberately not sent: the server charges its own snapshot total.
       external_reference: externalReference,
-      transaction_amount: amountCents / 100,
     }),
   })
 
@@ -64,7 +63,7 @@ export default function MercadoPagoBrick({
     console.log('[MercadoPagoBrick] paymentFields:', JSON.stringify(paymentFields, null, 2))
 
     try {
-      const data = await submitPayment(paymentFields, externalReference, amountCents)
+      const data = await submitPayment(paymentFields, externalReference)
       console.log('[MercadoPagoBrick] response:', JSON.stringify(data))
 
       onSuccess(String(data.payment_id))

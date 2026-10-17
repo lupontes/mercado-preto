@@ -37,6 +37,8 @@ export type UnavailableSeller = {
 
 export type ShippingQuote = { options: ShippingOption[]; unavailableSellers: UnavailableSeller[] }
 
+export type PriceChange = { variantId: string; price: number; title: string }
+
 type CartStore = {
   items: CartItem[]
   selectedShipping: ShippingOption | null
@@ -44,6 +46,7 @@ type CartStore = {
   addItem: (item: Omit<CartItem, 'quantity'>) => void
   removeItem: (variantId: string) => void
   updateQuantity: (variantId: string, quantity: number) => void
+  applyPriceChanges: (changes: PriceChange[]) => void
   setShipping: (option: ShippingOption | null) => void
   clear: () => void
 
@@ -86,6 +89,19 @@ export const useCartStore = create<CartStore>()(
         set((state) => ({
           items: state.items.map((i) => (i.variantId === variantId ? { ...i, quantity } : i)),
           selectedShipping: null,
+        }))
+      },
+
+      // Keeps the stored item shape untouched (only price/title are overwritten)
+      // so carts persisted by older builds still hydrate. Shipping is kept even
+      // though the quote's insurance value uses the price: the server re-quotes
+      // with database prices and answers a shipping 409 if the total moved.
+      applyPriceChanges: (changes) => {
+        set((state) => ({
+          items: state.items.map((i) => {
+            const change = changes.find((c) => c.variantId === i.variantId)
+            return change ? { ...i, price: change.price, title: change.title } : i
+          }),
         }))
       },
 

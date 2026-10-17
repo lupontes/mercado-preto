@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPreference } from '../create-preference'
+import { createPreference, readCheckoutResponse } from '../create-preference'
 
 const items = [{ title: 'Camiseta', quantity: 1, price: 7900, variantId: 'var-1', productId: 'prod-1' }]
 const address = {
@@ -16,11 +16,21 @@ describe('createPreference', () => {
 
   it('returns the preference on success', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ preference_id: 'pref-1', external_reference: 'ref-1', total: 10400 }),
+    }))
+
+    expect(await createPreference(items, address, shipping)).toEqual({
+      ok: true, data: { preferenceId: 'pref-1', externalReference: 'ref-1', totalCents: 10400 },
+    })
+  })
+
+  it('fails instead of handing the Brick an undefined amount when an older backend omits the total', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true, status: 200, json: async () => ({ preference_id: 'pref-1', external_reference: 'ref-1' }),
     }))
 
     expect(await createPreference(items, address, shipping)).toEqual({
-      ok: true, data: { preferenceId: 'pref-1', externalReference: 'ref-1' },
+      ok: false, status: 200, error: 'Erro ao preparar o pagamento.',
     })
   })
 
@@ -29,6 +39,17 @@ describe('createPreference', () => {
 
     expect(await createPreference(items, address, shipping)).toEqual({
       ok: false, status: 0, error: 'Erro ao preparar o pagamento.',
+    })
+  })
+})
+
+describe('readCheckoutResponse', () => {
+  it('carries priceChanges from a price 409 and leaves quote empty', async () => {
+    const priceChanges = [{ variantId: 'var-1', price: 8500, title: 'Camiseta' }]
+    const res = { ok: false, status: 409, json: async () => ({ error: 'O preço de alguns produtos foi atualizado', priceChanges }) } as Response
+
+    expect(await readCheckoutResponse(res, (b) => b)).toEqual({
+      ok: false, status: 409, error: 'O preço de alguns produtos foi atualizado', quote: undefined, priceChanges,
     })
   })
 })

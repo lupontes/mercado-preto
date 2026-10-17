@@ -2,13 +2,16 @@ import crypto from "crypto"
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MercadoPagoConfig, Payment } from "mercadopago"
 import { z } from "zod"
+import { CHECKOUT_MODULE } from "../../../../modules/checkout"
+import type CheckoutModuleService from "../../../../modules/checkout/service"
 
 const schema = z.object({
   token: z.string().optional(),
   payment_method_id: z.string(),
   installments: z.number().int().positive().optional(),
   issuer_id: z.string().optional(),
-  transaction_amount: z.number().positive(),
+  // Sent by the old storefront during deploy; accepted but never charged.
+  transaction_amount: z.number().optional(),
   external_reference: z.string(),
   payer: z.object({
     email: z.string().email(),
@@ -36,10 +39,24 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     payment_method_id,
     installments,
     issuer_id,
-    transaction_amount,
     external_reference,
     payer,
   } = parsed.data
+
+  const checkout: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
+  const logger = req.scope.resolve("logger") as {
+    warn: (msg: string) => void
+    error: (msg: string) => void
+  }
+
+  const snapshot = await checkout.findByExternalReference(external_reference)
+  if (!snapshot) {
+    return res.status(404).json({ error: "Pedido não encontrado." })
+  }
+  // A null status belongs to snapshots created before status tracking: pending.
+  if ((snapshot.status ?? "pending") !== "pending") {
+    return res.status(409).json({ error: "Este pedido já foi pago." })
+  }
 
   const mp = new MercadoPagoConfig({ accessToken })
   const paymentClient = new Payment(mp)
@@ -52,7 +69,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         payment_method_id,
         installments: installments ?? 1,
         issuer_id: issuer_id ? Number(issuer_id) : undefined,
-        transaction_amount,
+        // The browser value is untrusted: charge the server-side snapshot total.
+        transaction_amount: snapshot.payload.total / 100,
         external_reference,
         payer,
         description: "Pedido Mercado Preto",
@@ -61,6 +79,28 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       },
       requestOptions: { idempotencyKey: crypto.randomUUID() },
     })
+
+    if (payment.status === "approved") {
+      // The card is already charged: a failure here must not become a 500,
+      // or the buyer would retry and be charged twice.
+      try {
+        const won = await checkout.transitionFromPending(
+          external_reference,
+          "paid",
+          String(payment.id)
+        )
+        if (!won) {
+          logger.warn(
+            `[checkout/payment] snapshot ${external_reference} não estava mais pendente quando o pagamento ${payment.id} foi aprovado`
+          )
+        }
+      } catch (transitionErr: unknown) {
+        const detail = transitionErr instanceof Error ? transitionErr.message : String(transitionErr)
+        logger.error(
+          `[checkout/payment] falha ao marcar o snapshot ${external_reference} como pago (pagamento ${payment.id}): ${detail}`
+        )
+      }
+    }
 
     res.json({
       payment_id: payment.id,

@@ -11,8 +11,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 // The MercadoPago Brick loads an external SDK; it is irrelevant to these tests.
+const brickProps = vi.hoisted(() => vi.fn())
 vi.mock('next/dynamic', () => ({
-  default: () => function BrickStub() { return <div data-testid="mp-brick" /> },
+  default: () => function BrickStub(props: unknown) { brickProps(props); return <div data-testid="mp-brick" /> },
 }))
 
 import CheckoutPage from '../page'
@@ -29,7 +30,7 @@ function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 500) {
   return { ok, status, json: async () => body }
 }
 
-function stubBackend({ enabled, testCashResponse }: { enabled: boolean; testCashResponse?: Promise<unknown> }) {
+function stubBackend({ enabled, testCashResponse, preferenceResponse }: { enabled: boolean; testCashResponse?: Promise<unknown>; preferenceResponse?: unknown }) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const u = String(url)
     if (u.endsWith('/store/checkout/sandbox-cash') && init?.method === 'POST') {
@@ -39,7 +40,8 @@ function stubBackend({ enabled, testCashResponse }: { enabled: boolean; testCash
     if (u.includes('viacep.com.br')) return jsonResponse({ erro: true })
     if (u.includes('/store/shipping/quote')) return jsonResponse(quoteWith(2500))
     if (u.includes('/store/checkout/preference')) {
-      return jsonResponse({ preference_id: 'pref-1', external_reference: 'ref-mp-1' })
+      if (preferenceResponse) return preferenceResponse
+      return jsonResponse({ preference_id: 'pref-1', external_reference: 'ref-mp-1', total: 10400 })
     }
     throw new Error(`Unexpected fetch: ${u}`)
   })
@@ -179,5 +181,52 @@ describe('CheckoutPage — test cash payment', () => {
       await screen.findByText(`O valor do frete foi atualizado para ${formatPrice(2900)}. Confira e continue.`.replace(/\s+/g, ' '))
     ).toBeInTheDocument()
     expect(push).not.toHaveBeenCalled()
+  })
+
+  const priceChangedBody = {
+    error: 'O preço de alguns produtos foi atualizado',
+    priceChanges: [{ variantId: 'var-1', price: 8500, title: 'Camiseta Nova' }],
+  }
+
+  it('adopts the new price and stays on the shipping step when the test order answers a price 409', async () => {
+    stubBackend({ enabled: true, testCashResponse: Promise.resolve(jsonResponse(priceChangedBody, false, 409)) })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(await screen.findByTestId('payment-method-test-cash'))
+    await user.click(screen.getByTestId('submit-test-cash'))
+
+    expect(await screen.findByText('O preço de alguns produtos foi atualizado. Confira e continue.')).toBeInTheDocument()
+    expect(useCartStore.getState().items[0]).toMatchObject({ price: 8500, title: 'Camiseta Nova', variantTitle: 'M', quantity: 1 })
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByTestId('submit-test-cash')).toBeInTheDocument()
+  })
+
+  it('adopts the new price and stays on the shipping step when the preference answers a price 409', async () => {
+    stubBackend({ enabled: false, preferenceResponse: jsonResponse(priceChangedBody, false, 409) })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    expect(await screen.findByText('O preço de alguns produtos foi atualizado. Confira e continue.')).toBeInTheDocument()
+    expect(useCartStore.getState().items[0].price).toBe(8500)
+    expect(screen.queryByTestId('mp-brick')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ir para pagamento/i })).toBeInTheDocument()
+  })
+
+  it('hands the server total, not the cart total, to the Brick', async () => {
+    // Cart says 7900 + 2500 shipping = 10400; the server answers a different total.
+    stubBackend({ enabled: false, preferenceResponse: jsonResponse({ preference_id: 'p', external_reference: 'r', total: 11000 }) })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    await screen.findByTestId('mp-brick')
+    expect(brickProps).toHaveBeenLastCalledWith(expect.objectContaining({ amountCents: 11000 }))
   })
 })

@@ -7,12 +7,19 @@ const MockPayment = Payment as jest.MockedClass<typeof Payment>
 
 import { POST } from "../route"
 
+let checkoutService: {
+  findByExternalReference: jest.Mock
+  transitionFromPending: jest.Mock
+}
+let logger: { warn: jest.Mock; error: jest.Mock }
+
 const makeReq = (body: unknown, env: Record<string, string> = {}) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
     ...env,
   })
-  return { body } as any
+  const services: Record<string, unknown> = { checkout: checkoutService, logger }
+  return { body, scope: { resolve: (key: string) => services[key] } } as any
 }
 
 const makeRes = () => {
@@ -50,6 +57,14 @@ describe("POST /store/checkout/payment", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockPaymentCreate = jest.fn()
+    checkoutService = {
+      findByExternalReference: jest.fn().mockResolvedValue({
+        payload: { total: 10400 },
+        status: null,
+      }),
+      transitionFromPending: jest.fn().mockResolvedValue(true),
+    }
+    logger = { warn: jest.fn(), error: jest.fn() }
     MockPayment.mockImplementation(() => ({ create: mockPaymentCreate } as any))
     ;(MercadoPagoConfig as jest.MockedClass<typeof MercadoPagoConfig>).mockImplementation(() => ({} as any))
   })
@@ -174,5 +189,93 @@ describe("POST /store/checkout/payment", () => {
     expect(res._status).toBe(200)
     expect((res._body as any).status).toBe("rejected")
     expect((res._body as any).status_detail).toBe("cc_rejected_insufficient_amount")
+  })
+
+  it("charges the snapshot total and ignores transaction_amount", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 1, status: "pending" })
+
+    await POST(makeReq({ ...cardBody, transaction_amount: 0.01 }), makeRes())
+
+    expect(mockPaymentCreate.mock.calls[0][0].body.transaction_amount).toBe(104)
+  })
+
+  it("accepts a body without transaction_amount", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 1, status: "pending" })
+    const { transaction_amount, ...body } = pixBody
+
+    const res = makeRes()
+    await POST(makeReq(body), res)
+
+    expect(res._status).toBe(200)
+    expect(mockPaymentCreate.mock.calls[0][0].body.transaction_amount).toBe(104)
+  })
+
+  it("404 when the snapshot does not exist", async () => {
+    checkoutService.findByExternalReference.mockResolvedValue(null)
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(404)
+    expect(res._body).toEqual({ error: "Pedido não encontrado." })
+    expect(mockPaymentCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(["paid", "amount_mismatch"])("409 when the snapshot is %s", async (status) => {
+    checkoutService.findByExternalReference.mockResolvedValue({
+      payload: { total: 10400 },
+      status,
+    })
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(409)
+    expect(res._body).toEqual({ error: "Este pedido já foi pago." })
+    expect(mockPaymentCreate).not.toHaveBeenCalled()
+  })
+
+  it("marks paid when MP answers approved", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 123, status: "approved" })
+
+    await POST(makeReq(cardBody), makeRes())
+
+    expect(checkoutService.transitionFromPending).toHaveBeenCalledWith(
+      "order-ref-uuid",
+      "paid",
+      "123"
+    )
+  })
+
+  it.each(["pending", "rejected"])("does not mark on %s", async (status) => {
+    mockPaymentCreate.mockResolvedValue({ id: 123, status })
+
+    await POST(makeReq(cardBody), makeRes())
+
+    expect(checkoutService.transitionFromPending).not.toHaveBeenCalled()
+  })
+
+  it("still answers 200 if the transition loses", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 123, status: "approved", status_detail: "accredited" })
+    checkoutService.transitionFromPending.mockResolvedValue(false)
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(200)
+    expect((res._body as any).payment_id).toBe(123)
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it("still answers 200 and logs if the transition throws", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 123, status: "approved", status_detail: "accredited" })
+    checkoutService.transitionFromPending.mockRejectedValue(new Error("db down"))
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(200)
+    expect((res._body as any).payment_id).toBe(123)
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("[checkout/payment]"))
   })
 })

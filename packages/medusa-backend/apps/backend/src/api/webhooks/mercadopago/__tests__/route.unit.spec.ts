@@ -53,6 +53,9 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
   }
   const mockCheckoutService = {
     findByExternalReference: jest.fn().mockResolvedValue(null),
+    transitionFromPending: jest.fn().mockResolvedValue(true),
+    claimOrderCreation: jest.fn().mockResolvedValue(true),
+    releaseOrderCreation: jest.fn().mockResolvedValue(undefined),
   }
 
   const dataId = (body as any)?.data?.id ?? ""
@@ -73,6 +76,7 @@ function makeReq(body: unknown, secret = WEBHOOK_TEST_SECRET) {
     _orderService: mockOrderService,
     _eventBusService: mockEventBusService,
     _checkoutService: mockCheckoutService,
+    _logger: mockLogger,
   } as any
 }
 
@@ -87,7 +91,7 @@ function makeRes() {
 const approvedPayment = {
   id: 42,
   status: "approved",
-  transaction_amount: 79,
+  transaction_amount: 94,
   external_reference: "ext-ref-uuid",
   metadata: {},
   payer: { email: "buyer@test.com", name: "João", surname: "Silva", phone: {}, address: {} },
@@ -173,7 +177,7 @@ describe("POST /webhooks/mercadopago", () => {
     )
   })
 
-  it("uses payment.metadata directly when it already has items", async () => {
+  it("uses payment.metadata when there is no local snapshot and it already has items", async () => {
     const paymentWithItems = {
       ...approvedPayment,
       metadata: preferenceMetadata,
@@ -184,7 +188,7 @@ describe("POST /webhooks/mercadopago", () => {
     await POST(req, makeRes())
 
     expect(mockPrefSearch).not.toHaveBeenCalled()
-    expect(req._checkoutService.findByExternalReference).not.toHaveBeenCalled()
+    expect(req._checkoutService.findByExternalReference).toHaveBeenCalledWith("ext-ref-uuid")
     expect(req._orderService.createOrders).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
@@ -212,26 +216,21 @@ describe("POST /webhooks/mercadopago", () => {
     )
   })
 
-  it("falls through to the legacy MercadoPago preference search when the local snapshot lookup throws (non-fatal)", async () => {
+  it("answers 500 without orders or the legacy preference search when the local snapshot lookup throws", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
 
     const req = makeReq({ type: "payment", data: { id: "42" } })
     req._checkoutService.findByExternalReference.mockRejectedValue(new Error("db down"))
+    const res = makeRes()
 
-    await POST(req, makeRes())
+    await POST(req, res)
 
-    expect(mockPrefSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ options: expect.objectContaining({ external_reference: "ext-ref-uuid" }) })
-    )
-    expect(req._orderService.createOrders).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          items: [expect.objectContaining({ title: "Camiseta", quantity: 1, unit_price: 7900 })],
-        }),
-      ])
-    )
+    expect(res._status).toBe(500)
+    expect(req._logger.error).toHaveBeenCalled()
+    expect(mockPrefSearch).not.toHaveBeenCalled()
+    expect(req._orderService.createOrders).not.toHaveBeenCalled()
   })
 
   it("stores unit_price in centavos (no /100 conversion)", async () => {
@@ -406,9 +405,10 @@ describe("POST /webhooks/mercadopago", () => {
     shipping: { id: "pac", name: "PAC", price: 1500 },
     total: 11500,
   }
+  const twoSellerPayment = { ...approvedPayment, transaction_amount: 115 }
 
   it("creates one order per seller group when seller_groups is present via the legacy preference-search fallback", async () => {
-    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPaymentGet.mockResolvedValue(twoSellerPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
 
@@ -425,7 +425,7 @@ describe("POST /webhooks/mercadopago", () => {
   })
 
   it("creates one order per seller group when the local checkout snapshot contains seller_groups (does not call MercadoPago's preference search)", async () => {
-    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPaymentGet.mockResolvedValue(twoSellerPayment)
 
     const req = makeReq({ type: "payment", data: { id: "42" } })
     req._checkoutService.findByExternalReference.mockResolvedValue({ payload: twoSellerGroupsMetadata })
@@ -440,7 +440,7 @@ describe("POST /webhooks/mercadopago", () => {
   })
 
   it("emits order.placed and mercadopago.order_approved once per created order", async () => {
-    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPaymentGet.mockResolvedValue(twoSellerPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
 
@@ -460,7 +460,7 @@ describe("POST /webhooks/mercadopago", () => {
   })
 
   it("only creates orders for seller groups that don't already exist (partial idempotency)", async () => {
-    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPaymentGet.mockResolvedValue(twoSellerPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
 
@@ -479,7 +479,7 @@ describe("POST /webhooks/mercadopago", () => {
   })
 
   it("skips order creation entirely when every seller group's order already exists", async () => {
-    mockPaymentGet.mockResolvedValue(approvedPayment)
+    mockPaymentGet.mockResolvedValue(twoSellerPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: twoSellerGroupsMetadata })
 
@@ -504,5 +504,290 @@ describe("POST /webhooks/mercadopago", () => {
     const [createdOrders] = req._orderService.createOrders.mock.calls[0]
     expect(createdOrders).toHaveLength(1)
     expect(createdOrders[0].metadata.seller_id).toBe("seller-abc")
+  })
+
+  describe("amount check and single order creation", () => {
+    const ref = "ext-ref-uuid"
+    const snapshotPayload = { ...preferenceMetadata, total: 10400 }
+
+    function pendingSnapshot(overrides: Record<string, unknown> = {}) {
+      return { payload: snapshotPayload, status: null, paymentId: null, ordersCreatedAt: null, ...overrides }
+    }
+
+    function errorLogs(req: any): string {
+      return req._logger.error.mock.calls.map((c: unknown[]) => c.map(String).join(" ")).join("\n")
+    }
+
+    it("creates orders when the amount matches", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._checkoutService.transitionFromPending).toHaveBeenCalledWith(ref, "paid", "42")
+      expect(req._checkoutService.claimOrderCreation).toHaveBeenCalledWith(ref)
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+      expect(req._eventBusService.emit).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "order.placed", data: { id: "order-1" } }),
+          expect.objectContaining({ name: "mercadopago.order_approved", data: { id: "order-1" } }),
+        ])
+      )
+      expect(mockPrefSearch).not.toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    it("prefers the local snapshot over payment.metadata", async () => {
+      mockPaymentGet.mockResolvedValue({
+        ...approvedPayment,
+        transaction_amount: 104,
+        metadata: { ...preferenceMetadata, items: [{ variant_id: "var-x", title: "Forjado", quantity: 1, price: 1 }] },
+      })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+
+      await POST(req, makeRes())
+
+      const [createdOrder] = req._orderService.createOrders.mock.calls[0][0]
+      expect(createdOrder.items[0].title).toBe("Camiseta")
+    })
+
+    it("does not treat float rounding as mismatch", async () => {
+      // 10.1 * 100 === 1009.9999999999999 in floating point
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 10.1 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ payload: { ...snapshotPayload, total: 1010 } })
+      )
+
+      await POST(req, makeRes())
+
+      expect(req._checkoutService.transitionFromPending).toHaveBeenCalledWith(ref, "paid", "42")
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+    })
+
+    it("marks amount_mismatch and creates nothing", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 0.01 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._checkoutService.transitionFromPending).toHaveBeenCalledWith(ref, "amount_mismatch", "42")
+      const logs = errorLogs(req)
+      expect(logs).toContain(ref)
+      expect(logs).toContain("42")
+      expect(logs).toMatch(/\b1\b/)
+      expect(logs).toContain("10400")
+      expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    it("creates orders when the Brick already marked paid with the same payment id", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "paid", paymentId: "42" })
+      )
+
+      await POST(req, makeRes())
+
+      expect(req._checkoutService.transitionFromPending).not.toHaveBeenCalled()
+      expect(req._checkoutService.claimOrderCreation).toHaveBeenCalledWith(ref)
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+    })
+
+    it("continues with the current state when it loses the transition race", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference
+        .mockResolvedValueOnce(pendingSnapshot())
+        .mockResolvedValueOnce(pendingSnapshot({ status: "paid", paymentId: "42" }))
+      req._checkoutService.transitionFromPending.mockResolvedValue(false)
+
+      await POST(req, makeRes())
+
+      expect(req._checkoutService.findByExternalReference).toHaveBeenCalledTimes(2)
+      expect(req._checkoutService.claimOrderCreation).toHaveBeenCalledWith(ref)
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+    })
+
+    it("warns with the ref and payment id when orders were already claimed", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "paid", paymentId: "42", ordersCreatedAt: new Date() })
+      )
+      req._checkoutService.claimOrderCreation.mockResolvedValue(false)
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+      expect(req._eventBusService.emit).not.toHaveBeenCalled()
+      expect(req._logger.error).not.toHaveBeenCalled()
+      const warnings = req._logger.warn.mock.calls.map((c: unknown[]) => c.map(String).join(" ")).join("\n")
+      expect(warnings).toContain(ref)
+      expect(warnings).toContain("42")
+      expect(res._status).toBe(200)
+    })
+
+    it("logs and creates nothing when MP redelivers the same mismatched payment", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 0.01 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "amount_mismatch", paymentId: "42" })
+      )
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._logger.error).not.toHaveBeenCalled()
+      const infos = req._logger.info.mock.calls.map((c: unknown[]) => c.map(String).join(" ")).join("\n")
+      expect(infos).toContain(ref)
+      expect(infos).toContain("amount_mismatch")
+      expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    it("logs an extra payment and creates nothing", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, id: 77, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "77" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "paid", paymentId: "42" })
+      )
+      const res = makeRes()
+
+      await POST(req, res)
+
+      const logs = errorLogs(req)
+      expect(logs).toContain("77")
+      expect(logs).toContain("42")
+      expect(logs).toContain("10400")
+      expect(req._checkoutService.transitionFromPending).not.toHaveBeenCalled()
+      expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    it("logs and blocks a correct payment on an amount_mismatch snapshot", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, id: 77, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "77" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(
+        pendingSnapshot({ status: "amount_mismatch", paymentId: "42" })
+      )
+      const res = makeRes()
+
+      await POST(req, res)
+
+      const logs = errorLogs(req)
+      expect(logs).toContain(ref)
+      expect(logs).toContain("77")
+      expect(req._checkoutService.transitionFromPending).not.toHaveBeenCalled()
+      expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      expect(req._orderService.createOrders).not.toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    it("releases the claim and answers 500 when order creation throws", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      req._orderService.createOrders.mockRejectedValue(new Error("db down"))
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._checkoutService.releaseOrderCreation).toHaveBeenCalledWith(ref)
+      expect(req._logger.error).toHaveBeenCalled()
+      expect(req._eventBusService.emit).not.toHaveBeenCalled()
+      expect(res._status).toBe(500)
+    })
+
+    it("answers 500 and asks for manual action when releasing the claim also throws", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      req._orderService.createOrders.mockRejectedValue(new Error("db down"))
+      req._checkoutService.releaseOrderCreation.mockRejectedValue(new Error("release failed"))
+      const res = makeRes()
+
+      await POST(req, res)
+
+      const logs = errorLogs(req)
+      expect(logs).toContain("ação manual necessária")
+      expect(logs).toContain(ref)
+      expect(logs).toContain("42")
+      expect(logs).toContain("db down")
+      expect(logs).toContain("release failed")
+      expect(req._eventBusService.emit).not.toHaveBeenCalled()
+      expect(res._status).toBe(500)
+    })
+
+    it("keeps the claim and answers 200 when event emission throws after orders were created", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      req._eventBusService.emit.mockRejectedValue(new Error("bus down"))
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+      expect(req._checkoutService.releaseOrderCreation).not.toHaveBeenCalled()
+      expect(req._logger.error).toHaveBeenCalled()
+      expect(res._status).toBe(200)
+    })
+
+    describe("legacy preference fallback without local snapshot", () => {
+      it("creates orders when meta.total matches the paid amount", async () => {
+        mockPaymentGet.mockResolvedValue(approvedPayment)
+        mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+        mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+        const req = makeReq({ type: "payment", data: { id: "42" } })
+
+        await POST(req, makeRes())
+
+        expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+        expect(req._checkoutService.transitionFromPending).not.toHaveBeenCalled()
+        expect(req._checkoutService.claimOrderCreation).not.toHaveBeenCalled()
+      })
+
+      it("logs and creates nothing when meta.total does not match the paid amount", async () => {
+        mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 0.01 })
+        mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+        mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+        const req = makeReq({ type: "payment", data: { id: "42" } })
+        const res = makeRes()
+
+        await POST(req, res)
+
+        const logs = errorLogs(req)
+        expect(logs).toContain(ref)
+        expect(logs).toContain("9400")
+        expect(req._orderService.createOrders).not.toHaveBeenCalled()
+        expect(res._status).toBe(200)
+      })
+
+      it("logs and creates nothing when meta.total is missing", async () => {
+        const { total: _total, ...metadataWithoutTotal } = preferenceMetadata
+        mockPaymentGet.mockResolvedValue(approvedPayment)
+        mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+        mockPrefGet.mockResolvedValue({ metadata: metadataWithoutTotal })
+        const req = makeReq({ type: "payment", data: { id: "42" } })
+        const res = makeRes()
+
+        await POST(req, res)
+
+        expect(errorLogs(req)).toContain(ref)
+        expect(req._orderService.createOrders).not.toHaveBeenCalled()
+        expect(res._status).toBe(200)
+      })
+    })
   })
 })

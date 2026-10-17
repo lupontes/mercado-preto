@@ -47,6 +47,32 @@ describe("CheckoutModuleService.recordSnapshot", () => {
   })
 })
 
+describe("CheckoutModuleService.recordSnapshot initial state", () => {
+  it("persists the initial status and ordersCreatedAt when given", async () => {
+    const svc = makeService()
+    const payload = { total: 100 }
+    const d = new Date("2026-10-17T12:00:00Z")
+
+    await svc.recordSnapshot("ref", payload, { status: "paid", ordersCreatedAt: d })
+
+    expect(svc.createCheckoutSnapshots).toHaveBeenCalledWith({
+      externalReference: "ref",
+      payload,
+      status: "paid",
+      ordersCreatedAt: d,
+    })
+  })
+
+  it("keeps creating with only externalReference and payload when no initial state is given", async () => {
+    const svc = makeService()
+    const payload = { total: 100 }
+
+    await svc.recordSnapshot("ref", payload)
+
+    expect(svc.createCheckoutSnapshots).toHaveBeenCalledWith({ externalReference: "ref", payload })
+  })
+})
+
 describe("CheckoutModuleService.findByExternalReference", () => {
   it("returns the snapshot matching the external reference", async () => {
     const svc = makeService()

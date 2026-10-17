@@ -13,7 +13,7 @@ const option = { tier: 'economico' as const, label: 'Econômico', total: 2500, d
 function stubOk() {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ preference_id: 'pref-1', external_reference: 'ref-1' }),
+    json: async () => ({ preference_id: 'pref-1', external_reference: 'ref-1', total: 10400 }),
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -50,7 +50,7 @@ describe('createPreference', () => {
     stubOk()
     expect(await createPreference(items, address, option)).toEqual({
       ok: true,
-      data: { preferenceId: 'pref-1', externalReference: 'ref-1' },
+      data: { preferenceId: 'pref-1', externalReference: 'ref-1', totalCents: 10400 },
     })
   })
 
