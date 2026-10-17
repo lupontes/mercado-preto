@@ -135,16 +135,69 @@ describe("quoteShipping", () => {
     expect(quote.unavailableSellers.map((u) => u.reason)).toEqual(["quote_failed", "quote_failed"])
   })
 
-  it("omits a tier when any seller lacks that service", async () => {
-    const quote = await quoteShipping(
-      {
-        query: makeQuery({ variants, products }),
-        calculator: makeCalculator({ "40026010": [{ service: "PAC", serviceId: 1, price: 2000, deliveryDays: 7 }] }),
-        cache: new QuoteCache(),
-      },
-      { postalCode: "01310100", items }
+  // Correios do not offer PAC when the seller and the buyer are in the same city.
+  const sedexOnly: ServiceQuote[] = [{ service: "SEDEX", serviceId: 2, price: 2000, deliveryDays: 2 }]
+  const quoteWith = (overrides: Record<string, ServiceQuote[]>, cartItems = items) =>
+    quoteShipping(
+      { query: makeQuery({ variants, products }), calculator: makeCalculator(overrides), cache: new QuoteCache(), handlingDays: 0 },
+      { postalCode: "01310100", items: cartItems }
     )
-    expect(quote.options.map((o) => o.tier)).toEqual(["economico"])
+  const servicesOf = (option: { sellers: Array<{ sellerId: string; service: string; price: number }> }) =>
+    option.sellers.map((s) => `${s.sellerId}:${s.service}:${s.price}`)
+
+  it("uses SEDEX in Econômico for a seller without PAC and keeps PAC for the others", async () => {
+    const quote = await quoteWith({ "44300000": sedexOnly })
+
+    expect(quote.options.map((o) => o.tier)).toEqual(["economico", "rapido"])
+    expect(servicesOf(quote.options[0])).toEqual(["seller-a:SEDEX:2000", "seller-b:PAC:2000"])
+    expect(quote.options[0].total).toBe(4000)
+    expect(servicesOf(quote.options[1])).toEqual(["seller-a:SEDEX:2000", "seller-b:SEDEX:5000"])
+    expect(quote.options[1].total).toBe(7000)
+  })
+
+  it("returns only Rápido when both options would be identical", async () => {
+    const quote = await quoteWith({ "44300000": sedexOnly }, [{ variantId: "var-a1", quantity: 1 }])
+
+    expect(quote.options.map((o) => o.tier)).toEqual(["rapido"])
+    expect(servicesOf(quote.options[0])).toEqual(["seller-a:SEDEX:2000"])
+  })
+
+  it("uses the cheaper service in Econômico even when it is SEDEX", async () => {
+    const pricierPac: ServiceQuote[] = [
+      { service: "PAC", serviceId: 1, price: 5000, deliveryDays: 9 },
+      { service: "SEDEX", serviceId: 2, price: 4000, deliveryDays: 3 },
+    ]
+    const single = await quoteWith({ "44300000": pricierPac }, [{ variantId: "var-a1", quantity: 1 }])
+    expect(single.options.map((o) => o.tier)).toEqual(["rapido"])
+
+    const both = await quoteWith({ "44300000": pricierPac })
+    expect(servicesOf(both.options[0])).toEqual(["seller-a:SEDEX:4000", "seller-b:PAC:2000"])
+  })
+
+  it("breaks ties by deadline in Econômico and by price in Rápido", async () => {
+    // With the right tie-breaks both options pick A=SEDEX and B=PAC and collapse
+    // into one; a wrong tie-break on either side would leave two options.
+    const quote = await quoteWith({
+      "44300000": [
+        { service: "PAC", serviceId: 1, price: 3000, deliveryDays: 9 },
+        { service: "SEDEX", serviceId: 2, price: 3000, deliveryDays: 3 },
+      ],
+      "40026010": [
+        { service: "PAC", serviceId: 1, price: 2000, deliveryDays: 4 },
+        { service: "SEDEX", serviceId: 2, price: 5000, deliveryDays: 4 },
+      ],
+    })
+
+    expect(quote.options.map((o) => o.tier)).toEqual(["rapido"])
+    expect(servicesOf(quote.options[0])).toEqual(["seller-a:SEDEX:3000", "seller-b:PAC:2000"])
+  })
+
+  it("keeps both tiers when a seller lacks SEDEX", async () => {
+    const quote = await quoteWith({ "40026010": [{ service: "PAC", serviceId: 1, price: 2000, deliveryDays: 7 }] })
+
+    expect(quote.options.map((o) => o.tier)).toEqual(["economico", "rapido"])
+    expect(servicesOf(quote.options[0])).toEqual(["seller-a:PAC:3000", "seller-b:PAC:2000"])
+    expect(servicesOf(quote.options[1])).toEqual(["seller-a:SEDEX:6000", "seller-b:PAC:2000"])
   })
 
   it("serves repeated quotes from the cache until the TTL expires", async () => {

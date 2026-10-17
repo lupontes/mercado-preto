@@ -65,9 +65,15 @@ export function quoteFailureResponse(
 export const CART_ITEM_UNAVAILABLE_MESSAGE =
   "Um produto do seu carrinho não está mais disponível. Remova-o e tente novamente."
 
-const TIERS: Array<{ tier: ShippingTier; label: string; service: "PAC" | "SEDEX" }> = [
-  { tier: "economico", label: "Econômico", service: "PAC" },
-  { tier: "rapido", label: "Rápido", service: "SEDEX" },
+// Each tier picks per seller instead of requiring one service everywhere:
+// Correios have no PAC when seller and buyer share a city, and that must not
+// remove the cheaper option for the rest of the cart.
+const byPriceThenDays = (a: ServiceQuote, b: ServiceQuote) => a.price - b.price || a.deliveryDays - b.deliveryDays
+const byDaysThenPrice = (a: ServiceQuote, b: ServiceQuote) => a.deliveryDays - b.deliveryDays || a.price - b.price
+
+const TIERS: Array<{ tier: ShippingTier; label: string; pick: (quotes: ServiceQuote[]) => ServiceQuote }> = [
+  { tier: "economico", label: "Econômico", pick: (quotes) => [...quotes].sort(byPriceThenDays)[0] },
+  { tier: "rapido", label: "Rápido", pick: (quotes) => [...quotes].sort(byDaysThenPrice)[0] },
 ]
 
 export class QuoteCache {
@@ -226,14 +232,14 @@ export async function quoteShipping(
 
   const options: ShippingOption[] = []
   if (quotedSellers.length > 0) {
-    for (const { tier, label, service } of TIERS) {
-      const sellers: SellerShipping[] = []
-      for (const { bucket, quotes } of quotedSellers) {
-        const q = quotes.find((x) => x.service === service)
-        if (!q) break
-        sellers.push({ sellerId: bucket.sellerId, sellerName: bucket.sellerName, tier, ...q })
-      }
-      if (sellers.length !== quotedSellers.length) continue
+    for (const { tier, label, pick } of TIERS) {
+      // quotedSellers only holds sellers with at least one service.
+      const sellers: SellerShipping[] = quotedSellers.map(({ bucket, quotes }) => ({
+        sellerId: bucket.sellerId,
+        sellerName: bucket.sellerName,
+        tier,
+        ...pick(quotes),
+      }))
       options.push({
         tier,
         label,
@@ -242,6 +248,13 @@ export async function quoteShipping(
         sellers,
       })
     }
+  }
+
+  // Two identical choices (every seller on the same service) would only confuse
+  // the buyer; keep "Rápido", which a single-seller same-city cart already showed.
+  const [economico, rapido] = options
+  if (economico && rapido && economico.sellers.every((s, i) => s.service === rapido.sellers[i].service)) {
+    return { options: [rapido], unavailableSellers }
   }
 
   return { options, unavailableSellers }
