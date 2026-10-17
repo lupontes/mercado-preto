@@ -40,15 +40,25 @@ export async function sellerLogout() {
   })
 }
 
-export async function setSellerPassword(email: string, password: string) {
+// Both calls share one endpoint: a token sets the password, an e-mail asks for
+// a new link. The token alone identifies the seller.
+async function postSetPassword(body: Record<string, string>, fallback: string) {
   const res = await fetch(`${medusaBaseUrl()}/store/sellers/set-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   })
-  const body = await res.json()
-  if (!res.ok) throw new Error(body?.error ?? 'Erro ao configurar senha')
-  return body as { message: string }
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(data?.error ?? fallback)
+  return data as { message: string }
+}
+
+export async function setSellerPassword(token: string, password: string) {
+  return postSetPassword({ token, password }, 'Erro ao configurar senha')
+}
+
+export async function requestSellerPasswordLink(email: string) {
+  return postSetPassword({ email }, 'Erro ao pedir o link')
 }
 
 export async function getMe() {

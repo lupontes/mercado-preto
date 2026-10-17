@@ -45,4 +45,9 @@ describe("PainelLoginPage", () => {
     expect(await screen.findByText("Credenciais inválidas")).toBeInTheDocument()
     expect(push).not.toHaveBeenCalled()
   })
+
+  it("links to the password page for sellers who forgot it", () => {
+    render(<PainelLoginPage />)
+    expect(screen.getByRole("link", { name: "Esqueci minha senha" })).toHaveAttribute("href", "/vendedor/configurar-senha")
+  })
 })
