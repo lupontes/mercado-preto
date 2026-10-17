@@ -18,7 +18,7 @@ const unavailable = (): ResolveResult => ({
 /**
  * Replaces the price and title the browser sent with the database values, so the
  * charged amount never depends on client input. A price mismatch answers 409 so the
- * buyer can confirm the new price; a missing variant or price answers 400 without
+ * buyer can confirm the new price; a missing variant, price or title answers 400 without
  * exposing internal ids.
  */
 export async function resolveCheckoutItems(
@@ -39,11 +39,14 @@ export async function resolveCheckoutItems(
 
   for (const item of items) {
     const variant = variantById.get(item.variantId)
-    // Same rule as the storefront: first brl price wins. 0 is treated as unavailable.
+    // Same rule as the storefront: first brl price wins. Amounts are integer cents,
+    // so anything else (0, negative, fractional) is bad catalog data, not a price.
     const price = variant?.prices?.find((p: any) => p.currency_code === "brl")?.amount
-    if (!variant || !price) return unavailable()
+    if (!variant || !Number.isInteger(price) || price <= 0) return unavailable()
 
-    const title: string = variant.product?.title ?? item.title
+    // The client's title must never reach the order, so a missing one is unavailable too.
+    const title: string | undefined = variant.product?.title
+    if (!title) return unavailable()
     if (price !== item.price && !reported.has(item.variantId)) {
       reported.add(item.variantId)
       priceChanges.push({ variantId: item.variantId, price, title })
