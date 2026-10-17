@@ -65,6 +65,161 @@ function verifySignature(req: MedusaRequest, secret: string): { ok: boolean; rea
   }
 }
 
+// MP reports reais as a float; rounding avoids false mismatches such as
+// 10.1 * 100 === 1009.9999999999999.
+function paidCents(payment: any): number {
+  return Math.round(Number(payment.transaction_amount) * 100)
+}
+
+async function createOrdersAndEmit(req: MedusaRequest, payment: any, meta: Record<string, any>) {
+  const logger = req.scope.resolve("logger")
+
+  const createdOrders = await createOrdersFromCheckout({
+    container: req.scope,
+    externalReference: payment.external_reference as string,
+    meta,
+    extraMetadata: { mercadopago_payment_id: String(payment.id) },
+    fallbackPayer: payment.payer as Record<string, any> | undefined,
+  })
+
+  if (createdOrders.length === 0) {
+    logger.info(
+      `[mercadopago/webhook] todos os pedidos já existem para ref ${payment.external_reference} — ignorando webhook duplicado`
+    )
+    return
+  }
+
+  logger.info(
+    `[mercadopago/webhook] ${createdOrders.length} pedido(s) criado(s) para ref ${payment.external_reference}`
+  )
+
+  const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
+
+  // order.placed              → WhatsApp de confirmação
+  // mercadopago.order_approved → emissão NF-e (evento customizado para evitar
+  //                              conflito com subscriber interno do Medusa para
+  //                              order.payment_captured)
+  await eventBusService.emit(
+    createdOrders.flatMap((order: any) => [
+      { name: "order.placed", data: { id: order.id } },
+      { name: "mercadopago.order_approved", data: { id: order.id } },
+    ])
+  )
+}
+
+/**
+ * A snapshot becomes orders through at most one payment, and only when that
+ * payment covered the server-priced total. The Brick route may already have
+ * marked the snapshot `paid` with this same payment, which still needs orders.
+ */
+async function settleSnapshotPayment(
+  req: MedusaRequest,
+  checkoutService: CheckoutModuleService,
+  payment: any,
+  snapshot: any,
+) {
+  const logger = req.scope.resolve("logger")
+  const ref = payment.external_reference as string
+  const paymentId = String(payment.id)
+  const paid = paidCents(payment)
+  const expected = snapshot.payload?.total
+
+  let current = snapshot
+  if ((current.status ?? "pending") === "pending") {
+    const matches = paid === expected
+    const won = await checkoutService.transitionFromPending(ref, matches ? "paid" : "amount_mismatch", paymentId)
+    if (won && !matches) {
+      logger.error(
+        `[mercadopago/webhook] valor divergente para ref ${ref}, payment ${paymentId}: pago ${paid} centavos, esperado ${expected} centavos — snapshot marcado amount_mismatch, pedido NÃO criado`
+      )
+      return
+    }
+    // Losing means another notification or the Brick settled it first; its
+    // outcome decides what this payment may do.
+    current = won
+      ? { ...current, status: "paid", paymentId }
+      : await checkoutService.findByExternalReference(ref)
+    if (!current) {
+      logger.error(`[mercadopago/webhook] snapshot da ref ${ref} sumiu durante o processamento do payment ${paymentId}`)
+      return
+    }
+  }
+
+  if (current.status === "amount_mismatch") {
+    logger.error(
+      `[mercadopago/webhook] payment ${paymentId} (${paid} centavos) bloqueado: ref ${ref} já está em amount_mismatch (payment ${current.paymentId}) — pedido NÃO criado, estornar manualmente`
+    )
+    return
+  }
+
+  if (String(current.paymentId) !== paymentId) {
+    logger.error(
+      `[mercadopago/webhook] pagamento extra para ref ${ref}: payment ${paymentId} (${paid} centavos) chegou depois do payment ${current.paymentId} (${expected} centavos) já ter pago o snapshot — pedido NÃO criado, estornar manualmente`
+    )
+    return
+  }
+
+  const meta = current.payload as Record<string, any> | undefined
+  if (!meta?.items?.length) {
+    logger.error(
+      `[mercadopago/webhook] snapshot da ref ${ref} sem itens — pedido NÃO criado, payment ${paymentId}`
+    )
+    return
+  }
+
+  if (!(await checkoutService.claimOrderCreation(ref))) return
+
+  try {
+    await createOrdersAndEmit(req, payment, meta)
+  } catch (err) {
+    // Without the release a transient failure would leave the snapshot claimed
+    // forever and the next notification could never create the orders.
+    await checkoutService.releaseOrderCreation(ref)
+    logger.error(`[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}:`, err)
+  }
+}
+
+// Checkouts created before the local snapshot existed: recover their metadata
+// from MercadoPago and rely on createOrdersFromCheckout's idempotency.
+async function settleLegacyPayment(req: MedusaRequest, mp: MercadoPagoConfig, payment: any) {
+  const logger = req.scope.resolve("logger")
+
+  let meta = payment.metadata as Record<string, any> | undefined
+  if ((!meta?.items?.length) && payment.external_reference) {
+    try {
+      const prefClient = new Preference(mp)
+      const searchResult = await prefClient.search({
+        options: { external_reference: payment.external_reference },
+      })
+      const prefId = searchResult.elements?.[0]?.id
+      if (prefId) {
+        const pref = await prefClient.get({ preferenceId: prefId })
+        meta = pref.metadata as Record<string, any> | undefined
+        logger.info(`[mercadopago/webhook] metadados recuperados da preferência ${prefId} (fallback legado)`)
+      }
+    } catch (prefErr) {
+      logger.warn(`[mercadopago/webhook] falha ao buscar preferência (fallback legado): ${prefErr}`)
+    }
+  }
+
+  if (!meta?.items?.length) {
+    logger.error(
+      `[mercadopago/webhook] metadados do checkout não recuperados (snapshot ausente, payment.metadata vazio, busca de preferência sem resultado) — pedido NÃO criado pra ref ${payment.external_reference}, payment ${payment.id}`
+    )
+    return
+  }
+
+  const paid = paidCents(payment)
+  if (typeof meta.total !== "number" || meta.total !== paid) {
+    logger.error(
+      `[mercadopago/webhook] valor divergente (fallback legado) para ref ${payment.external_reference}, payment ${payment.id}: pago ${paid} centavos, esperado ${meta.total ?? "ausente"} centavos — pedido NÃO criado`
+    )
+    return
+  }
+
+  await createOrdersAndEmit(req, payment, meta)
+}
+
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const logger = req.scope.resolve("logger")
   const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
@@ -122,82 +277,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         `[mercadopago/webhook] pagamento aprovado — R$ ${payment.transaction_amount} | ref: ${payment.external_reference}`
       )
 
-      // MP does not propagate preference.metadata to the payment object.
-      // Recupera o snapshot do checkout: prioriza nosso próprio banco (gravado
-      // no momento da criação da preferência, sempre disponível de imediato)
-      // em vez de depender da busca de preferências do MercadoPago, que foi
-      // observada com atraso de indexação de horas (ver
-      // docs/superpowers/specs/2026-08-29-checkout-metadata-persistence-design.md).
-      let meta = payment.metadata as Record<string, any> | undefined
-      if ((!meta?.items?.length) && payment.external_reference) {
-        const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
-        let snapshot: any = null
+      const checkoutService: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
+
+      // The local snapshot (written when the checkout was priced on the server)
+      // is the only source we trust for what was sold and for how much; payment
+      // metadata and the legacy preference lookup are only for checkouts that
+      // predate it.
+      let snapshot: any = null
+      if (payment.external_reference) {
         try {
           snapshot = await checkoutService.findByExternalReference(payment.external_reference)
         } catch (snapshotErr) {
           logger.warn(`[mercadopago/webhook] falha ao consultar snapshot local: ${snapshotErr}`)
         }
-        if (snapshot) {
-          meta = snapshot.payload as Record<string, any>
-          logger.info(`[mercadopago/webhook] metadados recuperados do snapshot local para ref ${payment.external_reference}`)
-        } else {
-          // Fallback legado: preferências criadas antes deste snapshot existir
-          // (ou consulta ao snapshot local falhou — ver warning acima).
-          try {
-            const prefClient = new Preference(mp)
-            const searchResult = await prefClient.search({
-              options: { external_reference: payment.external_reference },
-            })
-            const prefId = searchResult.elements?.[0]?.id
-            if (prefId) {
-              const pref = await prefClient.get({ preferenceId: prefId })
-              meta = pref.metadata as Record<string, any> | undefined
-              logger.info(`[mercadopago/webhook] metadados recuperados da preferência ${prefId} (fallback legado)`)
-            }
-          } catch (prefErr) {
-            logger.warn(`[mercadopago/webhook] falha ao buscar preferência (fallback legado): ${prefErr}`)
-          }
-        }
       }
 
-      if (!meta?.items?.length) {
-        logger.error(
-          `[mercadopago/webhook] metadados do checkout não recuperados (payment.metadata vazio, snapshot ausente, busca de preferência sem resultado) — pedido NÃO criado pra ref ${payment.external_reference}, payment ${payment.id}`
-        )
-        return res.sendStatus(200)
+      if (snapshot) {
+        await settleSnapshotPayment(req, checkoutService, payment, snapshot)
+      } else {
+        await settleLegacyPayment(req, mp, payment)
       }
-
-      const createdOrders = await createOrdersFromCheckout({
-        container: req.scope,
-        externalReference: payment.external_reference as string,
-        meta,
-        extraMetadata: { mercadopago_payment_id: String(payment.id) },
-        fallbackPayer: payment.payer as Record<string, any> | undefined,
-      })
-
-      if (createdOrders.length === 0) {
-        logger.info(
-          `[mercadopago/webhook] todos os pedidos já existem para ref ${payment.external_reference} — ignorando webhook duplicado`
-        )
-        return res.sendStatus(200)
-      }
-
-      logger.info(
-        `[mercadopago/webhook] ${createdOrders.length} pedido(s) criado(s) para ref ${payment.external_reference}`
-      )
-
-      const eventBusService = req.scope.resolve(Modules.EVENT_BUS)
-
-      // order.placed              → WhatsApp de confirmação
-      // mercadopago.order_approved → emissão NF-e (evento customizado para evitar
-      //                              conflito com subscriber interno do Medusa para
-      //                              order.payment_captured)
-      await eventBusService.emit(
-        createdOrders.flatMap((order: any) => [
-          { name: "order.placed", data: { id: order.id } },
-          { name: "mercadopago.order_approved", data: { id: order.id } },
-        ])
-      )
     }
 
     res.sendStatus(200)
