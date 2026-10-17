@@ -5,6 +5,10 @@ const CheckoutSnapshot = model.define("checkout_snapshot", {
   externalReference: model.text().unique(),
   payload: model.json(),
   preferenceId: model.text().nullable(),
+  // null on legacy rows, which are treated as "pending"
+  status: model.text().nullable(),
+  paymentId: model.text().nullable(),
+  ordersCreatedAt: model.dateTime().nullable(),
 })
 
 export default CheckoutSnapshot
