@@ -168,8 +168,16 @@ export default function CheckoutPage() {
         setError(updated ? `O valor do frete foi atualizado para ${formatPrice(updated.total)}. Confira e continue.` : result.error)
       } else if (result.status === 422 && result.quote) {
         setQuote(result.quote)
-        setShipping(null)
-        setError(result.error)
+        // With a single choice left and every store shipping, there is nothing to
+        // decide; the buyer only needs to confirm the new option.
+        const [only, ...rest] = result.quote.options
+        if (only && rest.length === 0 && result.quote.unavailableSellers.length === 0) {
+          setShipping(only)
+          setError('As opções de frete mudaram. Confira e continue.')
+        } else {
+          setShipping(null)
+          setError(result.error)
+        }
       } else {
         setError(isTestCash ? 'Erro ao criar o pedido de teste. Tente novamente.' : 'Erro ao preparar o pagamento. Tente novamente.')
       }
