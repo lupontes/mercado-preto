@@ -8,6 +8,8 @@ import { sellerPasswordLink, sendSellerPasswordResetEmail } from "../../../../ut
 // find out who sells on the marketplace.
 const GENERIC_LINK_MESSAGE = "Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha."
 
+type Logger = { info: (msg: string) => void; error: (msg: string) => void }
+
 const RequestLinkSchema = z.object({
   email: z.string().email(),
 })
@@ -19,7 +21,7 @@ const SetPasswordSchema = z.object({
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const sellerService: SellerModuleService = req.scope.resolve(SELLER_MODULE)
-  const logger = req.scope.resolve("logger") as { info: (msg: string) => void }
+  const logger = req.scope.resolve("logger") as Logger
   const body = req.body as { token?: string }
 
   if (body?.token) {
@@ -32,7 +34,7 @@ async function handleRequestLink(
   req: MedusaRequest,
   res: MedusaResponse,
   sellerService: SellerModuleService,
-  logger: { info: (msg: string) => void }
+  logger: Logger
 ) {
   const parsed = RequestLinkSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -45,9 +47,16 @@ async function handleRequestLink(
   }
 
   const token = await sellerService.issuePasswordToken(seller.id, RESET_TOKEN_TTL_MS)
-  await sendSellerPasswordResetEmail(seller, sellerPasswordLink(token))
+  // Not awaited: waiting on the e-mail provider would make answers for real
+  // sellers measurably slower, revealing which e-mails are registered.
   // The token itself never reaches the logs: anyone reading them could use it.
-  logger.info(`[sellers/set-password] link de redefinição enviado para o vendedor ${seller.id}`)
+  void sendSellerPasswordResetEmail(seller, sellerPasswordLink(token))
+    .then(() => logger.info(`[sellers/set-password] link de redefinição enviado para o vendedor ${seller.id}`))
+    .catch((err: unknown) =>
+      logger.error(
+        `[sellers/set-password] falha ao enviar o link para o vendedor ${seller.id}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    )
 
   res.json({ message: GENERIC_LINK_MESSAGE })
 }
@@ -56,7 +65,7 @@ async function handleSetPassword(
   req: MedusaRequest,
   res: MedusaResponse,
   sellerService: SellerModuleService,
-  logger: { info: (msg: string) => void }
+  logger: Logger
 ) {
   // Validated before the token is consumed, so a typo does not burn the link.
   const parsed = SetPasswordSchema.safeParse(req.body)

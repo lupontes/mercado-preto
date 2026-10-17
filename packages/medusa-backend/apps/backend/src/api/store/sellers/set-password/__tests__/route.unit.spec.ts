@@ -83,6 +83,31 @@ describe("POST /store/sellers/set-password", () => {
     })
   })
 
+  describe("response timing", () => {
+    it("answers without waiting for the e-mail provider", async () => {
+      sellerService.listSellers.mockResolvedValue([seller("approved")])
+      ;(sendBrevoEmail as jest.Mock).mockReturnValue(new Promise(() => {}))
+      const res = makeRes()
+
+      await POST(makeReq({ email: "loja@example.com" }), res)
+
+      expect(res._body).toEqual({ message: GENERIC })
+    })
+
+    it("logs a failed e-mail instead of failing the request", async () => {
+      sellerService.listSellers.mockResolvedValue([seller("approved")])
+      ;(sendBrevoEmail as jest.Mock).mockImplementation(async () => { throw new Error("brevo down") })
+      const res = makeRes()
+
+      await POST(makeReq({ email: "loja@example.com" }), res)
+      await new Promise((r) => setImmediate(r))
+
+      expect(res._body).toEqual({ message: GENERIC })
+      expect(logger.error.mock.calls[0][0]).toContain("brevo down")
+      expect(logger.error.mock.calls[0][0]).not.toContain("tok123")
+    })
+  })
+
   describe("setting the password", () => {
     it("sets the password and activates the seller with a valid token", async () => {
       sellerService.consumePasswordToken.mockResolvedValue("seller_1")
