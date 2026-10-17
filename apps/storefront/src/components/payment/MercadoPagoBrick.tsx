@@ -14,7 +14,7 @@ const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
 export async function submitPayment(
   paymentFields: Record<string, unknown>,
   externalReference: string
-): Promise<{ payment_id: string }> {
+): Promise<{ payment_id: string; status?: string }> {
   const res = await fetch(`${medusaBaseUrl()}/store/checkout/payment`, {
     method: 'POST',
     headers: {
@@ -32,6 +32,12 @@ export async function submitPayment(
 
   if (!res.ok) {
     throw new Error(data.error ?? `Erro ao processar pagamento (${res.status}).`)
+  }
+
+  // A refused card answers 200. Throwing keeps the buyer on the payment step
+  // with the cart intact, since only onSuccess clears it.
+  if (data.status === 'rejected') {
+    throw new Error(data.message ?? 'O pagamento não foi aprovado. Tente outro cartão ou pague com Pix.')
   }
 
   return data
