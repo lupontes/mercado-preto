@@ -44,7 +44,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   } = parsed.data
 
   const checkout: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
-  const logger = req.scope.resolve("logger") as { warn: (msg: string) => void }
+  const logger = req.scope.resolve("logger") as {
+    warn: (msg: string) => void
+    error: (msg: string) => void
+  }
 
   const snapshot = await checkout.findByExternalReference(external_reference)
   if (!snapshot) {
@@ -78,14 +81,23 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     })
 
     if (payment.status === "approved") {
-      const won = await checkout.transitionFromPending(
-        external_reference,
-        "paid",
-        String(payment.id)
-      )
-      if (!won) {
-        logger.warn(
-          `[checkout] snapshot ${external_reference} was no longer pending when payment ${payment.id} was approved`
+      // The card is already charged: a failure here must not become a 500,
+      // or the buyer would retry and be charged twice.
+      try {
+        const won = await checkout.transitionFromPending(
+          external_reference,
+          "paid",
+          String(payment.id)
+        )
+        if (!won) {
+          logger.warn(
+            `[checkout/payment] snapshot ${external_reference} não estava mais pendente quando o pagamento ${payment.id} foi aprovado`
+          )
+        }
+      } catch (transitionErr: unknown) {
+        const detail = transitionErr instanceof Error ? transitionErr.message : String(transitionErr)
+        logger.error(
+          `[checkout/payment] falha ao marcar o snapshot ${external_reference} como pago (pagamento ${payment.id}): ${detail}`
         )
       }
     }

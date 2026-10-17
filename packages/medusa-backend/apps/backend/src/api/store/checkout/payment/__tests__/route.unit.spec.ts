@@ -11,7 +11,7 @@ let checkoutService: {
   findByExternalReference: jest.Mock
   transitionFromPending: jest.Mock
 }
-let logger: { warn: jest.Mock }
+let logger: { warn: jest.Mock; error: jest.Mock }
 
 const makeReq = (body: unknown, env: Record<string, string> = {}) => {
   Object.assign(process.env, {
@@ -64,7 +64,7 @@ describe("POST /store/checkout/payment", () => {
       }),
       transitionFromPending: jest.fn().mockResolvedValue(true),
     }
-    logger = { warn: jest.fn() }
+    logger = { warn: jest.fn(), error: jest.fn() }
     MockPayment.mockImplementation(() => ({ create: mockPaymentCreate } as any))
     ;(MercadoPagoConfig as jest.MockedClass<typeof MercadoPagoConfig>).mockImplementation(() => ({} as any))
   })
@@ -265,5 +265,17 @@ describe("POST /store/checkout/payment", () => {
     expect(res._status).toBe(200)
     expect((res._body as any).payment_id).toBe(123)
     expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it("still answers 200 and logs if the transition throws", async () => {
+    mockPaymentCreate.mockResolvedValue({ id: 123, status: "approved", status_detail: "accredited" })
+    checkoutService.transitionFromPending.mockRejectedValue(new Error("db down"))
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(200)
+    expect((res._body as any).payment_id).toBe(123)
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("[checkout/payment]"))
   })
 })
