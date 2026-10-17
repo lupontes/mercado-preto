@@ -46,6 +46,14 @@ describe("sellerImageUpload", () => {
     expect(status).toBe(400)
   })
 
+  it("answers 400 when extra text fields come with the file", async () => {
+    const form = new FormData()
+    form.append("note", "x".repeat(1000))
+    form.append("file", new Blob([Buffer.alloc(10)]), "foto.jpg")
+    const res = await fetch(`${baseUrl}/upload`, { method: "POST", body: form })
+    expect(res.status).toBe(400)
+  })
+
   it("hands a valid file to the next handler", async () => {
     const { status, body } = await send([["file", 10]])
     expect(status).toBe(200)

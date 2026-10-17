@@ -8,7 +8,8 @@ const TOO_LARGE_MESSAGE = "A foto passa de 5 MB. Escolha uma foto menor."
 // Kept in memory: the file is checked by its bytes before anything touches disk.
 const parseSingleImage = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
+  // Only the one file part is expected; text fields would just buffer in memory.
+  limits: { fileSize: MAX_IMAGE_BYTES, files: 1, fields: 0 },
 }).single("file")
 
 /**

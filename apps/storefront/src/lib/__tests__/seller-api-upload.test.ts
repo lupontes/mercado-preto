@@ -34,4 +34,18 @@ describe('uploadSellerImage', () => {
 
     await expect(uploadSellerImage(file)).rejects.toThrow('Não foi possível enviar a foto. Tente novamente.')
   })
+
+  it('shows a Portuguese message when the network fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const file = new File(['x'], 'a.jpg', { type: 'image/jpeg' })
+
+    await expect(uploadSellerImage(file)).rejects.toThrow('Não foi possível enviar a foto. Confira sua conexão e tente novamente.')
+  })
+
+  it('treats a success without a url as a failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('html') } }))
+    const file = new File(['x'], 'a.jpg', { type: 'image/jpeg' })
+
+    await expect(uploadSellerImage(file)).rejects.toThrow('Não foi possível enviar a foto. Tente novamente.')
+  })
 })
