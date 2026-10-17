@@ -24,27 +24,19 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    número de envio. **Adiado pelo usuário em 17/10.**
 5. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
    teste `admin2@mercadopreto.com.br`.
-6. ~~Erros do checkout~~: feito no #69 e testado ponta a ponta em 17/10.
-   Ficaram para depois:
-   - **[segurança]** `MercadoPagoBrick.tsx` grava no console do navegador o
-     `brickData`, que inclui os dados do pagador;
-   - o `handleError` do Brick mostra ao comprador a mensagem crua do SDK;
-   - `JSON.stringify(err)` no `catch` de `checkout/payment/route.ts` pode
-     lançar com objeto circular;
-   - as tabelas de `utils/mercadopago-messages.ts` herdam as chaves do
-     protótipo;
-   - depois de uma recusa, o formulário do cartão volta em branco.
+6. ~~Erros do checkout~~: feito no #69 e no #70, que corrigiu as
+   pendências deixadas pelo #69 (log do pagador no console, erro cru do
+   Brick, `JSON.stringify` que podia lançar, chaves do protótipo). Os dois
+   estão testados no servidor. O formulário do cartão continua voltando em
+   branco depois de uma recusa (decisão: força um token novo).
 7. **[feature] Painel do vendedor sem upload de foto:** só aceita URL externa.
 8. **[qualidade] Lacunas de cobertura de testes:** 4 subscribers, 4 scripts,
    cerca de 22 rotas e 14 páginas. Precisa de spec própria.
 9. **[produto] Programa de fidelidade:** só existe o spec
    (`docs/superpowers/specs/2026-09-07-loyalty-points-design.md`).
-10. **[limpeza]**
-    - a branch local `fix/rate-limit-ipv6-keygen` (`f68cf82`) está obsoleta,
-      porque `develop` já usa `ipKeyGenerator`. Apagar, com confirmação do
-      usuário;
-    - 39 `checkout_snapshot` com `status` nulo, anteriores a 17/10, ainda
-      guardam o preço enviado pelo cliente. Não afetam pedidos novos.
+10. ~~Limpeza~~: a branch `fix/rate-limit-ipv6-keygen` foi apagada em 17/10.
+    Os 39 `checkout_snapshot` com `status` nulo ficam como estão: não
+    afetam pedidos novos.
 
 **Do usuário, fora do código:** a validação jurídica e contábil
 (`docs/juridico/2026-09-05-memo-titularidade-consignacao.md`). Anexar ao
@@ -53,11 +45,12 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 
 ## Sessão 2026-10-17
 
-- **Mergeados e no servidor de teste** (`develop` em `3530e09`):
+- **Mergeados e no servidor de teste** (`develop` em `2c0e8c4`):
   - #65: preço do checkout calculado no servidor;
   - #66: correção do build;
   - #67: Econômico com loja local;
-  - #69: mensagens de erro do checkout.
+  - #69: mensagens de erro do checkout;
+  - #70: pendências do #69.
 
   Também ficou no ar o #63 (frete por loja), com as migrations `seller` e
   `checkout` aplicadas.
@@ -82,7 +75,8 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
   - banco: `~/db-backup-20261017101227.sql.gz`;
   - imagens: `mercado-preto-api:oci-bak-20261017101227` e
     `mercado-preto-api:oci-bak-20261017111607`, além de
-    `mercado-preto-api:oci-bak-20261017154245`, anterior ao #69.
+    `mercado-preto-api:oci-bak-20261017154245` (antes do #69) e
+    `mercado-preto-api:oci-bak-20261017183653` (antes do #70).
 - **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
   `@testuser.com` (erro 2034).
 - O banco tem dados de teste das lojas Axé e FIX, e os pedidos #38 a #43.
