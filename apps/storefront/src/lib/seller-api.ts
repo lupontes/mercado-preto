@@ -45,6 +45,9 @@ export async function sellerLogout() {
 async function postSetPassword(body: Record<string, string>, fallback: string) {
   const res = await fetch(`${medusaBaseUrl()}/store/sellers/set-password`, {
     method: 'POST',
+    // The page URL carries the one-time token; as a Referer it would land in
+    // the backend's HTTP access log.
+    referrerPolicy: 'no-referrer',
     headers: { 'Content-Type': 'application/json', 'x-publishable-api-key': PUB_KEY },
     body: JSON.stringify(body),
   })

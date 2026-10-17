@@ -123,6 +123,17 @@ describe("password link body", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ token: "tok", password: "senhaNova1" })
   })
 
+  it("never sends the page URL, which carries the token, as the Referer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "ok" }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await setSellerPassword("tok", "senhaNova1")
+    await requestSellerPasswordLink("a@b.com")
+
+    expect(fetchMock.mock.calls[0][1].referrerPolicy).toBe("no-referrer")
+    expect(fetchMock.mock.calls[1][1].referrerPolicy).toBe("no-referrer")
+  })
+
   it("asks for a link with only the e-mail", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ message: "ok" }) })
     vi.stubGlobal("fetch", fetchMock)
