@@ -69,11 +69,8 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
   - frete com os Correios reais para loja local e para loja distante;
   - #69: o cartão `FUND` mostra o motivo e mantém o carrinho; o `APRO` no
     mesmo pedido foi aprovado e gerou o pedido #43.
-- **Teste de cartão sem digitar em site público:** rodar a vitrine local
-  com `NEXT_PUBLIC_MEDUSA_URL=http://localhost:9000`, abrir um túnel com
-  `ssh -L 9000:127.0.0.1:9000` e usar os cartões sandbox em
-  `http://localhost:3000/checkout`. O túnel cai às vezes; rodar o `ssh` num
-  laço que reconecta.
+- **Teste de cartão:** vitrine local com túnel SSH para o backend (passo a
+  passo no claude-mem).
 - **Lição:** rodar `npx tsc --noEmit -p .` no backend antes do PR. O build
   Docker quebra com erros de tipo que o Jest não pega.
 
