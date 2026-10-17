@@ -196,11 +196,10 @@ async function settleSnapshotPayment(
     } catch (releaseErr) {
       // The claim stays until it goes stale, so redeliveries are refused meanwhile
       // and a human must check that the buyer got their orders.
+      // Logger.error takes a single message (plus one optional error), so both
+      // errors are folded into the text.
       logger.error(
-        `[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}, e falha ao liberar a reivindicação — ação manual necessária. Erro da criação:`,
-        err,
-        "Erro ao liberar:",
-        releaseErr
+        `[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}, e falha ao liberar a reivindicação — ação manual necessária. Erro da criação: ${String(err)}. Erro ao liberar: ${String(releaseErr)}`
       )
       return 500
     }

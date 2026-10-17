@@ -725,6 +725,14 @@ describe("POST /webhooks/mercadopago", () => {
       expect(logs).toContain("42")
       expect(logs).toContain("db down")
       expect(logs).toContain("release failed")
+      // Medusa's Logger.error takes (message, error?): both errors must live in
+      // the message itself, or the production build fails to type-check.
+      const manualCall = req._logger.error.mock.calls.find((c: unknown[]) =>
+        String(c[0]).includes("ação manual necessária")
+      )
+      expect(manualCall.length).toBeLessThanOrEqual(2)
+      expect(manualCall[0]).toContain("db down")
+      expect(manualCall[0]).toContain("release failed")
       expect(req._eventBusService.emit).not.toHaveBeenCalled()
       expect(res._status).toBe(500)
     })
