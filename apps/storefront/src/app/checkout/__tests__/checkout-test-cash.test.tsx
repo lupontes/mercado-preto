@@ -229,4 +229,55 @@ describe('CheckoutPage — test cash payment', () => {
     await screen.findByTestId('mp-brick')
     expect(brickProps).toHaveBeenLastCalledWith(expect.objectContaining({ amountCents: 11000 }))
   })
+
+  const rapido = (total: number) => ({
+    tier: 'rapido' as const, label: 'Rápido', total, deliveryDays: 4,
+    sellers: [{ sellerId: 's1', sellerName: 'Loja A', tier: 'rapido' as const, service: 'SEDEX' as const, serviceId: 2, price: total, deliveryDays: 2 }],
+  })
+  const unavailable422 = (quote: unknown) =>
+    jsonResponse({ error: 'Opção de frete indisponível', quote }, false, 422)
+
+  it('preselects the only remaining shipping option after a 422', async () => {
+    stubBackend({ enabled: false, preferenceResponse: unavailable422({ options: [rapido(3100)], unavailableSellers: [] }) })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    expect(await screen.findByText('As opções de frete mudaram. Confira e continue.')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Rápido/ })).toBeChecked()
+    expect(screen.queryByTestId('mp-brick')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ir para pagamento/i })).toBeInTheDocument()
+  })
+
+  it('keeps the buyer choosing when a 422 leaves two options', async () => {
+    stubBackend({ enabled: false, preferenceResponse: unavailable422({ options: [economico(2700), rapido(3100)], unavailableSellers: [] }) })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    expect(await screen.findByText('Opção de frete indisponível')).toBeInTheDocument()
+    screen.getAllByRole('radio').forEach((radio) => expect(radio).not.toBeChecked())
+  })
+
+  it('does not preselect when a store became unavailable', async () => {
+    stubBackend({
+      enabled: false,
+      preferenceResponse: unavailable422({
+        options: [rapido(3100)],
+        unavailableSellers: [{ sellerId: 's2', sellerName: 'Loja B', reason: 'quote_failed', productTitles: ['Caneca'] }],
+      }),
+    })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    expect(await screen.findByText('Opção de frete indisponível')).toBeInTheDocument()
+    screen.queryAllByRole('radio').forEach((radio) => expect(radio).not.toBeChecked())
+  })
 })

@@ -165,14 +165,29 @@ describe("POST /store/checkout/payment", () => {
     expect(mockPaymentCreate).not.toHaveBeenCalled()
   })
 
-  it("returns 500 when the MP SDK throws", async () => {
+  it("answers 502 with a friendly message and no detail when the MP SDK throws", async () => {
     mockPaymentCreate.mockRejectedValue(new Error("card rejected"))
 
     const res = makeRes()
     await POST(makeReq(cardBody), res)
 
-    expect(res._status).toBe(500)
-    expect((res._body as any).detail).toBe("card rejected")
+    expect(res._status).toBe(502)
+    expect(res._body).toEqual({ error: "Não foi possível processar o pagamento. Tente novamente em instantes." })
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    const args = logger.error.mock.calls[0]
+    expect(args.length).toBeLessThanOrEqual(2)
+    expect(args[0]).toContain("card rejected")
+  })
+
+  it("translates MP error 2034", async () => {
+    mockPaymentCreate.mockRejectedValue({ message: "Invalid users involved", cause: [{ code: 2034 }] })
+
+    const res = makeRes()
+    await POST(makeReq(cardBody), res)
+
+    expect(res._status).toBe(502)
+    expect(res._body).toEqual({ error: "Não foi possível usar este e-mail no pagamento. Confira o e-mail ou use outro." })
+    expect(logger.error.mock.calls[0][0]).toContain("Invalid users involved")
   })
 
   it("handles rejected card payment status", async () => {
@@ -189,6 +204,8 @@ describe("POST /store/checkout/payment", () => {
     expect(res._status).toBe(200)
     expect((res._body as any).status).toBe("rejected")
     expect((res._body as any).status_detail).toBe("cc_rejected_insufficient_amount")
+    expect((res._body as any).message).toBe("Saldo ou limite insuficiente. Tente outro cartão ou pague com Pix.")
+    expect(checkoutService.transitionFromPending).not.toHaveBeenCalled()
   })
 
   it("charges the snapshot total and ignores transaction_amount", async () => {
