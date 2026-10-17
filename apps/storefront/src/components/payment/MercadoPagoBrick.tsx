@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react'
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react'
-import type { IBrickError } from '@mercadopago/sdk-react/esm/bricks/util/types/common'
 import { medusaBaseUrl } from '@/lib/medusa-url'
+
+// The SDK only exports this type from a private path; derive it from the public component instead.
+type IBrickError = Parameters<NonNullable<React.ComponentProps<typeof Payment>['onError']>>[0]
 
 const MP_PUBLIC_KEY = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY ?? ''
 const PUB_KEY = process.env.NEXT_PUBLIC_PUBLISHABLE_KEY ?? ''
