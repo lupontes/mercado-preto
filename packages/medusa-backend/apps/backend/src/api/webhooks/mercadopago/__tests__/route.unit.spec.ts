@@ -216,26 +216,21 @@ describe("POST /webhooks/mercadopago", () => {
     )
   })
 
-  it("falls through to the legacy MercadoPago preference search when the local snapshot lookup throws (non-fatal)", async () => {
+  it("answers 500 without orders or the legacy preference search when the local snapshot lookup throws", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
     mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
 
     const req = makeReq({ type: "payment", data: { id: "42" } })
     req._checkoutService.findByExternalReference.mockRejectedValue(new Error("db down"))
+    const res = makeRes()
 
-    await POST(req, makeRes())
+    await POST(req, res)
 
-    expect(mockPrefSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ options: expect.objectContaining({ external_reference: "ext-ref-uuid" }) })
-    )
-    expect(req._orderService.createOrders).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          items: [expect.objectContaining({ title: "Camiseta", quantity: 1, unit_price: 7900 })],
-        }),
-      ])
-    )
+    expect(res._status).toBe(500)
+    expect(req._logger.error).toHaveBeenCalled()
+    expect(mockPrefSearch).not.toHaveBeenCalled()
+    expect(req._orderService.createOrders).not.toHaveBeenCalled()
   })
 
   it("stores unit_price in centavos (no /100 conversion)", async () => {
@@ -677,7 +672,7 @@ describe("POST /webhooks/mercadopago", () => {
       expect(res._status).toBe(200)
     })
 
-    it("releases the claim when order creation throws", async () => {
+    it("releases the claim and answers 500 when order creation throws", async () => {
       mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
       const req = makeReq({ type: "payment", data: { id: "42" } })
       req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
@@ -689,6 +684,21 @@ describe("POST /webhooks/mercadopago", () => {
       expect(req._checkoutService.releaseOrderCreation).toHaveBeenCalledWith(ref)
       expect(req._logger.error).toHaveBeenCalled()
       expect(req._eventBusService.emit).not.toHaveBeenCalled()
+      expect(res._status).toBe(500)
+    })
+
+    it("keeps the claim and answers 200 when event emission throws after orders were created", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 104 })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      req._checkoutService.findByExternalReference.mockResolvedValue(pendingSnapshot())
+      req._eventBusService.emit.mockRejectedValue(new Error("bus down"))
+      const res = makeRes()
+
+      await POST(req, res)
+
+      expect(req._orderService.createOrders).toHaveBeenCalledTimes(1)
+      expect(req._checkoutService.releaseOrderCreation).not.toHaveBeenCalled()
+      expect(req._logger.error).toHaveBeenCalled()
       expect(res._status).toBe(200)
     })
 

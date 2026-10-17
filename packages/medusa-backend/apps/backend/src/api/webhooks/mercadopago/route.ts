@@ -71,16 +71,18 @@ function paidCents(payment: any): number {
   return Math.round(Number(payment.transaction_amount) * 100)
 }
 
-async function createOrdersAndEmit(req: MedusaRequest, payment: any, meta: Record<string, any>) {
-  const logger = req.scope.resolve("logger")
-
-  const createdOrders = await createOrdersFromCheckout({
+async function createOrders(req: MedusaRequest, payment: any, meta: Record<string, any>) {
+  return createOrdersFromCheckout({
     container: req.scope,
     externalReference: payment.external_reference as string,
     meta,
     extraMetadata: { mercadopago_payment_id: String(payment.id) },
     fallbackPayer: payment.payer as Record<string, any> | undefined,
   })
+}
+
+async function emitOrderEvents(req: MedusaRequest, payment: any, createdOrders: Array<{ id: string }>) {
+  const logger = req.scope.resolve("logger")
 
   if (createdOrders.length === 0) {
     logger.info(
@@ -117,7 +119,7 @@ async function settleSnapshotPayment(
   checkoutService: CheckoutModuleService,
   payment: any,
   snapshot: any,
-) {
+): Promise<number> {
   const logger = req.scope.resolve("logger")
   const ref = payment.external_reference as string
   const paymentId = String(payment.id)
@@ -132,7 +134,7 @@ async function settleSnapshotPayment(
       logger.error(
         `[mercadopago/webhook] valor divergente para ref ${ref}, payment ${paymentId}: pago ${paid} centavos, esperado ${expected} centavos — snapshot marcado amount_mismatch, pedido NÃO criado`
       )
-      return
+      return 200
     }
     // Losing means another notification or the Brick settled it first; its
     // outcome decides what this payment may do.
@@ -141,7 +143,7 @@ async function settleSnapshotPayment(
       : await checkoutService.findByExternalReference(ref)
     if (!current) {
       logger.error(`[mercadopago/webhook] snapshot da ref ${ref} sumiu durante o processamento do payment ${paymentId}`)
-      return
+      return 200
     }
   }
 
@@ -149,14 +151,14 @@ async function settleSnapshotPayment(
     logger.error(
       `[mercadopago/webhook] payment ${paymentId} (${paid} centavos) bloqueado: ref ${ref} já está em amount_mismatch (payment ${current.paymentId}) — pedido NÃO criado, estornar manualmente`
     )
-    return
+    return 200
   }
 
   if (String(current.paymentId) !== paymentId) {
     logger.error(
       `[mercadopago/webhook] pagamento extra para ref ${ref}: payment ${paymentId} (${paid} centavos) chegou depois do payment ${current.paymentId} (${expected} centavos) já ter pago o snapshot — pedido NÃO criado, estornar manualmente`
     )
-    return
+    return 200
   }
 
   const meta = current.payload as Record<string, any> | undefined
@@ -164,19 +166,32 @@ async function settleSnapshotPayment(
     logger.error(
       `[mercadopago/webhook] snapshot da ref ${ref} sem itens — pedido NÃO criado, payment ${paymentId}`
     )
-    return
+    return 200
   }
 
-  if (!(await checkoutService.claimOrderCreation(ref))) return
+  if (!(await checkoutService.claimOrderCreation(ref))) return 200
 
+  let createdOrders: Array<{ id: string }>
   try {
-    await createOrdersAndEmit(req, payment, meta)
+    createdOrders = await createOrders(req, payment, meta)
   } catch (err) {
-    // Without the release a transient failure would leave the snapshot claimed
-    // forever and the next notification could never create the orders.
+    // A failed creation is recoverable: release the claim and answer 500 so MP
+    // redelivers; otherwise the snapshot would stay claimed with no orders and
+    // no notification would ever arrive to retry it.
     await checkoutService.releaseOrderCreation(ref)
     logger.error(`[mercadopago/webhook] falha ao criar pedidos para ref ${ref}, payment ${paymentId}:`, err)
+    return 500
   }
+
+  try {
+    await emitOrderEvents(req, payment, createdOrders)
+  } catch (err) {
+    // The orders exist, so the claim must stay and a redelivery would not help
+    // (creation is idempotent and would return nothing new to emit). Answer 200
+    // and leave the missed notifications to a human.
+    logger.error(`[mercadopago/webhook] pedidos criados mas falha ao emitir eventos para ref ${ref}, payment ${paymentId}:`, err)
+  }
+  return 200
 }
 
 // Checkouts created before the local snapshot existed: recover their metadata
@@ -217,7 +232,8 @@ async function settleLegacyPayment(req: MedusaRequest, mp: MercadoPagoConfig, pa
     return
   }
 
-  await createOrdersAndEmit(req, payment, meta)
+  const createdOrders = await createOrders(req, payment, meta)
+  await emitOrderEvents(req, payment, createdOrders)
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
@@ -288,21 +304,29 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         try {
           snapshot = await checkoutService.findByExternalReference(payment.external_reference)
         } catch (snapshotErr) {
-          logger.warn(`[mercadopago/webhook] falha ao consultar snapshot local: ${snapshotErr}`)
+          // Falling back to MP metadata here would create orders without the
+          // amount check and the claim, leaving the snapshot open to a second
+          // charge. The lookup failure is transient, so ask MP to redeliver.
+          logger.error(
+            `[mercadopago/webhook] falha ao consultar snapshot local para ref ${payment.external_reference}, payment ${payment.id} — pedindo reenvio:`,
+            snapshotErr
+          )
+          return res.sendStatus(500)
         }
       }
 
       if (snapshot) {
-        await settleSnapshotPayment(req, checkoutService, payment, snapshot)
-      } else {
-        await settleLegacyPayment(req, mp, payment)
+        return res.sendStatus(await settleSnapshotPayment(req, checkoutService, payment, snapshot))
       }
+      await settleLegacyPayment(req, mp, payment)
     }
 
     res.sendStatus(200)
   } catch (err) {
     logger.error("[mercadopago/webhook] erro ao processar notificação:", err)
-    // Retornar 200 para evitar retentativas do MP em erros não-recuperáveis
+    // Retornar 200 para evitar retentativas do MP em erros não-recuperáveis;
+    // as falhas recuperáveis (consulta ao snapshot, criação dos pedidos do
+    // snapshot) respondem 500 explicitamente acima para que o MP reenvie.
     res.sendStatus(200)
   }
 }
