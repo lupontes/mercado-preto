@@ -71,7 +71,7 @@ export default function ShippingOptions({
             <ul className="mt-2 space-y-1">
               {selected.sellers.map((s) => (
                 <li key={s.sellerId} className="flex justify-between">
-                  <span>{s.sellerName}</span>
+                  <span>{`${s.sellerName} — ${s.service}`}</span>
                   <span>{formatPrice(s.price)}</span>
                 </li>
               ))}
