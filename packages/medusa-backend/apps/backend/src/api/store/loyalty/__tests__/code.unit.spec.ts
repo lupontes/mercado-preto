@@ -6,7 +6,7 @@ import { sendBrevoEmail } from "../../../../utils/email"
 const GENERIC = "Se houver compras com este documento, enviamos um código para o e-mail usado nelas."
 
 let loyalty: { issueCode: jest.Mock }
-let checkout: { findLatestPaidEmail: jest.Mock }
+let checkout: { findFirstPaidEmail: jest.Mock }
 let logger: { info: jest.Mock; error: jest.Mock }
 
 function makeReq(body: unknown) {
@@ -25,7 +25,7 @@ describe("POST /store/loyalty/code", () => {
   beforeEach(() => {
     jest.clearAllMocks()
     loyalty = { issueCode: jest.fn().mockResolvedValue("482913") }
-    checkout = { findLatestPaidEmail: jest.fn().mockResolvedValue(null) }
+    checkout = { findFirstPaidEmail: jest.fn().mockResolvedValue(null) }
     logger = { info: jest.fn(), error: jest.fn() }
   })
 
@@ -40,13 +40,13 @@ describe("POST /store/loyalty/code", () => {
     await POST(makeReq({ document: "529.982.247-25" }), res)
 
     expect(res._body).toEqual({ message: GENERIC })
-    expect(checkout.findLatestPaidEmail).toHaveBeenCalledWith("52998224725")
+    expect(checkout.findFirstPaidEmail).toHaveBeenCalledWith("52998224725")
     expect(loyalty.issueCode).not.toHaveBeenCalled()
     expect(sendBrevoEmail).not.toHaveBeenCalled()
   })
 
   it("e-mails a code to the address of the last paid purchase", async () => {
-    checkout.findLatestPaidEmail.mockResolvedValue("compradora@example.com")
+    checkout.findFirstPaidEmail.mockResolvedValue("compradora@example.com")
     const res = makeRes()
     await POST(makeReq({ document: "529.982.247-25" }), res)
 

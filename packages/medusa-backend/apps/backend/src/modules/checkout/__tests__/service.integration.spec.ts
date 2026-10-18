@@ -84,7 +84,9 @@ moduleIntegrationTestRunner<CheckoutModuleService>({
         expect(await service.claimOrderCreation("ref-7")).toBe(false)
       })
 
-      it("finds the e-mail of the latest paid checkout for a document", async () => {
+      // The first paid purchase fixes the address: a later purchase with the
+      // same CPF and another e-mail cannot redirect the codes.
+      it("finds the e-mail of the first paid checkout for a document", async () => {
         const payload = (email: string, doc = "52998224725") => ({ total: 100, buyer_document: doc, address: { email } })
         await service.recordSnapshot("old", payload("antigo@example.com"), { status: "pending" })
         await service.transitionFromPending("old", "paid", "p1")
@@ -94,8 +96,8 @@ moduleIntegrationTestRunner<CheckoutModuleService>({
         await service.recordSnapshot("other", payload("outro@example.com", "11144477735"), { status: "pending" })
         await service.transitionFromPending("other", "paid", "p3")
 
-        expect(await service.findLatestPaidEmail("52998224725")).toBe("novo@example.com")
-        expect(await service.findLatestPaidEmail("00000000000")).toBeNull()
+        expect(await service.findFirstPaidEmail("52998224725")).toBe("antigo@example.com")
+        expect(await service.findFirstPaidEmail("00000000000")).toBeNull()
       })
     })
   },

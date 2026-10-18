@@ -83,7 +83,7 @@ O saldo nunca fica guardado: é sempre calculado a partir de lançamentos.
 ### Confirmação por código
 
 - **`POST /store/loyalty/code` `{ document }`:**
-  - procura o e-mail do snapshot pago mais recente com aquele documento;
+  - procura o e-mail do **primeiro** snapshot pago com aquele documento (decisão do usuário em 18/10: um intruso que pague uma compra com o CPF de outra pessoa e o próprio e-mail não consegue desviar os códigos; troca de e-mail fica com o suporte);
   - se existe, gera um código de 6 dígitos, guarda só o hash, válido por
     10 minutos, e manda pelo Brevo;
   - **responde sempre 200** com a mesma mensagem, para não revelar se o CPF

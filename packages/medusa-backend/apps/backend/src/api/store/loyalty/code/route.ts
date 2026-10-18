@@ -23,7 +23,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const digits = document.digits
 
   const checkout: CheckoutModuleService = req.scope.resolve(CHECKOUT_MODULE)
-  const email = await checkout.findLatestPaidEmail(digits)
+  const email = await checkout.findFirstPaidEmail(digits)
   if (email) {
     const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
     const code = await loyalty.issueCode(digits)
