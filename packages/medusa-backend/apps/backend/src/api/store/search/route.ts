@@ -16,15 +16,17 @@ type SearchParams = {
 }
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const {
-    q = "",
-    type = "products",
-    category,
-    location,
-    seller_id,
-    limit = "20",
-    offset = "0",
-  } = req.query as Record<string, string>
+  // A repeated parameter (?category=a&category=b) arrives as an array; only
+  // plain strings are used, so odd URLs are ignored rather than crashing.
+  const raw = req.query as Record<string, unknown>
+  const str = (key: string) => (typeof raw[key] === "string" ? (raw[key] as string) : undefined)
+  const q = str("q") ?? ""
+  const type = str("type") ?? "products"
+  const category = str("category")
+  const location = str("location")
+  const seller_id = str("seller_id")
+  const limit = str("limit") ?? "20"
+  const offset = str("offset") ?? "0"
   const params: SearchParams = { q, type, category, location, seller_id, limit, offset }
 
   const meili = await getMeiliClient()

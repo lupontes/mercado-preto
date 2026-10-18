@@ -76,3 +76,12 @@ describe("meiliFilterValue", () => {
     expect(meiliFilterValue("a\\b")).toBe('"a\\\\b"')
   })
 })
+
+describe("client timeout", () => {
+  it("bounds every request, so a hung server cannot stall the search fallback", async () => {
+    process.env.MEILISEARCH_HOST = "http://localhost:7700"
+    const client: any = await getMeiliClient()
+    expect(client.config.timeout).toBeGreaterThan(0)
+    expect(client.config.timeout).toBeLessThanOrEqual(5000)
+  })
+})

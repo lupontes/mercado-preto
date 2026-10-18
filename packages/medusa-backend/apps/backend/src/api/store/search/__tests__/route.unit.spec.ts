@@ -53,6 +53,14 @@ describe("GET /store/search", () => {
       expect(meiliSearch.mock.calls[0][1].filter).toBe('status = "published" AND category = "x\\" OR status = \\"draft"')
     })
 
+    it("ignores a repeated query parameter instead of failing", async () => {
+      const res = makeRes()
+      await GET(makeReq({ q: "", category: ["a", "b"] } as any), res)
+
+      expect(res._status).toBe(200)
+      expect(meiliSearch.mock.calls[0][1].filter).toBe('status = "published"')
+    })
+
     it("falls back to the database when Meilisearch fails", async () => {
       meiliSearch.mockRejectedValue(new Error("Attribute `status` is not filterable"))
       graph.mockResolvedValue({ data: [product(1)] })

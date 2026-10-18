@@ -1,5 +1,6 @@
 export const PRODUCTS_INDEX = "products"
 export const SELLERS_INDEX = "sellers"
+const MEILI_TIMEOUT_MS = 3000
 
 async function getClient() {
   const host = process.env.MEILISEARCH_HOST
@@ -13,7 +14,9 @@ async function getClient() {
     (MeiliSearchModule as any).Meilisearch ??
     (MeiliSearchModule as any).MeiliSearch ??
     (MeiliSearchModule as any).default
-  return new MeiliSearch({ host, apiKey })
+  // Without a timeout a hung server would hold requests far past the point
+  // where falling back to the database is still useful.
+  return new MeiliSearch({ host, apiKey, timeout: MEILI_TIMEOUT_MS })
 }
 
 // Filters and sorting only work once the index settings exist. Applying them

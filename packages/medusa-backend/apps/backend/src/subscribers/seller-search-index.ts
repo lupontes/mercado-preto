@@ -31,5 +31,5 @@ export default async function sellerSearchIndex({ event, container }: Subscriber
 }
 
 export const config: SubscriberConfig = {
-  event: ["seller.approved", "seller.status_changed"],
+  event: ["seller.approved", "seller.status_changed", "seller.updated"],
 }

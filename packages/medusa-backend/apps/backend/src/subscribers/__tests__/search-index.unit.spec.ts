@@ -76,6 +76,6 @@ describe("seller search index", () => {
   })
 
   it("listens to approval and every status change", () => {
-    expect(sellerIndexConfig.event).toEqual(["seller.approved", "seller.status_changed"])
+    expect(sellerIndexConfig.event).toEqual(["seller.approved", "seller.status_changed", "seller.updated"])
   })
 })

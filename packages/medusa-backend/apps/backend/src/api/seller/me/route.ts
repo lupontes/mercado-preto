@@ -3,6 +3,7 @@ import { z } from "zod"
 import { SELLER_MODULE } from "../../../modules/seller"
 import SellerModuleService from "../../../modules/seller/service"
 import { parseAddressBlock } from "../../../utils/seller-address"
+import { notifySellerUpdated } from "../../../utils/seller-events"
 
 const UpdateProfileSchema = z.object({
   bio: z.string().max(500).optional(),
@@ -44,6 +45,7 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     selector: { id: sellerId },
     data: { ...parsed.data, ...(block.address ?? {}) },
   })
+  await notifySellerUpdated(req.scope, sellerId)
 
   const { passwordHash, ...safe } = seller as any
   res.json({ seller: safe })
