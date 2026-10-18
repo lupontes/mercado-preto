@@ -70,6 +70,7 @@ export default function CarrinhoPage() {
                   <div className="flex items-center gap-3 mt-3">
                     <button
                       onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                      aria-label={`Diminuir quantidade de ${item.title}`}
                       className="w-7 h-7 rounded-full border border-sand-dark flex items-center justify-center hover:border-amber transition-colors"
                     >
                       <Minus className="h-3 w-3" />
@@ -77,6 +78,7 @@ export default function CarrinhoPage() {
                     <span className="text-sm font-semibold w-4 text-center">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                      aria-label={`Aumentar quantidade de ${item.title}`}
                       className="w-7 h-7 rounded-full border border-sand-dark flex items-center justify-center hover:border-amber transition-colors"
                     >
                       <Plus className="h-3 w-3" />

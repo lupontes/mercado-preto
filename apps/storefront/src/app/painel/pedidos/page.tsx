@@ -19,10 +19,13 @@ type Order = {
 export default function PedidosPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     getSellerOrders()
       .then((data) => setOrders(data.orders as Order[]))
+      // Without this the page would show an empty history as if there were no sales.
+      .catch(() => setError('Não foi possível carregar os pedidos. Tente novamente.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -40,6 +43,8 @@ export default function PedidosPage() {
         <h1 className="font-display text-2xl font-black text-onyx">Pedidos</h1>
         <p className="text-onyx/50 text-sm mt-1">{orders.length} pedido(s) encontrado(s)</p>
       </div>
+
+      {error && <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>}
 
       {orders.length === 0 ? (
         <div className="bg-white rounded-xl border border-sand-dark p-12 text-center">
