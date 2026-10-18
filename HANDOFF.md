@@ -44,8 +44,22 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
      erro, nome sem escape no HTML do e-mail;
    - **infra:** o pnpm 11 reinstala o backend (npm) a cada `pnpm` no
      workspace. Contorno: `npx vitest` na vitrine (ver claude-mem).
-9. **[produto] Programa de fidelidade:** só existe o spec
-   (`docs/superpowers/specs/2026-09-07-loyalty-points-design.md`).
+9. **[produto] Programa de pontos — EM ANDAMENTO, próximo passo.**
+   Spec novo em rascunho, aguardando aprovação do usuário:
+   `docs/superpowers/specs/2026-10-17-programa-de-pontos-design.md`, na
+   branch `feature/programa-de-pontos` (já no remoto). Ele substitui o de
+   07/09, que tinha resgate só por CPF (qualquer um gastaria os pontos de
+   outro) e débito antes do pagamento.
+   - **Decisões do usuário:** o desconto é pago pela plataforma; 1 ponto por
+     R$ 1 em produtos; cada ponto vale R$ 0,01; resgate confirmado por código
+     no e-mail (este último ficou "sem preferência", então vale o
+     recomendado).
+   - **Retomar:**
+     1. pegar o "aprovo" do usuário no spec;
+     2. escrever o plano com `superpowers:writing-plans`, em umas 7 tasks:
+        módulo, código, checkout, webhook, comissão e relatório, vitrine,
+        ponta a ponta;
+     3. executar no mesmo modo dos ciclos anteriores.
 10. ~~Limpeza~~: a branch `fix/rate-limit-ipv6-keygen` foi apagada em 17/10.
     Os 39 `checkout_snapshot` com `status` nulo ficam como estão: não
     afetam pedidos novos.
