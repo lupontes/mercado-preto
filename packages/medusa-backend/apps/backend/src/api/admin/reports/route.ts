@@ -6,11 +6,30 @@ import CommissionModuleService from "../../../modules/commission/service"
 import PayoutModuleService from "../../../modules/payout/service"
 import SellerModuleService from "../../../modules/seller/service"
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * A bare date covers the whole day (UTC, like the stored timestamps), so
+ * "until 2026-10-31" includes sales made on the 31st. Full ISO values are
+ * kept as sent. Returns null for anything that is not a real date.
+ */
+function parsePeriodBoundary(value: string, endOfDay: boolean): Date | null {
+  const iso = DATE_ONLY.test(value) ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z` : value
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
+  // new Date("2026-02-31") rolls over to March; a rolled-over day is invalid.
+  if (DATE_ONLY.test(value) && date.toISOString().slice(0, 10) !== value) return null
+  return date
+}
+
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { period_start, period_end } = req.query as Record<string, string>
 
-  const start = period_start ? new Date(period_start) : new Date(new Date().setDate(1))
-  const end = period_end ? new Date(period_end) : new Date()
+  const start = period_start ? parsePeriodBoundary(period_start, false) : new Date(new Date().setDate(1))
+  const end = period_end ? parsePeriodBoundary(period_end, true) : new Date()
+  if (!start || !end || start > end) {
+    return res.status(400).json({ error: "Período inválido" })
+  }
 
   const commissionService: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
   const payoutService: PayoutModuleService = req.scope.resolve(PAYOUT_MODULE)

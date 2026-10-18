@@ -58,4 +58,30 @@ describe("sendWhatsApp", () => {
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
     expect(body.number).toBe("5571988887777")
   })
+
+  it("adds the Brazil country code to a formatted local number", async () => {
+    setBaseEnv({ MARKETPLACE_SANDBOX: "false" })
+    await sendWhatsApp("(71) 99999-0000", "hi")
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+    expect(body.number).toBe("5571999990000")
+  })
+
+  // Area code 55 (Santa Maria/RS) also starts with "55": the length, not the
+  // prefix, tells a local number from an international one.
+  it("adds the country code to a local number from area code 55", async () => {
+    setBaseEnv({ MARKETPLACE_SANDBOX: "false" })
+    await sendWhatsApp("55999990000", "hi")
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+    expect(body.number).toBe("5555999990000")
+  })
+
+  it("keeps an international number from area code 55 as is", async () => {
+    setBaseEnv({ MARKETPLACE_SANDBOX: "false" })
+    await sendWhatsApp("+55 55 99999-0000", "hi")
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+    expect(body.number).toBe("5555999990000")
+  })
 })

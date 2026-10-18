@@ -24,6 +24,7 @@ export default function ComissoesPage() {
   const [commissions, setCommissions] = useState<Commission[]>([])
   const [totals, setTotals] = useState<Totals>({ grossAmount: 0, commissionAmount: 0, sellerPayout: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     getSellerCommissions()
@@ -31,6 +32,8 @@ export default function ComissoesPage() {
         setCommissions(data.commissions as Commission[])
         setTotals(data.totals)
       })
+      // Without this the page would show an empty history as if there were no sales.
+      .catch(() => setError('Não foi possível carregar as comissões. Tente novamente.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -48,6 +51,12 @@ export default function ComissoesPage() {
         <h1 className="font-display text-2xl font-black text-onyx">Comissões e repasses</h1>
         <p className="text-onyx/50 text-sm mt-1">Histórico de ganhos da sua loja</p>
       </div>
+
+      {/* On a failure, zeroed numbers or an empty list would read as "no sales". */}
+      {error ? (
+        <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
+      ) : (
+      <>
 
       {/* Resumo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -97,6 +106,8 @@ export default function ComissoesPage() {
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
     </div>
   )
