@@ -59,6 +59,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     (acc: number, c: any) => acc + Number(c.commissionAmount ?? 0),
     0
   )
+  // Points discounts come out of the platform's commission.
+  const totalLoyaltyDiscount = periodCommissions.reduce(
+    (acc: number, c: any) => acc + Number(c.loyaltyDiscount ?? 0),
+    0
+  )
   const totalPayouts = periodPayouts
     .filter((p: any) => p.status === "completed")
     .reduce((acc: number, p: any) => acc + Number(p.amount ?? 0), 0)
@@ -78,6 +83,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       sellerName: seller.name,
       gmv: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.grossAmount ?? 0), 0),
       commission: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.commissionAmount ?? 0), 0),
+      loyaltyDiscount: sellerCommissions.reduce((acc: number, c: any) => acc + Number(c.loyaltyDiscount ?? 0), 0),
       payouts: sellerPayouts.reduce((acc: number, p: any) => acc + Number(p.amount ?? 0), 0),
       orderCount: sellerCommissions.length,
     }
@@ -88,6 +94,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     summary: {
       totalGmv,
       totalCommission,
+      totalLoyaltyDiscount,
       totalPayouts,
       pendingPayouts,
       orderCount: periodCommissions.length,

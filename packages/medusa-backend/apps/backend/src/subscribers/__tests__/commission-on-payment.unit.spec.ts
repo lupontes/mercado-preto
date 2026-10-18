@@ -376,4 +376,19 @@ describe("allocateFixedFee", () => {
     const sum = Object.values(result).reduce((a, b) => a + b, 0)
     expect(sum).toBe(39)
   })
+
+  it("passes the store's share of the points discount, paid by the platform", async () => {
+    const order = { ...baseOrder, metadata: { ...baseOrder.metadata, loyalty_discount: 300 } }
+    const orderService = makeOrderService({ retrieveOrder: jest.fn().mockResolvedValue(order), listOrders: jest.fn().mockResolvedValue([order]) })
+    const recordAndCreate = jest.fn().mockResolvedValue({ id: "comm_new", sellerPayout: 0 })
+    const container = makeContainer({
+      [Modules.ORDER]: orderService,
+      commission: { listCommissions: jest.fn().mockResolvedValue([]), recordAndCreate },
+      payout: { listPayouts: jest.fn().mockResolvedValue([]) },
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(recordAndCreate).toHaveBeenCalledWith(expect.objectContaining({ loyaltyDiscount: 300 }))
+  })
 })
