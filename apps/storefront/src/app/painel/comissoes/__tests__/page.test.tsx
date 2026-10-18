@@ -33,5 +33,7 @@ describe('ComissoesPage', () => {
     render(<ComissoesPage />)
 
     expect(await screen.findByText('Não foi possível carregar as comissões. Tente novamente.')).toBeInTheDocument()
+    // Zeroed totals would read as "no sales" — they must not show on a failure.
+    expect(screen.queryByText('Total de vendas (bruto)')).not.toBeInTheDocument()
   })
 })

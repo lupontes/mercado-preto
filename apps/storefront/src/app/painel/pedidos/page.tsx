@@ -41,10 +41,14 @@ export default function PedidosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-black text-onyx">Pedidos</h1>
-        <p className="text-onyx/50 text-sm mt-1">{orders.length} pedido(s) encontrado(s)</p>
+        {!error && <p className="text-onyx/50 text-sm mt-1">{orders.length} pedido(s) encontrado(s)</p>}
       </div>
 
-      {error && <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>}
+      {/* On a failure, zeroed numbers or an empty list would read as "no sales". */}
+      {error ? (
+        <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
+      ) : (
+      <>
 
       {orders.length === 0 ? (
         <div className="bg-white rounded-xl border border-sand-dark p-12 text-center">
@@ -91,6 +95,8 @@ export default function PedidosPage() {
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
     </div>
   )

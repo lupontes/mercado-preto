@@ -52,7 +52,11 @@ export default function ComissoesPage() {
         <p className="text-onyx/50 text-sm mt-1">Histórico de ganhos da sua loja</p>
       </div>
 
-      {error && <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>}
+      {/* On a failure, zeroed numbers or an empty list would read as "no sales". */}
+      {error ? (
+        <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>
+      ) : (
+      <>
 
       {/* Resumo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -102,6 +106,8 @@ export default function ComissoesPage() {
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
     </div>
   )

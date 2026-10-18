@@ -52,6 +52,12 @@ describe("POST /store/analytics", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it("accepts long page URLs with tracking parameters", async () => {
+    const res = makeRes()
+    await POST(makeReq({ name: "pageview", url: "https://x/?" + "utm=1&".repeat(200) }, "8.8.8.8"), res)
+    expect(res._status).toBe(202)
+  })
+
   it("trusts the address nginx appended, not one the client sent", async () => {
     await POST(makeReq(event, "10.0.0.5", "1.1.1.1, 200.1.1.1"), makeRes())
     expect(fetchMock.mock.calls[0][1].headers["X-Forwarded-For"]).toBe("200.1.1.1")

@@ -17,11 +17,13 @@ describe('PedidosPage', () => {
   it('lists the orders with number and status', async () => {
     render(<PedidosPage />)
     expect(await screen.findByText('#41')).toBeInTheDocument()
+    expect(screen.getByText('Pendente')).toBeInTheDocument()
   })
 
   it('tells the seller when the orders cannot be loaded', async () => {
     api.impl = async () => { throw new Error('API 500') }
     render(<PedidosPage />)
     expect(await screen.findByText('Não foi possível carregar os pedidos. Tente novamente.')).toBeInTheDocument()
+    expect(screen.queryByText(/Nenhum pedido/)).not.toBeInTheDocument()
   })
 })

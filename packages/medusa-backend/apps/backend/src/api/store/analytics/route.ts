@@ -4,8 +4,9 @@ import { clientIp } from "../../../utils/client-ip"
 
 const EventSchema = z.object({
   name: z.string().min(1).max(500),
-  url: z.string().min(1).max(500),
-  referrer: z.string().max(500).nullable().optional(),
+  // URLs with tracking parameters get long; 2048 matches common URL limits.
+  url: z.string().min(1).max(2048),
+  referrer: z.string().max(2048).nullable().optional(),
   props: z.record(z.string(), z.unknown()).optional(),
 })
 
