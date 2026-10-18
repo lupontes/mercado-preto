@@ -1,6 +1,6 @@
 # Programa de Pontos — Design
 
-**Status**: Rascunho para revisão do usuário (17/10/2026). Substitui
+**Status**: Aprovado (18/10/2026). Substitui
 `2026-09-07-loyalty-points-design.md`, que foi aprovado antes do checkout
 atual e tinha falhas de segurança (ver "Por que um spec novo").
 
