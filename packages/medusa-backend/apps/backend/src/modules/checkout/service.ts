@@ -88,6 +88,23 @@ class CheckoutModuleService extends MedusaService({ CheckoutSnapshot }) {
     )
   }
 
+  /**
+   * E-mail of the first paid checkout of a buyer document, used to send
+   * loyalty codes. The first one, not the latest: otherwise anyone paying a
+   * purchase with someone else's CPF and their own e-mail would start
+   * receiving that person's codes.
+   */
+  @InjectManager()
+  async findFirstPaidEmail(document: string, @MedusaContext() sharedContext: Context = {}): Promise<string | null> {
+    const rows = (await (sharedContext.manager as any).execute(
+      `select payload->'address'->>'email' as email from "checkout_snapshot"
+       where status = 'paid' and payload->>'buyer_document' = ? and deleted_at is null
+       order by created_at asc limit 1`,
+      [document]
+    )) as Array<{ email: string | null }>
+    return rows[0]?.email ?? null
+  }
+
   private async runUpdate(sql: string, params: unknown[], sharedContext: Context): Promise<unknown[]> {
     const manager = sharedContext.manager as any
     return (await manager.execute(sql, params)) as unknown[]

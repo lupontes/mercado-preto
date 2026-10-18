@@ -12,6 +12,9 @@ type CalculateInput = {
   // dos produtos, nunca sobre o frete).
   shippingAmount?: number
   commissionRate?: number
+  // Share of the buyer's points discount on this order. The platform pays it,
+  // so it is recorded for reporting and leaves the seller's payout untouched.
+  loyaltyDiscount?: number
 }
 
 class CommissionModuleService extends MedusaService({ Commission, MarketplaceConfig }) {
@@ -51,6 +54,7 @@ class CommissionModuleService extends MedusaService({ Commission, MarketplaceCon
       commissionRate: rate,
       commissionAmount,
       sellerPayout,
+      loyaltyDiscount: input.loyaltyDiscount ?? 0,
     }
   }
 

@@ -21,7 +21,11 @@ export type PreferenceData = {
   externalReference: string
   // Total the server computed from the database prices; the Brick must charge this, not the cart's.
   totalCents: number
+  // Points discount the server actually applied (it may cap what was asked).
+  discountCents?: number
 }
+
+export type LoyaltyRedemption = { redeemPoints: number; loyaltyToken: string }
 
 export type CheckoutItem = {
   title: string
@@ -56,7 +60,8 @@ export async function readCheckoutResponse<T>(res: Response, pick: (body: any) =
 export async function createPreference(
   items: CheckoutItem[],
   address: Address,
-  shipping: ShippingOption
+  shipping: ShippingOption,
+  loyalty?: LoyaltyRedemption
 ): Promise<CheckoutResult<PreferenceData>> {
   // A dropped request rejects instead of resolving; without this the
   // shipping step would keep spinning forever.
@@ -67,9 +72,14 @@ export async function createPreference(
         'Content-Type': 'application/json',
         'x-publishable-api-key': PUB_KEY,
       },
-      body: JSON.stringify(buildCheckoutRequestBody(items, address, shipping)),
+      body: JSON.stringify({ ...buildCheckoutRequestBody(items, address, shipping), ...(loyalty ?? {}) }),
     })
-    const result = await readCheckoutResponse(res, (b) => ({ preferenceId: b.preference_id, externalReference: b.external_reference, totalCents: b.total }))
+    const result = await readCheckoutResponse(res, (b) => ({
+      preferenceId: b.preference_id,
+      externalReference: b.external_reference,
+      totalCents: b.total,
+      ...(b.discount ? { discountCents: b.discount } : {}),
+    }))
     // A backend deployed before the server-side total would answer 200 without it,
     // and the Brick would charge an undefined amount.
     if (result.ok && typeof result.data.totalCents !== 'number') {

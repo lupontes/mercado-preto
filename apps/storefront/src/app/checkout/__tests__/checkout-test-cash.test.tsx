@@ -16,6 +16,13 @@ vi.mock('next/dynamic', () => ({
   default: () => function BrickStub(props: unknown) { brickProps(props); return <div data-testid="mp-brick" /> },
 }))
 
+// The real block talks to the loyalty API; here a stub just hands the page a selection.
+vi.mock('../LoyaltyRedeem', () => ({
+  default: ({ onChange }: { onChange: (s: unknown) => void }) => (
+    <button type="button" onClick={() => onChange({ redeemPoints: 300, loyaltyToken: 'tok-1' })}>stub usar pontos</button>
+  ),
+}))
+
 import CheckoutPage from '../page'
 import { useCartStore } from '@/lib/cart-store'
 import { formatPrice } from '@/lib/api'
@@ -279,5 +286,29 @@ describe('CheckoutPage — test cash payment', () => {
 
     expect(await screen.findByText('Opção de frete indisponível')).toBeInTheDocument()
     screen.queryAllByRole('radio').forEach((radio) => expect(radio).not.toBeChecked())
+  })
+
+  it('sends the points, shows the discount and takes the earned points to the confirmation', async () => {
+    const fetchMock = stubBackend({
+      enabled: false,
+      preferenceResponse: jsonResponse({ preference_id: 'p', external_reference: 'r', total: 10100, pointsApplied: 300, discount: 300 }),
+    })
+    const user = userEvent.setup()
+    const { container } = render(<CheckoutPage />)
+
+    await fillAddressAndContinue(user, container)
+    await user.click(screen.getByRole('button', { name: 'stub usar pontos' }))
+    await user.click(screen.getByRole('button', { name: /ir para pagamento/i }))
+
+    await screen.findByTestId('mp-brick')
+    const prefCall = fetchMock.mock.calls.find(([u]) => String(u).includes('/store/checkout/preference'))!
+    expect(JSON.parse(String(prefCall[1]!.body))).toMatchObject({ redeemPoints: 300, loyaltyToken: 'tok-1' })
+    expect(screen.getByText('Desconto em pontos')).toBeInTheDocument()
+    expect(screen.getByText(`-${formatPrice(300)}`.replace(/\s+/g, ' '))).toBeInTheDocument()
+
+    const { onSuccess } = brickProps.mock.calls.at(-1)![0] as { onSuccess: (id: string) => void }
+    onSuccess('pay-1')
+    // (7900 in items − 300 discount) / 100 = 76 points
+    expect(push).toHaveBeenCalledWith('/checkout/sucesso?payment_id=pay-1&pontos=76')
   })
 })

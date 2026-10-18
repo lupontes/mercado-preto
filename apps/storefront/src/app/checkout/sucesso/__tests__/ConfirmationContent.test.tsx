@@ -64,4 +64,16 @@ describe('ConfirmationContent', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(fetchMock.mock.calls[0][0]).toBe('/store/checkout/confirm?payment_id=123')
   })
+
+  it('tells the buyer how many points the approved purchase earned', async () => {
+    search = 'payment_id=42&pontos=76'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'approved', status_detail: 'accredited', external_reference: 'r', transaction_amount: 79, payer: {} }),
+    }))
+
+    render(<ConfirmationContent />)
+
+    expect(await screen.findByText('Você ganhou 76 pontos para a próxima compra.')).toBeInTheDocument()
+  })
 })

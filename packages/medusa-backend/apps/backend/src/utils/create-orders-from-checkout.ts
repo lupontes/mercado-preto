@@ -90,6 +90,8 @@ export async function createOrdersFromCheckout({
         mercadopago_external_reference: externalReference,
         seller_id: group.sellerId,
         buyer_document: meta.buyer_document,
+        // Read by the commission subscriber: the platform, not the store, pays it.
+        loyalty_discount: group.loyalty_discount ?? 0,
         shipping_status: INITIAL_SHIPPING_STATUS,
         // Cycle 3 buys exactly this label for the seller's package.
         ...(group.shipping ? { shipping_tier: group.shipping.tier, shipping_service_id: group.shipping.serviceId } : {}),

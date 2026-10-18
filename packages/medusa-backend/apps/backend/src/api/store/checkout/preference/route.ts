@@ -9,6 +9,20 @@ import { getShippingCalculator } from "../../../../utils/melhor-envio"
 import { defaultQuoteCache } from "../../../../utils/shipping-quote"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
 import type CheckoutModuleService from "../../../../modules/checkout/service"
+import { z } from "zod"
+import { LOYALTY_MODULE } from "../../../../modules/loyalty"
+import type LoyaltyModuleService from "../../../../modules/loyalty/service"
+import { CENTS_PER_POINT } from "../../../../modules/loyalty/constants"
+import { COMMISSION_MODULE } from "../../../../modules/commission"
+import type CommissionModuleService from "../../../../modules/commission/service"
+import { allocateLoyaltyDiscount, loyaltyDiscountCap } from "../../../../utils/loyalty-discount"
+import { verifyLoyaltyToken } from "../../../../utils/loyalty-token"
+import { validateDocument } from "../../../../utils/validate-document"
+
+const preferenceRequestSchema = checkoutRequestSchema.extend({
+  redeemPoints: z.number().int().positive().optional(),
+  loyaltyToken: z.string().optional(),
+})
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -16,7 +30,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(503).json({ error: "MercadoPago não configurado." })
   }
 
-  const parsed = checkoutRequestSchema.safeParse(req.body)
+  const parsed = preferenceRequestSchema.safeParse(req.body)
   if (!parsed.success) {
     return res.status(400).json({ error: "Dados inválidos.", details: parsed.error.flatten() })
   }
@@ -45,7 +59,43 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       variantId: built.unresolvedVariantId,
     })
   }
-  const checkoutSnapshotPayload = built.payload
+  const checkoutSnapshotPayload: typeof built.payload & {
+    loyalty_points?: number
+    loyalty_discount?: number
+  } = built.payload
+
+  // Points are spent only with a token proving the buyer confirmed the code
+  // e-mailed for this same document; the CPF alone is never enough.
+  let pointsToReserve = 0
+  const buyerDocument = validateDocument(parsed.data.document).digits as string
+  if (parsed.data.redeemPoints) {
+    const token = parsed.data.loyaltyToken ? verifyLoyaltyToken(parsed.data.loyaltyToken) : null
+    if (!token || token.document !== buyerDocument) {
+      return res.status(401).json({ error: "Confirme seus pontos novamente." })
+    }
+    const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
+    const commission: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
+    const itemsTotal = checkoutSnapshotPayload.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+    const cap = Math.floor(loyaltyDiscountCap(itemsTotal, await commission.getCommissionRate()) / CENTS_PER_POINT)
+    pointsToReserve = Math.min(parsed.data.redeemPoints, cap)
+    if (pointsToReserve > (await loyalty.availableBalance(buyerDocument))) {
+      return res.status(400).json({ error: "Saldo de pontos insuficiente." })
+    }
+  }
+  const discount = pointsToReserve * CENTS_PER_POINT
+  if (discount > 0) {
+    const shares = allocateLoyaltyDiscount(
+      checkoutSnapshotPayload.seller_groups.map((g) => ({ sellerId: g.sellerId, itemsTotal: g.subtotal })),
+      discount
+    )
+    checkoutSnapshotPayload.seller_groups = checkoutSnapshotPayload.seller_groups.map((g) => ({
+      ...g,
+      loyalty_discount: shares[g.sellerId] ?? 0,
+    }))
+    checkoutSnapshotPayload.loyalty_points = pointsToReserve
+    checkoutSnapshotPayload.loyalty_discount = discount
+    checkoutSnapshotPayload.total -= discount
+  }
 
   const externalReference = crypto.randomUUID()
 
@@ -58,13 +108,24 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(500).json({ error: "Erro ao salvar snapshot do checkout.", detail: msg })
   }
 
+  let loyalty: LoyaltyModuleService | null = null
+  if (pointsToReserve > 0) {
+    loyalty = req.scope.resolve(LOYALTY_MODULE)
+    // Another checkout may have spent the points since the balance check above.
+    if (!(await loyalty!.reserve(buyerDocument, externalReference, pointsToReserve))) {
+      return res.status(400).json({ error: "Saldo de pontos insuficiente." })
+    }
+  }
+
   const mp = new MercadoPagoConfig({ accessToken })
   const preference = new Preference(mp)
 
-  try {
-    const result = await preference.create({
-      body: {
-        items: [
+  // MercadoPago rejects negative prices, so a discounted checkout is sent as a
+  // single line with the amount actually charged.
+  const preferenceItems =
+    discount > 0
+      ? [{ id: "pedido", title: "Pedido Mercado Preto", quantity: 1, unit_price: checkoutSnapshotPayload.total / 100, currency_id: "BRL" }]
+      : [
           ...items.map((item) => ({
             id: item.variantId ?? item.title.toLowerCase().replace(/\s+/g, "-"),
             title: item.title,
@@ -83,7 +144,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
                 },
               ]
             : []),
-        ],
+        ]
+
+  try {
+    const result = await preference.create({
+      body: {
+        items: preferenceItems,
         payer: {
           name: address.firstName,
           surname: address.lastName,
@@ -129,8 +195,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       sandbox_init_point: result.sandbox_init_point,
       external_reference: externalReference,
       total: checkoutSnapshotPayload.total,
+      ...(discount > 0 ? { pointsApplied: pointsToReserve, discount } : {}),
     })
   } catch (err: unknown) {
+    // Without a preference the buyer cannot pay, so the points go back now.
+    if (loyalty) await loyalty.cancelReservation(externalReference).catch(() => {})
     const msg = err instanceof Error ? err.message : JSON.stringify(err)
     res.status(500).json({ error: "Erro ao criar preferência MercadoPago.", detail: msg })
   }

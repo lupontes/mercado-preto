@@ -86,6 +86,14 @@ export const sellerUploadRateLimit = rateLimit({
   keyGenerator: (req: any) => req.sellerId ?? rateLimitKeyGenerator(req),
 })
 
+// Each code request sends an e-mail and each check is a guess at a 6-digit code.
+export const loyaltyCodeRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: { error: "Muitas tentativas. Tente novamente mais tarde." },
+  keyGenerator: rateLimitKeyGenerator,
+})
+
 export default defineMiddlewares({
   routes: [
     {
@@ -114,6 +122,10 @@ export default defineMiddlewares({
     {
       matcher: "/store/sellers/set-password",
       middlewares: [loginRateLimit],
+    },
+    {
+      matcher: "/store/loyalty/*",
+      middlewares: [loyaltyCodeRateLimit],
     },
     {
       matcher: "/store/shipping/quote",

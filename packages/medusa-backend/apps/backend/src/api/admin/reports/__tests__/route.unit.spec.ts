@@ -70,4 +70,18 @@ describe("GET /admin/reports", () => {
     expect(body.summary).toMatchObject({ totalGmv: 3000, totalCommission: 300, totalPayouts: 900, pendingPayouts: 1800, orderCount: 2, activeSellers: 2 })
     expect(body.sellers.find((s: any) => s.sellerId === "s1")).toMatchObject({ gmv: 1000, payouts: 900, orderCount: 1 })
   })
+
+  it("reports the points discounts paid by the platform", async () => {
+    const res = makeRes()
+    await GET(makeReq({ period_start: "2026-10-01", period_end: "2026-10-31" }, {
+      commissions: [
+        { ...commission("s1", "2026-10-05T10:00:00Z", 1000), loyaltyDiscount: 30 },
+        { ...commission("s2", "2026-10-06T10:00:00Z", 2000), loyaltyDiscount: 0 },
+      ],
+    }), res)
+
+    const body = res._body as any
+    expect(body.summary.totalLoyaltyDiscount).toBe(30)
+    expect(body.sellers.find((s: any) => s.sellerId === "s1").loyaltyDiscount).toBe(30)
+  })
 })

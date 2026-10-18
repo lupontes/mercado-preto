@@ -798,4 +798,73 @@ describe("POST /webhooks/mercadopago", () => {
       })
     })
   })
+
+  describe("loyalty points", () => {
+    const ref = "ext-ref-uuid"
+    const payload = {
+      ...preferenceMetadata,
+      buyer_document: "11144477735",
+      items: [{ variant_id: "var-1", title: "Camiseta", quantity: 2, price: 7950 }],
+      total: 15900 + 1500 - 300,
+      loyalty_points: 300,
+      loyalty_discount: 300,
+    }
+
+    function withLoyalty(req: any, loyalty: Record<string, jest.Mock>) {
+      const original = req.scope.resolve
+      req.scope.resolve = (key: string) => (key === "loyalty" ? loyalty : original(key))
+      req._checkoutService.findByExternalReference.mockResolvedValue({ payload, status: null, paymentId: null, ordersCreatedAt: null })
+      return req
+    }
+
+    const loyaltyMock = () => ({ confirmRedemption: jest.fn().mockResolvedValue(true), earn: jest.fn().mockResolvedValue(true) })
+
+    it("confirms the redemption and credits points on what was paid for items", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 171 })
+      const loyalty = loyaltyMock()
+      const req = withLoyalty(makeReq({ type: "payment", data: { id: "42" } }), loyalty)
+
+      const res = makeRes()
+      await POST(req, res)
+
+      expect(loyalty.confirmRedemption).toHaveBeenCalledWith(ref)
+      // (15900 − 300) / 100 = 156 points
+      expect(loyalty.earn).toHaveBeenCalledWith("11144477735", ref, 156)
+      expect(res._status).toBe(200)
+    })
+
+    it("still answers 200 when crediting fails", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 171 })
+      const loyalty = { confirmRedemption: jest.fn().mockResolvedValue(true), earn: jest.fn(async () => { throw new Error("db down") }) }
+      const req = withLoyalty(makeReq({ type: "payment", data: { id: "42" } }), loyalty)
+
+      const res = makeRes()
+      await POST(req, res)
+
+      expect(res._status).toBe(200)
+      expect(req._logger.error.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("pontos")
+    })
+
+    it("does nothing when another notification already claimed the order creation", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 171 })
+      const loyalty = loyaltyMock()
+      const req = withLoyalty(makeReq({ type: "payment", data: { id: "42" } }), loyalty)
+      req._checkoutService.claimOrderCreation.mockResolvedValue(false)
+
+      await POST(req, makeRes())
+
+      expect(loyalty.confirmRedemption).not.toHaveBeenCalled()
+      expect(loyalty.earn).not.toHaveBeenCalled()
+    })
+
+    it("flags a paid checkout whose points reservation is gone", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 171 })
+      const loyalty = { confirmRedemption: jest.fn().mockResolvedValue(false), earn: jest.fn().mockResolvedValue(true) }
+      const req = withLoyalty(makeReq({ type: "payment", data: { id: "42" } }), loyalty)
+
+      await POST(req, makeRes())
+
+      expect(req._logger.error.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("reserva")
+    })
+  })
 })

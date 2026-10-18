@@ -58,6 +58,11 @@ module.exports = defineConfig({
       resolve: "./src/modules/review",
     },
 
+    // Programa de pontos — saldo por CPF/CNPJ, reserva no checkout e código por e-mail
+    {
+      resolve: "./src/modules/loyalty",
+    },
+
     // File storage — migrated product images re-hosted locally
     {
       resolve: "@medusajs/medusa/file",

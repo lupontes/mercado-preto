@@ -30,6 +30,7 @@ export default function ConfirmationContent() {
   // Test-cash orders (test environments only) never go through MercadoPago,
   // so there is no payment to confirm: the order already exists.
   const testCashRef = params.get('test_cash')
+  const earnedPoints = Number(params.get('pontos') ?? 0)
 
   const [data, setData] = useState<ConfirmData | null>(null)
   const [loading, setLoading] = useState(!!paymentId && !testCashRef)
@@ -87,6 +88,10 @@ export default function ConfirmationContent() {
             ? 'Seu pagamento está sendo processado. Assim que confirmado, seu pedido será liberado automaticamente.'
             : 'Não foi possível confirmar o pagamento. Tente novamente ou entre em contato.'}
         </p>
+
+        {isApproved && earnedPoints > 0 && (
+          <p className="mt-3 font-semibold text-forest">Você ganhou {earnedPoints} pontos para a próxima compra.</p>
+        )}
 
         {testCashRef && (
           <div className="mt-6 rounded-xl bg-white border border-sand-dark p-4 text-left text-sm space-y-2">

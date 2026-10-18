@@ -120,6 +120,7 @@ export default async function commissionOnPayment({
     grossAmount: productsGross,
     bankingFees,
     shippingAmount,
+    loyaltyDiscount: Number(order.metadata?.loyalty_discount ?? 0),
   })
 
   // Vínculo bidirecional: se já existe um payout pendente cobrindo esta comissão

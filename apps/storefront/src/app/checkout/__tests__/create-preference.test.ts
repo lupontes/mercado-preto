@@ -52,4 +52,18 @@ describe('readCheckoutResponse', () => {
       ok: false, status: 409, error: 'O preço de alguns produtos foi atualizado', quote: undefined, priceChanges,
     })
   })
+
+  it('sends the points to use and reads back what the server applied', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ preference_id: 'p', external_reference: 'r', total: 10100, pointsApplied: 300, discount: 300 }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await createPreference(items, address, shipping, { redeemPoints: 300, loyaltyToken: 'tok' })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body).toMatchObject({ redeemPoints: 300, loyaltyToken: 'tok' })
+    expect(result).toEqual({ ok: true, data: { preferenceId: 'p', externalReference: 'r', totalCents: 10100, discountCents: 300 } })
+  })
 })

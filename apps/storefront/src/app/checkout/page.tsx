@@ -12,6 +12,7 @@ import PaymentMethodSelector, { type PaymentMethod } from '@/components/payment/
 import { fetchTestCashEnabled } from '@/lib/test-cash'
 import { createTestCashOrder } from './create-test-cash-order'
 import { createPreference, type Address, type CheckoutItem, type PreferenceData } from './create-preference'
+import LoyaltyRedeem, { type LoyaltySelection } from './LoyaltyRedeem'
 import { fetchShippingQuote, shippingQuoteErrorMessage } from './shipping-quote'
 import ShippingOptions from './ShippingOptions'
 
@@ -46,6 +47,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
   const [error, setError] = useState('')
+  const [loyalty, setLoyalty] = useState<LoyaltySelection>(null)
 
   const [hydrated, setHydrated] = useState(false)
   const [paid, setPaid] = useState(false)
@@ -153,7 +155,7 @@ export default function CheckoutPage() {
 
     const result = isTestCash
       ? await createTestCashOrder(checkoutItems(), address, selectedShipping)
-      : await createPreference(checkoutItems(), address, selectedShipping)
+      : await createPreference(checkoutItems(), address, selectedShipping, loyalty ?? undefined)
 
     if (!result.ok) {
       if (result.status === 409 && result.priceChanges) {
@@ -198,9 +200,11 @@ export default function CheckoutPage() {
   }
 
   function handlePaymentSuccess(paymentId: string) {
+    // Same rule as the backend credit: 1 point per R$1 paid in products, shipping excluded.
+    const points = Math.floor((subtotal() - (preferenceData?.discountCents ?? 0)) / 100)
     setPaid(true)
     clear()
-    router.push(`/checkout/sucesso?payment_id=${paymentId}`)
+    router.push(`/checkout/sucesso?payment_id=${paymentId}${points > 0 ? `&pontos=${points}` : ''}`)
   }
 
   function handlePaymentError(message: string) {
@@ -364,6 +368,10 @@ export default function CheckoutPage() {
                   <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
                 )}
 
+                {!isTestCash && validateDocument(address.document).valid && (
+                  <LoyaltyRedeem document={address.document} maxDiscountCents={subtotal()} onChange={setLoyalty} />
+                )}
+
                 {error && <p className="text-terracotta text-sm mt-3">{error}</p>}
 
                 <div className="flex gap-3 mt-6">
@@ -432,9 +440,15 @@ export default function CheckoutPage() {
                   <span>{formatPrice(selectedShipping.total)}</span>
                 </div>
               )}
+              {preferenceData?.discountCents ? (
+                <div className="flex justify-between text-forest">
+                  <span>Desconto em pontos</span>
+                  <span>-{formatPrice(preferenceData.discountCents)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between font-display font-bold text-onyx pt-1">
                 <span>Total</span>
-                <span>{formatPrice(totalCents)}</span>
+                <span>{formatPrice(preferenceData?.totalCents ?? totalCents)}</span>
               </div>
             </div>
           </div>
