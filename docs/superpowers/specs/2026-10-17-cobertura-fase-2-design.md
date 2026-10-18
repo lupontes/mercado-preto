@@ -1,6 +1,6 @@
 # Cobertura de Testes, Fase 2 — Design
 
-**Status**: Rascunho para revisão do usuário (17/10/2026). O usuário pediu para
+**Status**: Aprovado (17/10/2026). O usuário pediu para
 decidir pelas melhores práticas; as decisões abaixo são de quem escreveu o spec.
 
 Branch: `test/cobertura-fase-2` (a partir de `develop`).
