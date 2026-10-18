@@ -9,7 +9,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { limit = 20, offset = 0 } = req.query as Record<string, string>
 
   const [seller] = await sellerService.listSellers({ id })
-  if (!seller || seller.status === "suspended") {
+  // Same rule as the public store list: only active stores are visible.
+  if (!seller || seller.status !== "active") {
     return res.status(404).json({ error: "Vendedor não encontrado" })
   }
 
@@ -28,7 +29,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     filters: { id },
   })
 
-  const products = sellers?.[0]?.products ?? []
+  // Drafts are the seller's work in progress and never public.
+  const products = (sellers?.[0]?.products ?? []).filter((p: any) => p?.status === "published")
   const paginated = products.slice(Number(offset), Number(offset) + Number(limit))
 
   res.json({ products: paginated, count: products.length, limit: Number(limit), offset: Number(offset) })
