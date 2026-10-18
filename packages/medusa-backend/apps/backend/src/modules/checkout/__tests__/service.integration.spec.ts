@@ -83,6 +83,20 @@ moduleIntegrationTestRunner<CheckoutModuleService>({
 
         expect(await service.claimOrderCreation("ref-7")).toBe(false)
       })
+
+      it("finds the e-mail of the latest paid checkout for a document", async () => {
+        const payload = (email: string, doc = "52998224725") => ({ total: 100, buyer_document: doc, address: { email } })
+        await service.recordSnapshot("old", payload("antigo@example.com"), { status: "pending" })
+        await service.transitionFromPending("old", "paid", "p1")
+        await service.recordSnapshot("new", payload("novo@example.com"), { status: "pending" })
+        await service.transitionFromPending("new", "paid", "p2")
+        await service.recordSnapshot("unpaid", payload("naopago@example.com"), { status: "pending" })
+        await service.recordSnapshot("other", payload("outro@example.com", "11144477735"), { status: "pending" })
+        await service.transitionFromPending("other", "paid", "p3")
+
+        expect(await service.findLatestPaidEmail("52998224725")).toBe("novo@example.com")
+        expect(await service.findLatestPaidEmail("00000000000")).toBeNull()
+      })
     })
   },
 })
