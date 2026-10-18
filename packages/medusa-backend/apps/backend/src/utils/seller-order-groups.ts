@@ -15,6 +15,8 @@ export type SellerGroup = {
   // Absent on snapshots created before per-seller shipping (cycle 2).
   shipping?: Omit<SellerShipping, "sellerId" | "sellerName">
   items: Array<{ variant_id?: string; title: string; quantity: number; price: number }>
+  // This store's share of the points discount, in cents (paid by the platform).
+  loyalty_discount?: number
 }
 
 /**

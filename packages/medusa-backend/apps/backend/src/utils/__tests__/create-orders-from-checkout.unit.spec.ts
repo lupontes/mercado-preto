@@ -94,6 +94,7 @@ describe("createOrdersFromCheckout", () => {
     const input = container._orderService.createOrders.mock.calls[0][0]
     expect(input[0].metadata).toEqual({
       mercadopago_external_reference: "ref-1",
+      loyalty_discount: 0,
       seller_id: "seller-a",
       buyer_document: "11144477735",
       shipping_status: "awaiting_shipment",
@@ -179,5 +180,25 @@ describe("createOrdersFromCheckout", () => {
     expect(input[0].shipping_address).toEqual(
       expect.objectContaining({ first_name: "Ana", last_name: "Souza", phone: "7188", address_1: "Rua MP", postal_code: "40000000" })
     )
+  })
+
+  it("records each store's share of the points discount on its order", async () => {
+    const container = makeContainer()
+    const meta: CheckoutMeta = {
+      ...twoSellerMeta,
+      seller_groups: twoSellerMeta.seller_groups!.map((g, i) => ({ ...g, loyalty_discount: i === 0 ? 180 : 120 })),
+    }
+
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta })
+
+    const created = container._orderService.createOrders.mock.calls[0][0]
+    expect(created.map((o: any) => o.metadata.loyalty_discount)).toEqual([180, 120])
+  })
+
+  it("records zero discount when no points were used", async () => {
+    const container = makeContainer()
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta: twoSellerMeta })
+    const created = container._orderService.createOrders.mock.calls[0][0]
+    expect(created.map((o: any) => o.metadata.loyalty_discount)).toEqual([0, 0])
   })
 })

@@ -3,6 +3,9 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
 import { createOrdersFromCheckout } from "../../../utils/create-orders-from-checkout"
+import { LOYALTY_MODULE } from "../../../modules/loyalty"
+import type LoyaltyModuleService from "../../../modules/loyalty/service"
+import { POINTS_PER_REAL } from "../../../modules/loyalty/constants"
 import { CHECKOUT_MODULE } from "../../../modules/checkout"
 import type CheckoutModuleService from "../../../modules/checkout/service"
 
@@ -207,6 +210,8 @@ async function settleSnapshotPayment(
     return 500
   }
 
+  await settleLoyalty(req, ref, meta)
+
   try {
     await emitOrderEvents(req, payment, createdOrders)
   } catch (err) {
@@ -216,6 +221,22 @@ async function settleSnapshotPayment(
     logger.error(`[mercadopago/webhook] pedidos criados mas falha ao emitir eventos para ref ${ref}, payment ${paymentId}:`, err)
   }
   return 200
+}
+
+// Confirms the points spent on this checkout and credits the points it earned.
+// The orders already exist, so a failure here is logged for a human instead of
+// failing the notification; both calls are idempotent per checkout.
+async function settleLoyalty(req: MedusaRequest, ref: string, meta: Record<string, any>) {
+  const logger = req.scope.resolve("logger")
+  try {
+    const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
+    if (meta.loyalty_points) await loyalty.confirmRedemption(ref)
+    const itemsTotal = (meta.items ?? []).reduce((sum: number, i: any) => sum + i.price * i.quantity, 0)
+    const points = Math.floor((itemsTotal - (meta.loyalty_discount ?? 0)) / 100) * POINTS_PER_REAL
+    if (meta.buyer_document && points > 0) await loyalty.earn(meta.buyer_document, ref, points)
+  } catch (err) {
+    logger.error(`[mercadopago/webhook] pedidos criados mas falha ao acertar os pontos da ref ${ref}: ${String(err)}`)
+  }
 }
 
 // Checkouts created before the local snapshot existed: recover their metadata
