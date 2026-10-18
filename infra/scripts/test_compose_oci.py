@@ -66,6 +66,14 @@ class ComposeOciTest(unittest.TestCase):
         for key in ("STORE_CORS", "ADMIN_CORS", "AUTH_CORS"):
             self.assertEqual(env[key], PUBLIC_URL, key)
 
+    def test_backend_receives_sandbox_and_test_recipients(self):
+        # Without these the backend runs in sandbox mode with no test recipient
+        # and silently drops every e-mail and WhatsApp message.
+        env = self.services["medusa"]["environment"]
+        self.assertEqual(env["MARKETPLACE_SANDBOX"], "true")
+        self.assertIn("TEST_EMAIL_RECIPIENT", env)
+        self.assertIn("TEST_WHATSAPP_RECIPIENT", env)
+
     def test_backend_keeps_uploads_volume(self):
         mounts = {v["target"]: v["source"] for v in self.services["medusa"]["volumes"]}
         self.assertEqual(mounts["/app/static"], "backend_uploads")
