@@ -96,6 +96,31 @@ moduleIntegrationTestRunner<LoyaltyModuleService>({
         const rows = await sql(`select * from "loyalty_code" where "buyerDocument" = '1010'`)
         expect(JSON.stringify(rows)).not.toContain(`"${code}"`)
       })
+
+      it("never counts more than the allowed attempts under concurrency", async () => {
+        const code = await service.issueCode("1111")
+        const wrong = code === "000000" ? "111111" : "000000"
+
+        await Promise.all(Array.from({ length: 10 }, () => service.verifyCode("1111", wrong)))
+
+        const [row] = await sql(`select attempts from "loyalty_code" where "buyerDocument" = '1111'`)
+        expect(Number(row.attempts)).toBeLessThanOrEqual(5)
+        expect(await service.verifyCode("1111", code)).toBe(false)
+      })
+
+      it("tells until when a checkout's reservation holds the points", async () => {
+        await service.earn("1212", "e1", 100)
+        expect(await service.reservationExpiresAt("none")).toBeNull()
+
+        await service.reserve("1212", "live", 10)
+        const expires = await service.reservationExpiresAt("live")
+        const minutes = (expires!.getTime() - Date.now()) / 60000
+        expect(minutes).toBeGreaterThan(RESERVATION_TTL_MINUTES - 2)
+        expect(minutes).toBeLessThanOrEqual(RESERVATION_TTL_MINUTES)
+
+        await service.cancelReservation("live")
+        expect(await service.reservationExpiresAt("live")).toBeNull()
+      })
     })
   },
 })

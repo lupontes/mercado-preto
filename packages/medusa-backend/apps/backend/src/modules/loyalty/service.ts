@@ -68,6 +68,22 @@ class LoyaltyModuleService extends MedusaService({ LoyaltyEntry, LoyaltyCode }) 
     )
   }
 
+  /**
+   * When a checkout's points stop being held, or null if it holds none. A
+   * discounted checkout must not be paid after this, or the same points could
+   * be spent again by another checkout.
+   */
+  @InjectManager()
+  async reservationExpiresAt(externalReference: string, @MedusaContext() sharedContext: Context = {}): Promise<Date | null> {
+    const rows = await (sharedContext.manager as any).execute(
+      `select created_at + make_interval(mins => ?) as expires_at from "loyalty_entry"
+       where "externalReference" = ? and type = 'reserve' and deleted_at is null
+         and created_at > now() - make_interval(mins => ?)`,
+      [RESERVATION_TTL_MINUTES, externalReference, RESERVATION_TTL_MINUTES]
+    )
+    return rows[0] ? new Date(rows[0].expires_at) : null
+  }
+
   /** Turns a checkout's reservation into a redemption exactly once. */
   @InjectManager()
   async confirmRedemption(externalReference: string, @MedusaContext() sharedContext: Context = {}): Promise<boolean> {
@@ -109,8 +125,11 @@ class LoyaltyModuleService extends MedusaService({ LoyaltyEntry, LoyaltyCode }) 
          where "buyerDocument" = ? and "usedAt" is null and "expiresAt" > now() and attempts < ?
          order by created_at desc limit 1
        )
+       -- Re-checked on the locked row: under READ COMMITTED the subquery is not
+       -- re-evaluated, so concurrent guesses would otherwise all get through.
+       and "usedAt" is null and "expiresAt" > now() and attempts < ?
        returning id, "codeHash"`,
-      [document, CODE_MAX_ATTEMPTS]
+      [document, CODE_MAX_ATTEMPTS, CODE_MAX_ATTEMPTS]
     )
     if (!live || live.codeHash !== sha256(code)) return false
     const used = await manager.execute(

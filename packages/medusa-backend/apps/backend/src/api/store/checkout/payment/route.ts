@@ -4,6 +4,8 @@ import { MercadoPagoConfig, Payment } from "mercadopago"
 import { z } from "zod"
 import { CHECKOUT_MODULE } from "../../../../modules/checkout"
 import type CheckoutModuleService from "../../../../modules/checkout/service"
+import { LOYALTY_MODULE } from "../../../../modules/loyalty"
+import type LoyaltyModuleService from "../../../../modules/loyalty/service"
 import { describeMercadoPagoError, paymentErrorMessage, rejectionMessage } from "../../../../utils/mercadopago-messages"
 
 const schema = z.object({
@@ -59,6 +61,17 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(409).json({ error: "Este pedido já foi pago." })
   }
 
+  // A discounted checkout is only payable while its points are reserved;
+  // paying it later would let the same points be spent twice.
+  let payBefore: Date | null = null
+  if (snapshot.payload?.loyalty_points) {
+    const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
+    payBefore = await loyalty.reservationExpiresAt(external_reference)
+    if (!payBefore) {
+      return res.status(409).json({ error: "O prazo para pagar com pontos acabou. Refaça o pedido." })
+    }
+  }
+
   const mp = new MercadoPagoConfig({ accessToken })
   const paymentClient = new Payment(mp)
   const backendUrl = process.env.BACKEND_URL
@@ -76,6 +89,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         payer,
         description: "Pedido Mercado Preto",
         statement_descriptor: "MERCADO PRETO",
+        // Pix and boleto can be paid later; MercadoPago refuses them after this.
+        ...(payBefore ? { date_of_expiration: payBefore.toISOString() } : {}),
         ...(backendUrl ? { notification_url: `${backendUrl}/webhooks/mercadopago` } : {}),
       },
       requestOptions: { idempotencyKey: crypto.randomUUID() },

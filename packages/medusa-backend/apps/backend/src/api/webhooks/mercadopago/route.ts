@@ -230,7 +230,11 @@ async function settleLoyalty(req: MedusaRequest, ref: string, meta: Record<strin
   const logger = req.scope.resolve("logger")
   try {
     const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
-    if (meta.loyalty_points) await loyalty.confirmRedemption(ref)
+    if (meta.loyalty_points && !(await loyalty.confirmRedemption(ref))) {
+      // Paid with a discount but no reservation to confirm (cancelled or never
+      // made): the points were not debited and a human must reconcile them.
+      logger.error(`[mercadopago/webhook] ref ${ref} paga com desconto de pontos sem reserva para confirmar — conferir o saldo do comprador`)
+    }
     const itemsTotal = (meta.items ?? []).reduce((sum: number, i: any) => sum + i.price * i.quantity, 0)
     const points = Math.floor((itemsTotal - (meta.loyalty_discount ?? 0)) / 100) * POINTS_PER_REAL
     if (meta.buyer_document && points > 0) await loyalty.earn(meta.buyer_document, ref, points)

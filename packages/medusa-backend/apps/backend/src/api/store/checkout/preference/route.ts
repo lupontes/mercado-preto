@@ -74,13 +74,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       return res.status(401).json({ error: "Confirme seus pontos novamente." })
     }
     const loyalty: LoyaltyModuleService = req.scope.resolve(LOYALTY_MODULE)
-    if (parsed.data.redeemPoints > (await loyalty.availableBalance(buyerDocument))) {
-      return res.status(400).json({ error: "Saldo de pontos insuficiente." })
-    }
     const commission: CommissionModuleService = req.scope.resolve(COMMISSION_MODULE)
     const itemsTotal = checkoutSnapshotPayload.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
     const cap = Math.floor(loyaltyDiscountCap(itemsTotal, await commission.getCommissionRate()) / CENTS_PER_POINT)
     pointsToReserve = Math.min(parsed.data.redeemPoints, cap)
+    if (pointsToReserve > (await loyalty.availableBalance(buyerDocument))) {
+      return res.status(400).json({ error: "Saldo de pontos insuficiente." })
+    }
   }
   const discount = pointsToReserve * CENTS_PER_POINT
   if (discount > 0) {

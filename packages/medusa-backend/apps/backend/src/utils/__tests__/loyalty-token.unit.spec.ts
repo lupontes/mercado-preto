@@ -36,4 +36,17 @@ describe("loyalty token", () => {
     expect(verifyLoyaltyToken(token)).toBeNull()
     expect(crypto).toBeDefined()
   })
+
+  it("refuses to sign or accept tokens in production without a configured secret", () => {
+    const token = signLoyaltyToken("52998224725")
+    const env = { ...process.env }
+    delete process.env.JWT_SECRET
+    ;(process.env as any).NODE_ENV = "production"
+    try {
+      expect(() => signLoyaltyToken("52998224725")).toThrow()
+      expect(verifyLoyaltyToken(token)).toBeNull()
+    } finally {
+      process.env = env
+    }
+  })
 })

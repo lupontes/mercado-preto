@@ -856,5 +856,15 @@ describe("POST /webhooks/mercadopago", () => {
       expect(loyalty.confirmRedemption).not.toHaveBeenCalled()
       expect(loyalty.earn).not.toHaveBeenCalled()
     })
+
+    it("flags a paid checkout whose points reservation is gone", async () => {
+      mockPaymentGet.mockResolvedValue({ ...approvedPayment, transaction_amount: 171 })
+      const loyalty = { confirmRedemption: jest.fn().mockResolvedValue(false), earn: jest.fn().mockResolvedValue(true) }
+      const req = withLoyalty(makeReq({ type: "payment", data: { id: "42" } }), loyalty)
+
+      await POST(req, makeRes())
+
+      expect(req._logger.error.mock.calls.map((c: unknown[]) => String(c[0])).join("\n")).toContain("reserva")
+    })
   })
 })

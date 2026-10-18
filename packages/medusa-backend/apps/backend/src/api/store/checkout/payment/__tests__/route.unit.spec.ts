@@ -12,13 +12,14 @@ let checkoutService: {
   transitionFromPending: jest.Mock
 }
 let logger: { warn: jest.Mock; error: jest.Mock }
+let loyaltyService: { reservationExpiresAt: jest.Mock }
 
 const makeReq = (body: unknown, env: Record<string, string> = {}) => {
   Object.assign(process.env, {
     MERCADOPAGO_ACCESS_TOKEN: "TEST-token",
     ...env,
   })
-  const services: Record<string, unknown> = { checkout: checkoutService, logger }
+  const services: Record<string, unknown> = { checkout: checkoutService, logger, loyalty: loyaltyService }
   return { body, scope: { resolve: (key: string) => services[key] } } as any
 }
 
@@ -65,6 +66,7 @@ describe("POST /store/checkout/payment", () => {
       transitionFromPending: jest.fn().mockResolvedValue(true),
     }
     logger = { warn: jest.fn(), error: jest.fn() }
+    loyaltyService = { reservationExpiresAt: jest.fn().mockResolvedValue(null) }
     MockPayment.mockImplementation(() => ({ create: mockPaymentCreate } as any))
     ;(MercadoPagoConfig as jest.MockedClass<typeof MercadoPagoConfig>).mockImplementation(() => ({} as any))
   })
@@ -307,5 +309,41 @@ describe("POST /store/checkout/payment", () => {
     expect(res._status).toBe(200)
     expect((res._body as any).payment_id).toBe(123)
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("[checkout/payment]"))
+  })
+
+  describe("checkouts paid with points", () => {
+    const withPoints = () => checkoutService.findByExternalReference.mockResolvedValue({
+      payload: { total: 10100, loyalty_points: 300, loyalty_discount: 300 }, status: null,
+    })
+
+    it("refuses to charge once the points reservation is gone", async () => {
+      withPoints()
+      const res = makeRes()
+      await POST(makeReq(cardBody), res)
+
+      expect(res._status).toBe(409)
+      expect(res._body).toEqual({ error: "O prazo para pagar com pontos acabou. Refaça o pedido." })
+      expect(mockPaymentCreate).not.toHaveBeenCalled()
+    })
+
+    it("charges with an expiration that ends with the reservation", async () => {
+      withPoints()
+      const expires = new Date(Date.now() + 60 * 60 * 1000)
+      loyaltyService.reservationExpiresAt.mockResolvedValue(expires)
+      mockPaymentCreate.mockResolvedValue({ id: 1, status: "pending" })
+
+      await POST(makeReq(pixBody), makeRes())
+
+      const { body } = mockPaymentCreate.mock.calls[0][0]
+      expect(body.transaction_amount).toBe(101)
+      expect(body.date_of_expiration).toBe(expires.toISOString())
+    })
+
+    it("does not look at points for an ordinary checkout", async () => {
+      mockPaymentCreate.mockResolvedValue({ id: 1, status: "pending" })
+      await POST(makeReq(pixBody), makeRes())
+      expect(loyaltyService.reservationExpiresAt).not.toHaveBeenCalled()
+      expect(mockPaymentCreate.mock.calls[0][0].body.date_of_expiration).toBeUndefined()
+    })
   })
 })

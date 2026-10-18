@@ -5,8 +5,12 @@ import { LOYALTY_TOKEN_TTL_SECONDS } from "../modules/loyalty/constants"
 // lived and scoped, so a seller session token can never be used in its place.
 type LoyaltyTokenPayload = { scope: "loyalty"; document: string; exp: number }
 
+// These tokens spend money, so production never falls back to a known secret.
 function secret(): string {
-  return process.env.JWT_SECRET || "supersecret"
+  const value = process.env.JWT_SECRET
+  if (value) return value
+  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET não configurado")
+  return "supersecret"
 }
 
 function sign(data: string): string {
@@ -28,7 +32,12 @@ export function verifyLoyaltyToken(token: string): { document: string } | null {
   const parts = token.split(".")
   if (parts.length !== 3) return null
   const [header, body, sig] = parts
-  const expected = Buffer.from(sign(`${header}.${body}`))
+  let expected: Buffer
+  try {
+    expected = Buffer.from(sign(`${header}.${body}`))
+  } catch {
+    return null
+  }
   const given = Buffer.from(sig)
   if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) return null
   try {
