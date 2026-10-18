@@ -29,21 +29,10 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    logada no servidor de teste (o usuário faz o login). Para depois:
    500 em multipart malformado, `nosniff` em `/static`, rótulo e botão de
    remover a foto, limpeza das fotos órfãs.
-8. ~~Cobertura de testes~~: fase 1 = #74 e #75; fase 2 = #77 (relatórios,
-   fiscal, sitemap/robots publicados, analytics, DDD 55 no WhatsApp, erros no
-   painel, testes de rotas, subscribers e páginas). Tudo no servidor. Ficou
-   sem teste só o que é de uso único (`scripts/import-*`, `export-*`).
-   **Pendências menores** (ver o "Para depois" de cada PR):
-   - sitemap: produtos de loja não ativa já saem, mas editar a loja não
-     reindexa os produtos dela na busca;
-   - `create-payout-modal` manda `periodEnd` como `T00:00Z`
-     (provável bug do último dia em `payouts/preview`);
-   - `robots.txt` fixa `NEXT_PUBLIC_SITE_URL` no build, que o
-     `docker-compose.prod.yml` não passa (ver item 3);
-   - senha: emissão do token sem transação, link "pedir novo" em qualquer
-     erro, nome sem escape no HTML do e-mail;
-   - **infra:** o pnpm 11 reinstala o backend (npm) a cada `pnpm` no
-     workspace. Contorno: `npx vitest` na vitrine (ver claude-mem).
+8. ~~Cobertura de testes~~: #74, #75 e #77, no servidor. As pendências
+   menores estão no "Para depois" de cada PR. A mais chata é de infra: o
+   pnpm 11 reinstala o backend (npm) a cada `pnpm` no workspace; usar
+   `npx vitest` na vitrine (ver claude-mem).
 9. **[produto] Programa de pontos — EM ANDAMENTO, próximo passo.**
    Spec novo em rascunho, aguardando aprovação do usuário:
    `docs/superpowers/specs/2026-10-17-programa-de-pontos-design.md`, na
