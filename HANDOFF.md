@@ -24,19 +24,11 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    número de envio. **Adiado pelo usuário em 17/10.**
 5. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
    teste `admin2@mercadopreto.com.br`.
-6. ~~Erros do checkout~~: feito no #69 e no #70, que corrigiu as
-   pendências deixadas pelo #69 (log do pagador no console, erro cru do
-   Brick, `JSON.stringify` que podia lançar, chaves do protótipo). Os dois
-   estão testados no servidor. O formulário do cartão continua voltando em
-   branco depois de uma recusa (decisão: força um token novo).
-7. ~~Upload de foto do produto~~: feito no #72. Testado localmente de ponta
-   a ponta; no servidor, só o 401 sem login. **Falta:** um upload com
-   vendedora logada no servidor de teste (o usuário faz o login). Ficaram
-   para depois:
-   - multipart malformado responde 500 genérico;
-   - incluir `nosniff` em `/static` no nginx;
-   - rótulo "Foto principal" sem associação ao campo e sem botão de remover;
-   - limpeza das fotos órfãs no volume de uploads.
+6. ~~Erros do checkout~~: #69 e #70, testados no servidor.
+7. ~~Upload de foto do produto~~: #72. **Falta:** um upload com vendedora
+   logada no servidor de teste (o usuário faz o login). Para depois:
+   500 em multipart malformado, `nosniff` em `/static`, rótulo e botão de
+   remover a foto, limpeza das fotos órfãs.
 8. **[qualidade] Cobertura de testes (em andamento).** A fase 1 virou
    correções, todas no servidor: #74 (senha da vendedora por link com token,
    admin sem `passwordHash`) e #75 (busca resiliente e sem injeção, índices
