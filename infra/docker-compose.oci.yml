@@ -164,6 +164,12 @@ services:
       MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
       SHIPPING_HANDLING_DAYS: ${SHIPPING_HANDLING_DAYS:-2}
 
+      # Integrações em sandbox: sem estas variáveis o backend fica sempre em
+      # sandbox sem destinatário de teste e descarta todo e-mail e WhatsApp.
+      MARKETPLACE_SANDBOX: ${MARKETPLACE_SANDBOX:-true}
+      TEST_EMAIL_RECIPIENT: ${TEST_EMAIL_RECIPIENT:-}
+      TEST_WHATSAPP_RECIPIENT: ${TEST_WHATSAPP_RECIPIENT:-}
+
       # Brevo (e-mail)
       BREVO_API_KEY: ${BREVO_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@mercadopreto.com.br}
