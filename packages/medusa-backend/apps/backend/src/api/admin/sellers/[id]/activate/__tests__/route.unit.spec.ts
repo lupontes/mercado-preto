@@ -1,9 +1,11 @@
 import { POST } from "../route"
 
 function makeScope(overrides: Record<string, unknown>) {
+  // Status changes notify the search index through the event bus.
+  const services: Record<string, unknown> = { event_bus: { emit: jest.fn() }, ...overrides }
   return {
     resolve: (key: string) => {
-      if (key in overrides) return overrides[key]
+      if (key in services) return services[key]
       throw new Error(`Unexpected resolve: ${String(key)}`)
     },
   }

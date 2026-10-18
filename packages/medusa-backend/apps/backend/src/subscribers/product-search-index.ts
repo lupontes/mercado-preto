@@ -1,7 +1,6 @@
 import { type SubscriberArgs, type SubscriberConfig } from "@medusajs/framework"
-import { Modules } from "@medusajs/framework/utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { indexProduct, removeProduct } from "../utils/meilisearch"
+import { indexProduct } from "../utils/meilisearch"
 
 async function buildProductDocument(container: any, productId: string) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -31,22 +30,14 @@ async function buildProductDocument(container: any, productId: string) {
   }
 }
 
-export async function productCreated({ event, container }: SubscriberArgs<{ id: string }>) {
+// Medusa runs only the default export of a subscriber file, for every event in
+// its config; removal lives in product-search-remove.ts for that reason.
+// A draft stays indexed with its status, and the search filter leaves it out.
+export default async function productSearchIndex({ event, container }: SubscriberArgs<{ id: string }>) {
   const doc = await buildProductDocument(container, event.data.id)
   if (doc) await indexProduct(doc)
 }
-
-export async function productUpdated({ event, container }: SubscriberArgs<{ id: string }>) {
-  const doc = await buildProductDocument(container, event.data.id)
-  if (doc) await indexProduct(doc)
-}
-
-export async function productDeleted({ event }: SubscriberArgs<{ id: string }>) {
-  await removeProduct(event.data.id)
-}
-
-export default productCreated
 
 export const config: SubscriberConfig = {
-  event: ["product.created", "product.updated", "product.deleted"],
+  event: ["product.created", "product.updated"],
 }

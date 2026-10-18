@@ -7,7 +7,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params
 
   const [seller] = await sellerService.listSellers({ id })
-  if (!seller || seller.status === "suspended") {
+  // Same rule as the public store list: only active stores are visible.
+  if (!seller || seller.status !== "active") {
     return res.status(404).json({ error: "Vendedor não encontrado" })
   }
 

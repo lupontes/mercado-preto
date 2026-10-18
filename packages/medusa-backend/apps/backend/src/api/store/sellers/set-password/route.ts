@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { Modules } from "@medusajs/framework/utils"
 import { z } from "zod"
 import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService, { RESET_TOKEN_TTL_MS } from "../../../../modules/seller/service"
@@ -88,6 +89,16 @@ async function handleSetPassword(
     data: { passwordHash: SellerModuleService.hashPassword(parsed.data.password), status: "active" as const },
   })
   logger.info(`[sellers/set-password] senha definida para o vendedor ${seller.id}`)
+
+  // The store becomes active here, so search must pick it up. The password is
+  // already saved: a failed notification is logged, not returned as an error.
+  try {
+    await req.scope.resolve(Modules.EVENT_BUS).emit({ name: "seller.status_changed", data: { id: seller.id } })
+  } catch (err: unknown) {
+    logger.error(
+      `[sellers/set-password] falha ao avisar a mudança de status do vendedor ${seller.id}: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
 
   res.json({ message: "Senha configurada com sucesso. Agora você pode acessar o portal do vendedor." })
 }

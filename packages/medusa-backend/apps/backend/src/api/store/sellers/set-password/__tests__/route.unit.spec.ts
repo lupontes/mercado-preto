@@ -14,11 +14,12 @@ let sellerService: {
   updateSellers: jest.Mock
 }
 let logger: { info: jest.Mock; warn: jest.Mock; error: jest.Mock }
+let emit: jest.Mock
 
 const seller = (status: string) => ({ id: "seller_1", email: "loja@example.com", ownerName: "Fulana", status })
 
 function makeReq(body: unknown) {
-  const services: Record<string, unknown> = { seller: sellerService, logger }
+  const services: Record<string, unknown> = { seller: sellerService, logger, event_bus: { emit } }
   return { body, scope: { resolve: (key: string) => services[key] } } as any
 }
 
@@ -42,6 +43,7 @@ describe("POST /store/sellers/set-password", () => {
       updateSellers: jest.fn().mockResolvedValue([]),
     }
     logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+    emit = jest.fn().mockResolvedValue(undefined)
   })
 
   afterAll(() => {
@@ -122,6 +124,26 @@ describe("POST /store/sellers/set-password", () => {
       expect(selector).toEqual({ id: "seller_1" })
       expect(data.status).toBe("active")
       expect(SellerModuleService.verifyPassword("senhaNova1", data.passwordHash)).toBe(true)
+    })
+
+    it("tells the search index the seller became active", async () => {
+      sellerService.consumePasswordToken.mockResolvedValue("seller_1")
+      sellerService.listSellers.mockResolvedValue([seller("approved")])
+      await POST(makeReq({ token: "tok123", password: "senhaNova1" }), makeRes())
+
+      expect(emit).toHaveBeenCalledWith({ name: "seller.status_changed", data: { id: "seller_1" } })
+    })
+
+    it("still answers 200 when the event cannot be emitted, since the password is saved", async () => {
+      sellerService.consumePasswordToken.mockResolvedValue("seller_1")
+      sellerService.listSellers.mockResolvedValue([seller("approved")])
+      emit.mockImplementation(async () => { throw new Error("bus down") })
+      const res = makeRes()
+
+      await POST(makeReq({ token: "tok123", password: "senhaNova1" }), res)
+
+      expect(res._status).toBe(200)
+      expect(logger.error.mock.calls[0][0]).toContain("bus down")
     })
 
     it("rejects an invalid or used token", async () => {

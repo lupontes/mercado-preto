@@ -4,6 +4,7 @@ import { SELLER_MODULE } from "../../../../modules/seller"
 import SellerModuleService from "../../../../modules/seller/service"
 import { parseAddressBlock } from "../../../../utils/seller-address"
 import { toAdminSeller } from "../../../../utils/admin-seller"
+import { notifySellerUpdated } from "../../../../utils/seller-events"
 
 const UpdateSellerSchema = z.object({
   name: z.string().min(2).optional(),
@@ -48,6 +49,7 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     selector: { id },
     data: { ...parsed.data, ...(block.address ?? {}) },
   })
+  await notifySellerUpdated(req.scope, id)
 
   res.json({ seller: toAdminSeller(seller as any) })
 }

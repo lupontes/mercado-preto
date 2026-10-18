@@ -10,13 +10,15 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const filters: Record<string, string> = { sellerId }
   if (status) filters.status = status
 
-  const commissions = await commissionService.listCommissions(filters, {
+  const [commissions, count] = await commissionService.listAndCountCommissions(filters, {
     take: Number(limit),
     skip: Number(offset),
     order: { created_at: "DESC" },
   })
 
-  const totals = commissions.reduce(
+  // Totals describe every sale matching the filter, not only the page shown.
+  const allMatching = await commissionService.listCommissions(filters)
+  const totals = allMatching.reduce(
     (acc, c) => ({
       grossAmount: acc.grossAmount + Number(c.grossAmount),
       commissionAmount: acc.commissionAmount + Number(c.commissionAmount),
@@ -25,5 +27,5 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     { grossAmount: 0, commissionAmount: 0, sellerPayout: 0 }
   )
 
-  res.json({ commissions, totals, count: commissions.length })
+  res.json({ commissions, totals, count })
 }
