@@ -12,29 +12,31 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const [{ data: products }, sellers] = await Promise.all([
     query.graph({
       entity: "product",
-      fields: ["id", "handle", "updated_at"],
+      fields: ["id", "handle", "updated_at", "seller.status"],
       filters: { status: "published" },
     }),
     sellerService.listSellers({ status: "active" }),
   ])
 
+  // Only pages the storefront actually has (see apps/storefront/src/app).
   const staticRoutes = [
     { url: storeUrl, priority: "1.0", changefreq: "daily" },
     { url: `${storeUrl}/lojas`, priority: "0.9", changefreq: "daily" },
     { url: `${storeUrl}/produtos`, priority: "0.9", changefreq: "daily" },
+    { url: `${storeUrl}/categorias`, priority: "0.7", changefreq: "weekly" },
     { url: `${storeUrl}/sobre`, priority: "0.5", changefreq: "monthly" },
-    { url: `${storeUrl}/contato`, priority: "0.5", changefreq: "monthly" },
   ]
 
-  const productRoutes = products.map((p: any) => ({
-    url: `${storeUrl}/produtos/${p.handle}`,
+  // A product of a suspended or unapproved store is not sellable.
+  const productRoutes = products.filter((p: any) => p.seller?.status === "active").map((p: any) => ({
+    url: `${storeUrl}/produto/${p.handle}`,
     lastmod: p.updated_at ? new Date(p.updated_at).toISOString().split("T")[0] : undefined,
     priority: "0.8",
     changefreq: "weekly",
   }))
 
   const sellerRoutes = sellers.map((s: any) => ({
-    url: `${storeUrl}/lojas/${s.id}`,
+    url: `${storeUrl}/loja/${s.id}`,
     lastmod: s.updated_at ? new Date(s.updated_at).toISOString().split("T")[0] : undefined,
     priority: "0.7",
     changefreq: "weekly",
