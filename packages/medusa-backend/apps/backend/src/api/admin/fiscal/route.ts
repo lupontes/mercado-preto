@@ -19,11 +19,11 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   if (order_id) filters.orderId = order_id
   if (ncm_fallback_used) filters.ncmFallbackUsed = ncm_fallback_used === "true"
 
-  const docs = await fiscalService.listNfDocuments(filters, {
+  const [docs, count] = await fiscalService.listAndCountNfDocuments(filters, {
     take: Number(limit),
     skip: Number(offset),
     order: { created_at: "DESC" },
   })
 
-  res.json({ documents: docs, count: docs.length })
+  res.json({ documents: docs, count })
 }
