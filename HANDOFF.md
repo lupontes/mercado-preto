@@ -1,6 +1,6 @@
 # Handoff: Mercado Preto / MAB marketplace
 
-**Atualizado**: 2026-10-17
+**Atualizado**: 2026-10-18
 
 **Fluxo de branches deste projeto:** `develop → release → main`. Este projeto
 não usa `alpha` nem `beta` (decisão do usuário em 17/10).
@@ -20,8 +20,10 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    O banco `evolution` não existe mais, e a imagem `2.4.0-rc2` não está
    baixada. Para reativar, é preciso escanear o QR Code com o celular do
    número de envio. **Adiado pelo usuário em 17/10.**
-4. **[usuário]** Conferir a URL do webhook da ClearSale e apagar o admin de
-   teste `admin2@mercadopreto.com.br`.
+4. **[usuário]** Apagar o admin de teste `admin2@mercadopreto.com.br` no
+   painel master (Configurações → Usuários). ClearSale: ainda não contratada,
+   então não há webhook a conferir. Se for contratada, a URL de teste é
+   `https://teste.mercadopreto.com.br/api/webhooks/clearsale`.
 5. ~~Concluídos em 17–18/10~~: #69/#70 (erros do checkout), #72 (foto do
    produto; falta um upload logado no servidor), #74/#75/#77 (cobertura de
    testes e correções). Pendências menores no "Para depois" de cada PR. Infra:
