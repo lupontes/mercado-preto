@@ -29,17 +29,17 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
    logada no servidor de teste (o usuário faz o login). Para depois:
    500 em multipart malformado, `nosniff` em `/static`, rótulo e botão de
    remover a foto, limpeza das fotos órfãs.
-8. **[qualidade] Cobertura de testes (em andamento).** A fase 1 virou
-   correções, todas no servidor: #74 (senha da vendedora por link com token,
-   admin sem `passwordHash`) e #75 (busca resiliente e sem injeção, índices
-   em dia, páginas públicas só de lojas ativas, totais de comissão).
-   **Próximo:** fase 2, com o dashboard do vendedor, os subscribers de
-   WhatsApp, as rotas do admin (`reports`, `fiscal`, `settings`) e as páginas
-   da vitrine (carrinho, produto, painel). Ficaram para depois:
-   - sitemap com `/lojas/:id` e `/produtos/:handle`; as rotas certas são
-     `/loja/[id]` e `/produto/[handle]` (SEO);
-   - produtos de loja não ativa seguem publicados na busca e no sitemap;
-   - editar a loja não reindexa os produtos dela;
+8. ~~Cobertura de testes~~: fase 1 = #74 e #75; fase 2 = #77 (relatórios,
+   fiscal, sitemap/robots publicados, analytics, DDD 55 no WhatsApp, erros no
+   painel, testes de rotas, subscribers e páginas). Tudo no servidor. Ficou
+   sem teste só o que é de uso único (`scripts/import-*`, `export-*`).
+   **Pendências menores** (ver o "Para depois" de cada PR):
+   - sitemap: produtos de loja não ativa já saem, mas editar a loja não
+     reindexa os produtos dela na busca;
+   - `create-payout-modal` manda `periodEnd` como `T00:00Z`
+     (provável bug do último dia em `payouts/preview`);
+   - `robots.txt` fixa `NEXT_PUBLIC_SITE_URL` no build, que o
+     `docker-compose.prod.yml` não passa (ver item 3);
    - senha: emissão do token sem transação, link "pedir novo" em qualquer
      erro, nome sem escape no HTML do e-mail;
    - **infra:** o pnpm 11 reinstala o backend (npm) a cada `pnpm` no
@@ -57,8 +57,8 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 
 ## Sessão 2026-10-17
 
-- **No servidor de teste** (`develop` em `ce7333c`): #63, #65 a #67, #69,
-  #70 e #72 a #75, com todas as migrations aplicadas (inclusive
+- **No servidor de teste** (`develop` em `5f5966e`): #63, #65 a #67, #69,
+  #70, #72 a #75 e #77, com todas as migrations aplicadas (inclusive
   `seller_password_token`). Tudo testado ponta a ponta.
 - Como testar cartão e login de vendedora sem digitar segredos no servidor,
   e as lições de build: claude-mem.
@@ -70,7 +70,7 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 - Backups de 17/10:
   - banco: `~/db-backup-20261017202917.sql.gz` (antes do #74);
   - imagens `mercado-preto-api:oci-bak-<timestamp>`, uma por deploy. A mais
-    recente é `oci-bak-20261017211103` (antes do #75).
+    recente é `oci-bak-20261017215938` (antes do #77).
 - A busca precisou de um reindex manual em 17/10. Depois do #75, as
   configurações dos índices são aplicadas sozinhas.
 - **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
