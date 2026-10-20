@@ -57,12 +57,33 @@ const emptyState = (): ShippingLabelState => ({
 
 // The backend runs as a single process, so this closes the window between
 // reading `pending` and persisting it; the persisted state covers later calls.
-const inFlight = new Map<string, Promise<ShippingLabelState>>()
+const inFlight = new Map<string, Promise<ShippingLabelState | StaleResumeConflict>>()
 
 export function purchaseShippingLabel(deps: PurchaseDeps, orderId: string): Promise<ShippingLabelState> {
   const running = inFlight.get(orderId)
-  if (running) return running
+  // Only another purchase can hold the lock here; a resume is also a purchase.
+  if (running) return running as Promise<ShippingLabelState>
   const promise = run(deps, orderId).finally(() => inFlight.delete(orderId))
+  inFlight.set(orderId, promise)
+  return promise as Promise<ShippingLabelState>
+}
+
+export type StaleResumeConflict = { conflict: string }
+
+/**
+ * Recovers a purchase whose process died, under the same lock as
+ * purchaseShippingLabel. The order is re-read inside the lock so a concurrent
+ * request that already reset or finished the purchase is never overwritten.
+ */
+export function resumeStalePurchase(
+  deps: PurchaseDeps,
+  orderId: string,
+  staleAfterMs = 15 * 60 * 1000
+): Promise<ShippingLabelState | StaleResumeConflict> {
+  if (inFlight.has(orderId)) {
+    return Promise.resolve({ conflict: "Já existe uma compra de etiqueta em andamento para este pedido" })
+  }
+  const promise = run(deps, orderId, staleAfterMs).finally(() => inFlight.delete(orderId))
   inFlight.set(orderId, promise)
   return promise
 }
@@ -86,14 +107,27 @@ function describeError(err: unknown): string {
   return "Falha inesperada ao comprar a etiqueta"
 }
 
-async function run(deps: PurchaseDeps, orderId: string): Promise<ShippingLabelState> {
+async function run(deps: PurchaseDeps, orderId: string, recoverStaleAfterMs?: number): Promise<ShippingLabelState | StaleResumeConflict> {
   const { orderService } = deps
   const order = await orderService.retrieveOrder(orderId, {
     relations: ["items", "shipping_address"],
     select: ["metadata", "display_id", "email"],
   })
   const metadata = order.metadata ?? {}
-  const existing: ShippingLabelState | undefined = metadata.shipping_label
+  let existing: ShippingLabelState | undefined = metadata.shipping_label
+
+  if (recoverStaleAfterMs !== undefined) {
+    const nowMs = (deps.now ?? (() => new Date()))().getTime()
+    const stale =
+      existing?.status === "pending" &&
+      !!existing.pendingSince &&
+      nowMs - new Date(existing.pendingSince).getTime() > recoverStaleAfterMs
+    if (!existing || !stale) return { conflict: "A etiqueta não está mais com a compra interrompida" }
+    // Keeps ids/paid/price so the resume below never pays twice.
+    existing = { ...existing, status: "failed", pendingSince: null, error: "Compra interrompida; retomada pelo painel" }
+    await orderService.updateOrders(orderId, { metadata: { ...metadata, shipping_label: { ...existing, meOrderIds: [...(existing.meOrderIds ?? [])] } } })
+  }
+
   if (existing && (existing.status === "pending" || existing.status === "generated")) return existing
 
   const save = async (state: ShippingLabelState) => {

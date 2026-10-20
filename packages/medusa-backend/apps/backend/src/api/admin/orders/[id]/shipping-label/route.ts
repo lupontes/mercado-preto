@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { SELLER_MODULE } from "../../../../../modules/seller"
-import { purchaseShippingLabel, type ShippingLabelState } from "../../../../../utils/shipping-label"
+import { purchaseShippingLabel, resumeStalePurchase, type ShippingLabelState } from "../../../../../utils/shipping-label"
 import { getLabelClient } from "../../../../../utils/melhor-envio-labels"
 import { getShippingCalculator } from "../../../../../utils/melhor-envio"
 import { notifySellerLabelReady } from "../../../../../utils/shipping-label-notify"
@@ -39,25 +39,16 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const calculator = getShippingCalculator()
   if (!labels || !calculator) return res.status(503).json({ error: "Melhor Envio não configurado" })
 
-  if (stale) {
-    // Medusa replaces metadata wholesale, so the full object goes back. Keeping
-    // ids/paid/price lets the purchase resume without paying twice.
-    await orderService.updateOrders(req.params.id, {
-      metadata: {
-        ...metadata,
-        shipping_label: {
-          ...state,
-          status: "failed",
-          pendingSince: null,
-          error: "Compra interrompida; retomada pelo painel",
-        },
-      },
-    })
-  }
-
   const sellerService: any = req.scope.resolve(SELLER_MODULE)
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-  const result = await purchaseShippingLabel({ orderService, sellerService, labels, calculator, query }, req.params.id)
+  const deps = { orderService, sellerService, labels, calculator, query }
+  // A stale pending is reset and resumed under the purchase lock, so two
+  // concurrent requests can never both buy.
+  const outcome = stale
+    ? await resumeStalePurchase(deps, req.params.id, STALE_PENDING_MS)
+    : await purchaseShippingLabel(deps, req.params.id)
+  if ("conflict" in outcome) return res.status(409).json({ error: outcome.conflict })
+  const result = outcome
 
   if (result.status === "generated") {
     try {

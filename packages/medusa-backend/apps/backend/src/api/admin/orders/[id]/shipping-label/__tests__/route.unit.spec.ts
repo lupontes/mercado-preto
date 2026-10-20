@@ -1,9 +1,10 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 const purchase = jest.fn()
+const resume = jest.fn()
 const notify = jest.fn()
 const cancel = jest.fn()
-jest.mock("../../../../../../utils/shipping-label", () => ({ purchaseShippingLabel: (...a: any[]) => purchase(...a) }))
+jest.mock("../../../../../../utils/shipping-label", () => ({ purchaseShippingLabel: (...a: any[]) => purchase(...a), resumeStalePurchase: (...a: any[]) => resume(...a) }))
 jest.mock("../../../../../../utils/shipping-label-notify", () => ({ notifySellerLabelReady: (...a: any[]) => notify(...a) }))
 jest.mock("../../../../../../utils/melhor-envio-labels", () => ({ getLabelClient: () => ({ cancel }) }))
 jest.mock("../../../../../../utils/melhor-envio", () => ({ getShippingCalculator: () => ({}) }))
@@ -64,17 +65,25 @@ describe("POST /admin/orders/:id/shipping-label", () => {
     expect(res._status).toBe(409)
   })
 
-  it("resets a stale pending to failed with full metadata before buying", async () => {
+  it("delegates a stale pending to resumeStalePurchase under the purchase lock", async () => {
     const stale = new Date(Date.now() - 20 * 60_000).toISOString()
-    const { req, res, updateOrders } = setup({ seller_id: "s1", other: 1, shipping_label: label({ status: "pending", pendingSince: stale, error: null }) })
-    purchase.mockResolvedValue(label({ status: "generated" }))
+    const { req, res, updateOrders } = setup({ seller_id: "s1", shipping_label: label({ status: "pending", pendingSince: stale, error: null }) })
+    resume.mockResolvedValue(label({ status: "generated" }))
     await POST(req, res)
-    const saved = updateOrders.mock.calls[0][1].metadata
-    expect(saved.other).toBe(1)
-    expect(saved.shipping_label).toEqual(expect.objectContaining({
-      status: "failed", meOrderIds: ["me1", "me2"], paid: true, price: 1500, error: "Compra interrompida; retomada pelo painel",
-    }))
-    expect(purchase).toHaveBeenCalled()
+    expect(resume).toHaveBeenCalledWith(expect.anything(), "order_1", 15 * 60 * 1000)
+    expect(purchase).not.toHaveBeenCalled()
+    expect(updateOrders).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalled()
+  })
+
+  it("maps a resume conflict to 409", async () => {
+    const stale = new Date(Date.now() - 20 * 60_000).toISOString()
+    const { req, res } = setup({ shipping_label: label({ status: "pending", pendingSince: stale }) })
+    resume.mockResolvedValue({ conflict: "em andamento" })
+    await POST(req, res)
+    expect(res._status).toBe(409)
+    expect(res._body.error).toBe("em andamento")
+    expect(notify).not.toHaveBeenCalled()
   })
 
   it("answers 409 when there is no label state", async () => {

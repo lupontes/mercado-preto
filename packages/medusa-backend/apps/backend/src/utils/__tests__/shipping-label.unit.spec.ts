@@ -1,4 +1,4 @@
-import { addBusinessDays, labelsEnabled, purchaseShippingLabel, ShippingLabelState } from "../shipping-label"
+import { addBusinessDays, labelsEnabled, purchaseShippingLabel, resumeStalePurchase, ShippingLabelState } from "../shipping-label"
 import { MelhorEnvioError } from "../melhor-envio-labels"
 import { PACKAGE_SIZES } from "../package-size"
 
@@ -253,5 +253,56 @@ describe("purchaseShippingLabel", () => {
     expect(t.labels.checkout).toHaveBeenCalledWith(["me_1"])
     expect(t.labels.generate).not.toHaveBeenCalledWith(["x"])
     expect(state).toMatchObject({ status: "generated", meOrderIds: ["me_1"], price: 1500 })
+  })
+})
+
+describe("resumeStalePurchase", () => {
+  const stalePending = (over: Partial<ShippingLabelState> = {}): Partial<ShippingLabelState> => ({
+    status: "pending", pendingSince: new Date(NOW.getTime() - 20 * 60_000).toISOString(),
+    meOrderIds: ["me_old"], paid: true, price: 1500, ...over,
+  })
+
+  it("concurrent resumes of the same stale pending buy at most once and end generated", async () => {
+    const t = setup({ order: makeOrder(stalePending({ paid: false, meOrderIds: [] })) })
+    const [a, b] = await Promise.all([resumeStalePurchase(t.deps, "order_1"), resumeStalePurchase(t.deps, "order_1")])
+    const results = [a, b]
+    expect(results.filter((r) => "conflict" in r)).toHaveLength(1)
+    expect(t.calls.filter((c) => c === "addToCart")).toHaveLength(1)
+    expect(t.calls.filter((c) => c === "checkout")).toHaveLength(1)
+    expect(t.order.metadata.shipping_label.status).toBe("generated")
+  })
+
+  it("writes failed with ids/paid/price kept, then resumes without paying twice", async () => {
+    const t = setup({ order: makeOrder(stalePending()) })
+    const state = await resumeStalePurchase(t.deps, "order_1")
+    expect(t.updates[0].metadata.shipping_label).toMatchObject({
+      status: "failed", meOrderIds: ["me_old"], paid: true, price: 1500, error: "Compra interrompida; retomada pelo painel",
+    })
+    expect(t.updates[0].metadata.other).toBe("keep")
+    expect(t.calls).not.toContain("checkout")
+    expect(state).toMatchObject({ status: "generated" })
+  })
+
+  it("returns a conflict without writing while a purchase is in flight", async () => {
+    const t = setup({ order: makeOrder() })
+    const running = purchaseShippingLabel(t.deps, "order_1")
+    const result = await resumeStalePurchase(t.deps, "order_1")
+    expect(result).toHaveProperty("conflict")
+    await running
+    expect(t.updates.map((u) => u.metadata.shipping_label.status)).not.toContain("failed")
+  })
+
+  it("re-reads inside the lock: a label that became generated is neither reset nor bought again", async () => {
+    const t = setup({ order: makeOrder({ status: "generated", meOrderIds: ["me_1"], paid: true } as any) })
+    const result = await resumeStalePurchase(t.deps, "order_1")
+    expect(result).toHaveProperty("conflict")
+    expect(t.updates).toHaveLength(0)
+    expect(t.calls).toEqual([])
+  })
+
+  it("conflicts when the pending is recent", async () => {
+    const t = setup({ order: makeOrder(stalePending({ pendingSince: NOW.toISOString() })) })
+    expect(await resumeStalePurchase(t.deps, "order_1")).toHaveProperty("conflict")
+    expect(t.updates).toHaveLength(0)
   })
 })
