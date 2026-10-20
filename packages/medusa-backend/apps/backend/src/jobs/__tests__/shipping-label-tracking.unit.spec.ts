@@ -139,6 +139,19 @@ describe("shippingLabelTracking", () => {
     expect(notifySellerPostingReminder).not.toHaveBeenCalled()
   })
 
+  it("does not remind at 01:00 BRT on the deadline day (too early for the seller)", async () => {
+    const { container, orderService } = setup([order("o1")])
+    await shippingLabelTracking(container, () => Date.parse("2026-10-23T04:00:00Z"))
+    expect(notifySellerPostingReminder).not.toHaveBeenCalled()
+    expect(orderService.updateOrders).not.toHaveBeenCalled()
+  })
+
+  it("reminds at 10:00 BRT on the deadline day", async () => {
+    const { container } = setup([order("o1")])
+    await shippingLabelTracking(container, () => Date.parse("2026-10-23T13:00:00Z"))
+    expect(notifySellerPostingReminder).toHaveBeenCalledTimes(1)
+  })
+
   it("does not resend when reminderSentAt is already set", async () => {
     const { container, orderService } = setup([order("o1", { shipping_label: label({ reminderSentAt: "2026-10-23T10:00:00.000Z" }) })])
     await shippingLabelTracking(container, DEADLINE_DAY)

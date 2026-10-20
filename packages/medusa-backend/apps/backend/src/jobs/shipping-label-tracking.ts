@@ -14,6 +14,10 @@ type Logger = { info: (msg: string) => void; error: (msg: string) => void }
 // en-CA formats as YYYY-MM-DD, which compares as a plain string.
 const saoPauloDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" })
 
+const saoPauloHour = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Sao_Paulo", hour: "numeric", hourCycle: "h23" })
+// The job runs on UTC cron ticks, so without this the first tick of the day (01:00 BRT) would wake the seller.
+const REMINDER_FROM_HOUR = 8
+
 /**
  * Polls Melhor Envio tracking for generated labels and moves the order's shipping status.
  * Needed because a personal Melhor Envio token receives no webhooks.
@@ -46,10 +50,11 @@ export default async function shippingLabelTracking(container: MedusaContainer, 
   }
 
   const today = saoPauloDay.format(new Date(now()))
+  const reminderAllowed = Number(saoPauloHour.format(new Date(now()))) >= REMINDER_FROM_HOUR
 
   for (const order of orders) {
     try {
-      await processOrder({ order, info: trackingById[String(order.metadata.shipping_label.meOrderIds?.[0])], today, now, orderService, sellerService, eventBus })
+      await processOrder({ order, info: trackingById[String(order.metadata.shipping_label.meOrderIds?.[0])], today, reminderAllowed, now, orderService, sellerService, eventBus })
     } catch (err) {
       logger.error(`[shipping-label-tracking] falha no pedido ${order.id}: ${err}`)
     }
@@ -75,10 +80,10 @@ async function listTrackableOrders(orderService: any): Promise<any[]> {
 }
 
 async function processOrder(args: {
-  order: any; info: TrackingInfo | undefined; today: string; now: () => number
+  order: any; info: TrackingInfo | undefined; today: string; reminderAllowed: boolean; now: () => number
   orderService: any; sellerService: any; eventBus: any
 }) {
-  const { order, info, today, now, orderService, sellerService, eventBus } = args
+  const { order, info, today, reminderAllowed, now, orderService, sellerService, eventBus } = args
   let shippingStatus: ShippingStatus = order.metadata.shipping_status ?? "awaiting_shipment"
   let label: ShippingLabelState = order.metadata.shipping_label
   let shipmentCreated = false
@@ -92,7 +97,7 @@ async function processOrder(args: {
     shipmentCreated = result.shipmentCreated
   }
 
-  if (shippingStatus === "awaiting_shipment" && label.status === "generated" && !label.reminderSentAt && label.postBy
+  if (shippingStatus === "awaiting_shipment" && label.status === "generated" && !label.reminderSentAt && label.postBy && reminderAllowed
     && saoPauloDay.format(new Date(label.postBy)) === today) {
     const seller = await sellerService.retrieveSeller(String(order.metadata.seller_id))
     await notifySellerPostingReminder(seller, { id: order.id, displayId: order.display_id }, label)
