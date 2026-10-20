@@ -51,6 +51,20 @@ describe('PedidosPage', () => {
     expect(screen.queryByRole('link', { name: 'Imprimir etiqueta' })).not.toBeInTheDocument()
   })
 
+  it('shows the Sao Paulo day for the posting deadline, not the UTC one', async () => {
+    // 02:00Z is still the previous evening in Sao Paulo.
+    withLabel({ status: 'generated', tracking_code: null, post_by: '2026-10-25T02:00:00Z' })
+    render(<PedidosPage />)
+    expect(await screen.findByText('Postar até 24/10')).toBeInTheDocument()
+  })
+
+  it('hides internal failures from the seller behind the preparing message', async () => {
+    withLabel({ status: 'failed', tracking_code: null, post_by: null, error: 'Saldo insuficiente' })
+    render(<PedidosPage />)
+    expect(await screen.findByText('Etiqueta em preparação')).toBeInTheDocument()
+    expect(screen.queryByText(/Saldo/)).not.toBeInTheDocument()
+  })
+
   it('shows nothing label-related for orders without a label', async () => {
     withLabel(null)
     render(<PedidosPage />)

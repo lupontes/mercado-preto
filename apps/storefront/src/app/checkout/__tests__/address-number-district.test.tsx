@@ -12,11 +12,11 @@ import { buildCheckoutRequestBody } from '../create-preference'
 
 const viaCep = { logradouro: 'Avenida Paulista', bairro: 'Bela Vista', localidade: 'São Paulo', uf: 'SP' }
 
-function stubFetch() {
+function stubFetch(cep: Record<string, string> = viaCep) {
   const quoteCalls = vi.fn()
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const u = String(url)
-    if (u.includes('viacep')) return { ok: true, json: async () => viaCep }
+    if (u.includes('viacep')) return { ok: true, json: async () => cep }
     if (u.includes('/store/shipping/quote')) {
       quoteCalls()
       return { ok: true, status: 200, json: async () => ({ options: [], unavailableSellers: [] }) }
@@ -54,6 +54,19 @@ describe('CheckoutPage number and district fields', () => {
     await user.tab()
     expect(await screen.findByDisplayValue('Bela Vista')).toBe(screen.getByLabelText(/Bairro/))
     expect(screen.getByLabelText(/Número/)).toHaveValue('')
+  })
+
+  it('keeps a typed Bairro and Endereço when ViaCEP answers them empty', async () => {
+    stubFetch({ logradouro: '', bairro: '', localidade: 'São Paulo', uf: 'SP' })
+    const user = userEvent.setup()
+    render(<CheckoutPage />)
+    await user.type(screen.getByLabelText(/Bairro/), 'Jardins')
+    await user.type(screen.getByLabelText(/Endereço/), 'Rua Augusta')
+    await user.type(screen.getByLabelText(/CEP/), '01310100')
+    await user.tab()
+    await screen.findByDisplayValue('São Paulo')
+    expect(screen.getByLabelText(/Bairro/)).toHaveValue('Jardins')
+    expect(screen.getByLabelText(/Endereço/)).toHaveValue('Rua Augusta')
   })
 
   it.each([

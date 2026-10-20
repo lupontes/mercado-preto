@@ -81,8 +81,8 @@ export default function CheckoutPage() {
     if (data) {
       setAddress((a) => ({
         ...a,
-        address1: data.logradouro ?? a.address1,
-        district: data.bairro ?? a.district,
+        address1: data.logradouro || a.address1,
+        district: data.bairro || a.district,
         city: data.localidade ?? a.city,
         state: data.uf ?? a.state,
       }))

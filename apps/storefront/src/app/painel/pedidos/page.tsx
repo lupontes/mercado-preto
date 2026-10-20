@@ -115,13 +115,14 @@ function OrderStatusBadge({ status, shippingStatus }: { status: string; shipping
 }
 
 function formatDayMonth(iso: string): string {
-  // UTC to match how the backend computes the deadline day.
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })
+  // Sao Paulo, where sellers and buyers read the deadline day.
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
 }
 
 function LabelInfo({ orderId, label }: { orderId: string; label?: Order['shipping_label'] }) {
   if (!label) return null
-  if (label.status === 'pending') {
+  // A failed purchase is an internal matter the team recovers, so the seller just sees it as in progress.
+  if (label.status === 'pending' || label.status === 'failed') {
     return <p className="mt-1 text-xs text-onyx/50">Etiqueta em preparação</p>
   }
   if (label.status !== 'generated') return null
