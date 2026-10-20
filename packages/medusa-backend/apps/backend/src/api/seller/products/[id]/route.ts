@@ -114,8 +114,10 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     await productService.updateProductVariants({ product_id: id }, pkg.dims)
   }
 
+  // Not the selector form: there Medusa's update step selects the previous state using
+  // the update's keys, and "category_ids" is not a Product column, so every edit failed.
   const { result: [product] } = await updateProductsWorkflow(req.scope).run({
-    input: { selector: { id }, update: updateData as any },
+    input: { products: [{ id, ...updateData } as any] },
   })
   res.json({ product })
 }
