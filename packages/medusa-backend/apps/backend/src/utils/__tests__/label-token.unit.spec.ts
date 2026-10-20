@@ -14,6 +14,14 @@ describe("label-token", () => {
     expect(verifyLabelToken(signLabelToken("order_1"))).toEqual({ orderId: "order_1" })
   })
 
+  it("expires exactly 20 days after signing", () => {
+    expect(LABEL_LINK_TTL_SECONDS).toBe(1728000)
+    const now = new Date("2026-10-20T12:00:00Z")
+    const body = signLabelToken("order_1", now).split(".")[1]
+    const { exp } = JSON.parse(Buffer.from(body, "base64url").toString("utf8"))
+    expect(exp).toBe(Math.floor(now.getTime() / 1000) + 1728000)
+  })
+
   it("rejects a loyalty token (scope mismatch)", () => {
     expect(verifyLabelToken(signLoyaltyToken("12345678900"))).toBeNull()
   })

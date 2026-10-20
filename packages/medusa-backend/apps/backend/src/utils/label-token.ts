@@ -1,8 +1,8 @@
 import crypto from "crypto"
 
-// The seller prints the label days after the sale, so the link outlives the
-// short-lived loyalty token; the print URL itself is always fetched fresh.
-export const LABEL_LINK_TTL_SECONDS = 30 * 24 * 60 * 60
+// Matches the 20 days a Melhor Envio label stays valid after generation; the
+// link outlives the short-lived loyalty token, and the print URL is fetched fresh.
+export const LABEL_LINK_TTL_SECONDS = 20 * 24 * 60 * 60
 
 // Scoped so no other signed token (loyalty, seller session) opens a label.
 type LabelTokenPayload = { scope: "label"; orderId: string; exp: number }
