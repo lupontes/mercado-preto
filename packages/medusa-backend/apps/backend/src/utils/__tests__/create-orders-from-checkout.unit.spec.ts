@@ -24,6 +24,8 @@ const address = {
   phone: "71999990000",
   address_1: "Rua das Flores",
   address_2: "100",
+  number: "1000",
+  district: "Bela Vista",
   city: "Cachoeira",
   state: "BA",
   postal_code: "44300000",
@@ -97,9 +99,22 @@ describe("createOrdersFromCheckout", () => {
       loyalty_discount: 0,
       seller_id: "seller-a",
       buyer_document: "11144477735",
+      address_number: "1000",
+      address_district: "Bela Vista",
       shipping_status: "awaiting_shipment",
       payment_method: "test_cash",
     })
+  })
+
+  it("omits address_number and address_district for snapshots created before they existed", async () => {
+    const container = makeContainer()
+    const { number, district, ...legacyAddress } = address
+
+    await createOrdersFromCheckout({ container, externalReference: "ref-1", meta: { ...twoSellerMeta, address: legacyAddress } })
+
+    const metadata = container._orderService.createOrders.mock.calls[0][0][0].metadata
+    expect(metadata).not.toHaveProperty("address_number")
+    expect(metadata).not.toHaveProperty("address_district")
   })
 
   it("creates every order as awaiting shipment, since orders only exist after payment approval", async () => {

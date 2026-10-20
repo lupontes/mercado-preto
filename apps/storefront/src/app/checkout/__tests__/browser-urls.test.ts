@@ -12,7 +12,7 @@ const INSECURE_BACKEND = 'http://168.138.148.67:9000'
 const OPTION = { tier: 'economico' as const, label: 'Econômico', total: 2500, deliveryDays: 11, sellers: [] }
 const ADDRESS = {
   firstName: 'João', lastName: 'Silva', email: 'joao@email.com', phone: '',
-  document: '111.444.777-35', cep: '44300-000', address1: 'Rua X', address2: '',
+  document: '111.444.777-35', cep: '44300-000', address1: 'Rua X', number: '10', district: 'Centro', address2: '',
   city: 'Cachoeira', state: 'BA',
 }
 

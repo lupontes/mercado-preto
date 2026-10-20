@@ -26,4 +26,49 @@ describe('PedidosPage', () => {
     expect(await screen.findByText('Não foi possível carregar os pedidos. Tente novamente.')).toBeInTheDocument()
     expect(screen.queryByText(/Nenhum pedido/)).not.toBeInTheDocument()
   })
+
+  const withLabel = (shipping_label: unknown) => {
+    api.impl = async () => ({
+      orders: [{ id: 'order_01ABC', display_id: 41, status: 'pending', shipping_status: 'awaiting_shipment', total: 24116, created_at: '2026-10-17T10:00:00Z', shipping_label }],
+    })
+  }
+
+  it('offers a print link opening in a new tab when the label is generated', async () => {
+    withLabel({ status: 'generated', tracking_code: 'BR123', post_by: '2026-10-25T12:00:00Z' })
+    render(<PedidosPage />)
+    const link = await screen.findByRole('link', { name: 'Imprimir etiqueta' })
+    expect(link).toHaveAttribute('href', '/seller/orders/order_01ABC/label')
+    // Same-origin in the browser (proxied), so the seller's session cookie is sent.
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.getByText('BR123')).toBeInTheDocument()
+    expect(screen.getByText('Postar até 25/10')).toBeInTheDocument()
+  })
+
+  it('says the label is being prepared while pending', async () => {
+    withLabel({ status: 'pending', tracking_code: null, post_by: null })
+    render(<PedidosPage />)
+    expect(await screen.findByText('Etiqueta em preparação')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Imprimir etiqueta' })).not.toBeInTheDocument()
+  })
+
+  it('shows the Sao Paulo day for the posting deadline, not the UTC one', async () => {
+    // 02:00Z is still the previous evening in Sao Paulo.
+    withLabel({ status: 'generated', tracking_code: null, post_by: '2026-10-25T02:00:00Z' })
+    render(<PedidosPage />)
+    expect(await screen.findByText('Postar até 24/10')).toBeInTheDocument()
+  })
+
+  it('hides internal failures from the seller behind the preparing message', async () => {
+    withLabel({ status: 'failed', tracking_code: null, post_by: null, error: 'Saldo insuficiente' })
+    render(<PedidosPage />)
+    expect(await screen.findByText('Etiqueta em preparação')).toBeInTheDocument()
+    expect(screen.queryByText(/Saldo/)).not.toBeInTheDocument()
+  })
+
+  it('shows nothing label-related for orders without a label', async () => {
+    withLabel(null)
+    render(<PedidosPage />)
+    await screen.findByText('#41')
+    expect(screen.queryByText(/etiqueta/i)).not.toBeInTheDocument()
+  })
 })

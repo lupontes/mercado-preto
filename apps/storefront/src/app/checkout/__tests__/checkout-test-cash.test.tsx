@@ -70,19 +70,17 @@ function seedCart() {
   )
 }
 
-// Address inputs have visual labels without htmlFor, so they are reached by
-// position in the form (Nome, Sobrenome, E-mail, CPF/CNPJ, Telefone, CEP,
-// Estado, Cidade, Endereço, Complemento).
 async function fillAddressAndContinue(user: ReturnType<typeof userEvent.setup>, container: HTMLElement) {
-  const inputs = container.querySelectorAll<HTMLInputElement>('form input')
-  await user.type(inputs[0], 'João')
-  await user.type(inputs[1], 'Silva')
-  await user.type(inputs[2], 'joao@email.com')
-  await user.type(inputs[3], '11144477735')
-  await user.type(inputs[5], '44300000')
-  await user.type(inputs[6], 'BA')
-  await user.type(inputs[7], 'Cachoeira')
-  await user.type(inputs[8], 'Rua das Flores')
+  await user.type(screen.getByLabelText(/Nome \*/), 'João')
+  await user.type(screen.getByLabelText(/Sobrenome/), 'Silva')
+  await user.type(screen.getByLabelText(/E-mail/), 'joao@email.com')
+  await user.type(screen.getByLabelText(/CPF/), '11144477735')
+  await user.type(screen.getByLabelText(/CEP/), '44300000')
+  await user.type(screen.getByLabelText(/Estado/), 'BA')
+  await user.type(screen.getByLabelText(/Cidade/), 'Cachoeira')
+  await user.type(screen.getByLabelText(/Endereço/), 'Rua das Flores')
+  await user.type(screen.getByLabelText(/Número/), '10')
+  await user.type(screen.getByLabelText(/Bairro/), 'Centro')
   await user.click(screen.getByRole('button', { name: /calcular frete/i }))
   await user.click(await screen.findByRole('radio', { name: /Econômico/ }))
 }

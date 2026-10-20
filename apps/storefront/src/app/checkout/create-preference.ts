@@ -11,6 +11,8 @@ export type Address = {
   document: string
   cep: string
   address1: string
+  number: string
+  district: string
   address2: string
   city: string
   state: string

@@ -26,7 +26,7 @@ type Step = 'address' | 'shipping' | 'payment'
 
 const EMPTY_ADDRESS: Address = {
   firstName: '', lastName: '', email: '', phone: '', document: '',
-  cep: '', address1: '', address2: '', city: '', state: '',
+  cep: '', address1: '', number: '', district: '', address2: '', city: '', state: '',
 }
 
 async function fetchCep(cep: string) {
@@ -81,7 +81,8 @@ export default function CheckoutPage() {
     if (data) {
       setAddress((a) => ({
         ...a,
-        address1: data.logradouro ?? a.address1,
+        address1: data.logradouro || a.address1,
+        district: data.bairro || a.district,
         city: data.localidade ?? a.city,
         state: data.uf ?? a.state,
       }))
@@ -121,6 +122,16 @@ export default function CheckoutPage() {
 
     if (!validateDocument(address.document).valid) {
       setError('CPF ou CNPJ inválido. Confira os números digitados.')
+      return
+    }
+
+    // Not native `required`: the browser would block the submit before this message shows.
+    if (!address.number.trim()) {
+      setError('Informe o número.')
+      return
+    }
+    if (!address.district.trim()) {
+      setError('Informe o bairro.')
       return
     }
 
@@ -345,6 +356,19 @@ export default function CheckoutPage() {
                     className="input" required />
                 </Field>
 
+                <div className="grid grid-cols-3 gap-4">
+                  <Field label="Número" required>
+                    <input value={address.number} onChange={(e) => setAddress((a) => ({ ...a, number: e.target.value }))}
+                      className="input" />
+                  </Field>
+                  <div className="col-span-2">
+                    <Field label="Bairro" required>
+                      <input value={address.district} onChange={(e) => setAddress((a) => ({ ...a, district: e.target.value }))}
+                        className="input" />
+                    </Field>
+                  </div>
+                </div>
+
                 <Field label="Complemento">
                   <input value={address.address2} onChange={(e) => setAddress((a) => ({ ...a, address2: e.target.value }))}
                     className="input" placeholder="Apto, bloco, referência..." />
@@ -464,10 +488,13 @@ export default function CheckoutPage() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-onyx/60 mb-1">
-        {label} {required && <span className="text-terracotta">*</span>}
+      {/* Wrapping makes the label name its input, so tests and screen readers can find it. */}
+      <label className="block">
+        <span className="block text-xs font-semibold text-onyx/60 mb-1">
+          {label} {required && <span className="text-terracotta">*</span>}
+        </span>
+        {children}
       </label>
-      {children}
     </div>
   )
 }

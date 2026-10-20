@@ -103,6 +103,12 @@ services:
       # --- Melhor Envio (frete) ---
       MELHOR_ENVIO_TOKEN: ${MELHOR_ENVIO_TOKEN}
       SHIPPING_HANDLING_DAYS: ${SHIPPING_HANDLING_DAYS:-2}
+      # Etiquetas: comprada após o pagamento aprovado (usa o saldo da carteira
+      # do Melhor Envio); e-mail de alerta quando uma compra falha; o segredo do
+      # webhook só existe depois de criar o aplicativo OAuth do Melhor Envio.
+      MELHOR_ENVIO_LABELS_ENABLED: ${MELHOR_ENVIO_LABELS_ENABLED:-false}
+      ADMIN_ALERT_EMAIL: ${ADMIN_ALERT_EMAIL:-}
+      MELHOR_ENVIO_WEBHOOK_SECRET: ${MELHOR_ENVIO_WEBHOOK_SECRET:-}
 
       # --- Brevo (e-mail) ---
       BREVO_API_KEY: ${BREVO_API_KEY}

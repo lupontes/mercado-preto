@@ -87,6 +87,8 @@ const validBody = {
     cep: "44300-000",
     address1: "Rua das Flores",
     address2: "100",
+    number: "1000",
+    district: "Bela Vista",
     city: "Cachoeira",
     state: "BA",
   },
