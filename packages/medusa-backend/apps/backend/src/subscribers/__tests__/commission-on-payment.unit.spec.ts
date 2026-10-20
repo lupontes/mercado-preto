@@ -112,6 +112,26 @@ describe("commissionOnPayment", () => {
     )
   })
 
+  it("drops shipping from the payout when the platform bought the label", async () => {
+    const orderService = makeOrderService({
+      retrieveOrder: jest.fn().mockResolvedValue({
+        ...baseOrder,
+        metadata: { ...baseOrder.metadata, platform_label: true },
+        shipping_methods: [{ amount: 6981 }],
+      }),
+    })
+    const recordAndCreate = jest.fn().mockResolvedValue({ id: "comm_new", sellerPayout: 0 })
+    const container = makeContainer({
+      [Modules.ORDER]: orderService,
+      commission: { listCommissions: jest.fn().mockResolvedValue([]), recordAndCreate },
+      payout: { listPayouts: jest.fn().mockResolvedValue([]) },
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(recordAndCreate).toHaveBeenCalledWith(expect.objectContaining({ shippingAmount: 0 }))
+  })
+
   it("charges the full R$0,39 fixed banking fee when this is the only order for the payment (no split)", async () => {
     const orderService = makeOrderService({
       listOrders: jest.fn().mockResolvedValue([baseOrder]), // só este pedido pra essa external_reference

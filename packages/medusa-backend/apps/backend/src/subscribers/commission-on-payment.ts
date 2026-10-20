@@ -82,7 +82,11 @@ export default async function commissionOnPayment({
   // sellerId vem do metadata do pedido (preenchido no checkout pelo storefront)
   const sellerId = (order.metadata?.seller_id as string) ?? "unknown"
   const productsGross = sumProductsGross((order as any).items)
-  const shippingAmount = sumShipping((order as any).shipping_methods)
+  // When the platform buys the label, the buyer's freight pays for it, so it
+  // must not flow into the seller's payout.
+  const shippingAmount = order.metadata?.platform_label === true
+    ? 0
+    : sumShipping((order as any).shipping_methods)
 
   const channel = (order.metadata?.channel as string) ?? "mercadopago"
 
