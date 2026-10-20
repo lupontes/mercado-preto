@@ -42,7 +42,7 @@ export function createLabelClient(opts: {
   const baseUrl = opts.sandbox ? "https://sandbox.melhorenvio.com.br" : "https://melhorenvio.com.br"
   const doFetch = opts.fetchImpl ?? fetch
 
-  async function post(path: string, payload: unknown): Promise<any> {
+  async function post(path: string, payload: unknown): Promise<{ data: any; raw: string }> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 15000)
     try {
@@ -58,7 +58,14 @@ export function createLabelClient(opts: {
         body: JSON.stringify(payload),
       })
       if (!res.ok) throw new MelhorEnvioError(res.status, await res.text().catch(() => ""))
-      return await res.json().catch(() => ({}))
+      const raw = await res.text().catch(() => "")
+      let data: any = {}
+      try {
+        data = raw ? JSON.parse(raw) : {}
+      } catch {
+        // A non-JSON success body is handled by the callers' required-field checks.
+      }
+      return { data, raw }
     } finally {
       clearTimeout(timer)
     }
@@ -66,7 +73,9 @@ export function createLabelClient(opts: {
 
   return {
     async addToCart(body) {
-      const data = await post("/me/cart", body)
+      const { data, raw } = await post("/me/cart", body)
+      // "undefined" must never become a label id that is later paid for.
+      if (data?.id == null || data.id === "") throw new MelhorEnvioError(200, raw)
       return { id: String(data.id), price: Math.round(Number(data.price) * 100) }
     },
     async checkout(ids) {
@@ -76,11 +85,13 @@ export function createLabelClient(opts: {
       await post("/me/shipment/generate", { orders: ids })
     },
     async printUrl(ids) {
-      const data = await post("/me/shipment/print", { mode: "private", orders: ids })
-      return String(data.url)
+      // Public mode: a private link only opens for someone logged into the platform's Melhor Envio account.
+      const { data, raw } = await post("/me/shipment/print", { mode: "public", orders: ids })
+      if (typeof data?.url !== "string" || data.url === "") throw new MelhorEnvioError(200, raw)
+      return data.url
     },
     async tracking(ids) {
-      const data = await post("/me/shipment/tracking", { orders: ids })
+      const { data } = await post("/me/shipment/tracking", { orders: ids })
       const result: Record<string, TrackingInfo> = {}
       for (const [id, t] of Object.entries<any>(data ?? {})) {
         result[id] = {

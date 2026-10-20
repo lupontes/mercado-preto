@@ -8,6 +8,7 @@ export const LABEL_NOT_FOUND = "Etiqueta não encontrada ou expirada."
 export const LABEL_ORDER_SELECT = ["id", "metadata"]
 
 export function notFound(res: MedusaResponse) {
+  res.setHeader("Cache-Control", "no-store")
   return res.status(404).send(LABEL_NOT_FOUND)
 }
 
@@ -22,6 +23,8 @@ export async function redirectToPrint(req: MedusaRequest, res: MedusaResponse, o
 
   try {
     const url = await client.printUrl(label.meOrderIds)
+    // The target is a short-lived public URL, so neither the redirect nor the 404 may be cached.
+    res.setHeader("Cache-Control", "no-store")
     return res.redirect(302, url)
   } catch (error) {
     req.scope.resolve("logger").error(`Falha ao gerar a URL de impressão da etiqueta: ${(error as Error).message}`)

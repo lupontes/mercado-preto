@@ -58,6 +58,20 @@ describe("createMelhorEnvioCalculator", () => {
     expect(quotes[0].packages).toEqual([{ weight: 0.5, length: 20, width: 15, height: 10 }])
   })
 
+  it.each([
+    ["weight", { weight: "abc", dimensions: { height: 10, width: 15, length: 20 } }],
+    ["zero weight", { weight: 0, dimensions: { height: 10, width: 15, length: 20 } }],
+    ["a missing dimension", { weight: 1, dimensions: { height: 10, width: 15 } }],
+    ["a negative dimension", { weight: 1, dimensions: { height: -1, width: 15, length: 20 } }],
+  ])("omits packages for the quote when %s is invalid", async (_n, pkg) => {
+    const fetchImpl = okFetch([
+      { id: 1, name: "PAC", price: "36.79", delivery_time: 9, company: { name: "Correios" }, packages: [pkg] },
+    ])
+    const quotes = await createMelhorEnvioCalculator({ token: "tok", sandbox: true, fetchImpl })(input)
+    expect(quotes).toHaveLength(1)
+    expect(quotes[0]).not.toHaveProperty("packages")
+  })
+
   it("drops services whose delivery time is missing or not a number", async () => {
     const fetchImpl = okFetch([
       { id: 1, name: "PAC", price: "36.79", delivery_time: null, company: { name: "Correios" } },

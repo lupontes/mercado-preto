@@ -10,6 +10,7 @@ function makeRes() {
   const res = { _status: 200, _body: undefined as unknown, _headers: {} as Record<string, string> } as any
   res.status = (c: number) => { res._status = c; return res }
   res.send = (b: unknown) => { res._body = b; return res }
+  res.setHeader = (k: string, v: string) => { res._headers[k] = v; return res }
   res.redirect = (c: number, url: string) => { res._status = c; res._headers.Location = url; return res }
   return res
 }

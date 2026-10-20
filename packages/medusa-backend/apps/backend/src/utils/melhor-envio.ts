@@ -37,6 +37,10 @@ function toNumberOrNaN(value: unknown): number {
   return Number(value)
 }
 
+function isPositive(n: number): boolean {
+  return Number.isFinite(n) && n > 0
+}
+
 function toVolume(p: any): LabelVolume {
   return {
     weight: Number(p.weight),
@@ -44,6 +48,10 @@ function toVolume(p: any): LabelVolume {
     width: Number(p.dimensions?.width),
     height: Number(p.dimensions?.height),
   }
+}
+
+function isValidVolume(v: LabelVolume): boolean {
+  return [v.weight, v.length, v.width, v.height].every(isPositive)
 }
 
 export function createMelhorEnvioCalculator(opts: {
@@ -92,7 +100,11 @@ export function createMelhorEnvioCalculator(opts: {
           serviceId: Number(s.id),
           price: Math.round(Number(s.custom_price ?? s.price) * 100),
           deliveryDays: toNumberOrNaN(s.custom_delivery_time ?? s.delivery_time),
-          ...(Array.isArray(s.packages) && s.packages.length > 0 ? { packages: s.packages.map(toVolume) } : {}),
+          // Invalid measures would make the label purchase fail, so the quote carries no packages
+          // and the purchase falls back to the medium size.
+          ...(Array.isArray(s.packages) && s.packages.length > 0 && s.packages.map(toVolume).every(isValidVolume)
+            ? { packages: s.packages.map(toVolume) }
+            : {}),
         }))
         // A service without a usable price or deadline would surface as
         // "R$ NaN" / "null dias" in the checkout, so it is treated as unavailable.

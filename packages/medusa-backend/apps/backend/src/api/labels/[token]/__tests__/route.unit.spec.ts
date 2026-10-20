@@ -46,6 +46,7 @@ describe("GET /labels/:token", () => {
     expect(printUrl).toHaveBeenCalledWith(["me_1", "me_2"])
     expect(res._status).toBe(302)
     expect(res._headers.Location).toBe("https://me.example/print/abc")
+    expect(res._headers["Cache-Control"]).toBe("no-store")
   })
 
   it.each([
@@ -62,6 +63,7 @@ describe("GET /labels/:token", () => {
     expect(res._status).toBe(404)
     expect(res._body).toBe(NOT_FOUND)
     expect(res._headers.Location).toBeUndefined()
+    expect(res._headers["Cache-Control"]).toBe("no-store")
     expect(printUrl).not.toHaveBeenCalled()
   })
 

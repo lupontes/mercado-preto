@@ -38,13 +38,28 @@ describe("createLabelClient", () => {
     expect(JSON.parse(init.body)).toEqual({ orders: ["a", "b"] })
   })
 
-  it("printUrl posts the order ids in private mode and returns the url", async () => {
+  it("printUrl posts the order ids in public mode (sellers never log into Melhor Envio) and returns the url", async () => {
     const fetchImpl = okFetch({ url: "https://me.example/print/1" })
     const url = await client(fetchImpl).printUrl(["a"])
     const [reqUrl, init] = fetchImpl.mock.calls[0]
     expect(reqUrl).toBe("https://sandbox.melhorenvio.com.br/api/v2/me/shipment/print")
-    expect(JSON.parse(init.body)).toEqual({ mode: "private", orders: ["a"] })
+    expect(JSON.parse(init.body)).toEqual({ mode: "public", orders: ["a"] })
     expect(url).toBe("https://me.example/print/1")
+  })
+
+  it.each([[{}], [{ id: "" }], [{ id: null }]])("addToCart throws MelhorEnvioError when the id is missing (%j)", async (body) => {
+    const fetchImpl = okFetch(body)
+    const err = await client(fetchImpl).addToCart({}).then(() => null, (e) => e)
+    expect(err).toBeInstanceOf(MelhorEnvioError)
+    expect(err.status).toBe(200)
+    expect(err.body).toBe(JSON.stringify(body))
+  })
+
+  it.each([[{}], [{ url: "" }]])("printUrl throws MelhorEnvioError when the url is missing (%j)", async (body) => {
+    const fetchImpl = okFetch(body)
+    const err = await client(fetchImpl).printUrl(["a"]).then(() => null, (e) => e)
+    expect(err).toBeInstanceOf(MelhorEnvioError)
+    expect(err.body).toBe(JSON.stringify(body))
   })
 
   it("tracking maps the response by label id, with nulls for missing fields", async () => {
