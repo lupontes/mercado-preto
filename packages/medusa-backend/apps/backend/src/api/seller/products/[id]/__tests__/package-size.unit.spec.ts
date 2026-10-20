@@ -36,19 +36,19 @@ describe("PATCH /seller/products/:id — package size", () => {
       { product_id: "prod-1" },
       { weight: 3, length: 40, width: 30, height: 20 }
     )
-    expect(run.mock.calls[0][0].input.update.metadata).toEqual({ origin: "nuvemshop", package_size: "large", package_review: "approved" })
+    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual({ origin: "nuvemshop", package_size: "large", package_review: "approved" })
   })
 
   it("marks bulky edits for review again", async () => {
     const req = makeReq({ packageSize: "bulky", packageDimensions: { weight: 1, length: 50, width: 50, height: 50 } })
     await PATCH(req, makeRes())
-    expect(run.mock.calls[0][0].input.update.metadata).toEqual(expect.objectContaining({ package_size: "bulky", package_review: "pending" }))
+    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual(expect.objectContaining({ package_size: "bulky", package_review: "pending" }))
   })
 
   it("does not touch dimensions when no package size is sent", async () => {
     const req = makeReq({ title: "Novo título" })
     await PATCH(req, makeRes())
     expect(req._productService.updateProductVariants).not.toHaveBeenCalled()
-    expect(run.mock.calls[0][0].input.update.metadata).toBeUndefined()
+    expect(run.mock.calls[0][0].input.products[0].metadata).toBeUndefined()
   })
 })

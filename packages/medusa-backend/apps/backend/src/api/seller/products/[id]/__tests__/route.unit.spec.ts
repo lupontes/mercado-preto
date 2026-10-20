@@ -102,9 +102,18 @@ describe("PATCH /seller/products/:id", () => {
     await PATCH(req, res)
 
     expect(run).toHaveBeenCalledWith(expect.objectContaining({
-      input: { selector: { id: "prod_1" }, update: expect.objectContaining({ category_ids: ["pcat_1"] }) },
+      input: { products: [expect.objectContaining({ id: "prod_1", category_ids: ["pcat_1"] })] },
     }))
     expect(res._status).toBe(200)
+  })
+
+  // In selector mode Medusa's updateProductsStep selects the previous state using the
+  // update's keys, and "category_ids" is not a Product column: every edit failed with 500.
+  it("updates through the products input, never the selector", async () => {
+    const run = mockUpdateProductsWorkflow([{ id: "prod_1" }])
+    await PATCH(makeReq({ title: "Novo título", category_id: "pcat_1" }), makeRes())
+
+    expect(run.mock.calls[0][0].input).not.toHaveProperty("selector")
   })
 
   it("clears category_ids when category_id is null", async () => {
@@ -115,7 +124,7 @@ describe("PATCH /seller/products/:id", () => {
     await PATCH(req, res)
 
     expect(run).toHaveBeenCalledWith(expect.objectContaining({
-      input: { selector: { id: "prod_1" }, update: expect.objectContaining({ category_ids: [] }) },
+      input: { products: [expect.objectContaining({ id: "prod_1", category_ids: [] })] },
     }))
   })
 
@@ -126,8 +135,8 @@ describe("PATCH /seller/products/:id", () => {
 
     await PATCH(req, res)
 
-    const { update } = run.mock.calls[0][0].input
-    expect(update).not.toHaveProperty("category_ids")
+    const [product] = run.mock.calls[0][0].input.products
+    expect(product).not.toHaveProperty("category_ids")
   })
 
   it("forwards variant price updates to the update workflow", async () => {
@@ -141,10 +150,10 @@ describe("PATCH /seller/products/:id", () => {
 
     expect(run).toHaveBeenCalledWith(expect.objectContaining({
       input: {
-        selector: { id: "prod_1" },
-        update: expect.objectContaining({
+        products: [expect.objectContaining({
+          id: "prod_1",
           variants: [{ id: "variant_1", prices: [{ amount: 12990, currency_code: "brl" }] }],
-        }),
+        })],
       },
     }))
     expect(res._status).toBe(200)
