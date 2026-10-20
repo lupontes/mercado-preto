@@ -1,61 +1,49 @@
-# Handoff: Mercado Preto / MAB marketplace
+# Handoff: Mercado Preto — etiquetas por loja no servidor de teste
 
-**Atualizado**: 2026-10-20
+**Gerado**: 2026-10-20 ~19:45 BRT · **Branch**: `docs/handoff-2026-10-18` (PR #82) · **Status**: deploy pela metade (backend ok, vitrine não)
 
-**Fluxo de branches deste projeto:** `develop → release → main`. Este projeto
-não usa `alpha` nem `beta` (decisão do usuário em 17/10).
+**Fluxo de branches:** `develop → release → main` (sem alpha/beta). Merge de PR é do usuário.
 
-## Fila de pendências (por prioridade)
+## Goal
 
-1. **[teste] Confirmar com o Ailton a entrega do e-mail com o remetente do
-   domínio.** Em 20/10 às 12:46, depois da autenticação de
-   `mercadopreto.com.br` no Brevo, um código de pontos foi pedido e o backend
-   não registrou erro. Mesmo assim, o envio não apareceu em Transacional →
-   Logs do Brevo. Se não chegou, investigar por ali.
-2. **[teste] Upload de foto logado como vendedora no servidor (#72).**
-3. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
-   nginx no compose, portas em `127.0.0.1` e `PUBLIC_URL`. Bloqueia a ida a
-   produção. **Parado:** a produção vai rodar em outro provedor, ainda não
-   escolhido, no domínio `mercadopreto.com.br`. O domínio hoje aponta para a
-   loja atual, então a troca do DNS precisa ser planejada.
-4. **[produção] Número de WhatsApp próprio da loja para o Evolution.** No
-   teste, o número pareado é o do usuário, e as mensagens aparecem no celular
-   dele como enviadas por ele.
-5. **[usuário]**
-   - Apagar o admin de teste `admin2@mercadopreto.com.br` no painel master
-     (Configurações → Usuários).
-   - Apagar no Brevo a chave `marketplace-dev` (tipo MCP, desativada).
-   - ClearSale: ainda não contratada. Se for, a URL de teste é
-     `https://teste.mercadopreto.com.br/api/webhooks/clearsale`.
-6. **[vitrine, menor]** Ao voltar do pagamento para a entrega, a
-   `preferenceData` antiga fica no estado (ver "Para depois" do #83).
-7. ~~Concluídos em 17–20/10~~: #69/#70, #72, #74/#75/#77, #79, a **Task 7 do
-   programa de pontos** (compra A `1353943231`; compra B `1353946303` com
-   `redeem`, `loyaltyDiscount` e `sellerPayout` conferidos no banco), **#83**
-   (teto de pontos na cotação e desconto no resumo), **#84** (erro 500 ao
-   editar produto no painel), NSG da OCI limpo, domínio autenticado no Brevo
-   e Evolution ativo. Infra: o pnpm 11 reinstala o backend (npm) a cada
-   `pnpm`; usar `npx vitest` na vitrine (ver claude-mem).
+Ligar no servidor de teste as etiquetas por loja (PR #85, já em `develop`) e rodar o ponta a ponta no sandbox. Spec `docs/superpowers/specs/2026-10-20-etiquetas-por-loja-design.md`; plano `docs/superpowers/plans/2026-10-20-etiquetas-por-loja.md`.
 
-**Do usuário, fora do código:** a validação jurídica e contábil
-(`docs/juridico/2026-09-05-memo-titularidade-consignacao.md`). Anexar ao
-próximo e-mail para o Ailton. A ativação do Mercado Livre fica pausada até
-essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`).
+## Completed (20/10)
 
-## Servidor de teste (168.138.148.67, instância `ambiente-b` na OCI)
+- [x] Pontos ponta a ponta (compras `1353943231`/`1353946303`), #83 e #84 no servidor.
+- [x] E-mail (Brevo: chave restrita, IP autorizado, domínio `mercadopreto.com.br` autenticado; DNS na Locaweb é do Ailton) e WhatsApp (Evolution 2.4 com licença, instância `mercadopreto`, número de teste do usuário). NSG da OCI limpo.
+- [x] Ailton avisado das novidades de 20/10 (e-mail + complemento sobre etiquetas).
+- [x] PR #85 mesclado. Backend no servidor em `ad05ae1`, com `MELHOR_ENVIO_LABELS_ENABLED=false`. Backup: `~/db-backup-20261020193654.sql.gz` e imagem `mercado-preto-api:oci-bak-20261020193654`.
 
-- Roda `develop` em `c191a15` (#83 e #84), com o deploy de 20/10. O
-  procedimento está em `docs/DEPLOY_OCI.md`.
-- Backups antes desse deploy: banco `~/db-backup-20261020145929.sql.gz` e
-  imagem `mercado-preto-api:oci-bak-20261020145929`.
-- **E-mail:** Brevo com a chave restrita `mercado-preto-teste`, o IP do
-  servidor autorizado e o domínio autenticado (DNS na Locaweb, mantido pelo
-  Ailton). `EMAIL_FROM=noreply@mercadopreto.com.br`. Em sandbox, todos os
-  e-mails vão para `TEST_EMAIL_RECIPIENT=adm@fixsistemas.com` (Ailton).
-- **WhatsApp:** Evolution 2.4.0 com licença community ativa e instância
-  `mercadopreto` pareada com o número de teste do usuário. Em sandbox, tudo
-  vai para `TEST_WHATSAPP_RECIPIENT=5598984156828` (Ailton).
-- **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
-  `@testuser.com` (erro 2034).
-- O banco tem dados de teste das lojas Axé e FIX, os pedidos #38 a #43 e os
-  dois pedidos do teste de pontos de 20/10 (CPF 12345678909).
+## Not Yet Done (nesta ordem)
+
+- [ ] **Build da vitrine** no servidor. O usuário interrompeu esse comando. Pergunte antes de rodar: `cd ~/marketplace && source ~/.nvm/nvm.sh && nvm use 22 && pnpm install --frozen-lockfile && cd apps/storefront && pnpm build && pm2 restart storefront`, depois `infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67` (local). **Até lá o checkout está quebrado:** o backend exige `number`/`district` e a vitrine antiga não envia → 400.
+- [ ] **Pedir ao usuário:** o valor de `ADMIN_ALERT_EMAIL` e o CPF/CNPJ da loja "Mulheres de Axé do Brasil" (vazio no banco; sem ele a etiqueta falha com "CPF/CNPJ da loja ausente"). Ou a autorização para usar um CNPJ de teste.
+- [ ] Ligar no `.env.oci`: `MELHOR_ENVIO_LABELS_ENABLED=true` e `ADMIN_ALERT_EMAIL=…`; recriar o `medusa`.
+- [ ] Ponta a ponta (plano, Task 13 Step 3): compra com LOJA FIX + Axé no sandbox do MP; duas etiquetas geradas; o link abre o PDF **numa aba anônima**; WhatsApp e e-mail chegam ao Ailton; `sellerPayout` sem frete no banco. A compra, a geração, a impressão e o rastreio do Melhor Envio **ainda não foram exercitados**.
+- [ ] Atualizar este HANDOFF, avisar o Ailton com o roteiro e apagar `.superpowers/sdd/2026-10-20-etiquetas-por-loja/` (é o ledger da execução; leia as linhas `Ruling:` antes).
+- [ ] Usuário: apagar o admin `admin2@mercadopreto.com.br` e a chave Brevo `marketplace-dev`.
+
+## Failed Approaches (Don't Repeat)
+
+- Chave Brevo do tipo **MCP** não funciona no header `api-key` (401). Use a chave padrão restrita. Detalhes no claude-mem.
+- Abrir o Brevo ou outro site na mesma aba do checkout perde o estado do checkout. Use outra aba.
+- `!` do Claude Code não tem TTY e o servidor não tem `nano`. Para segredos, use `ssh -t … 'read -rsp …; sed -i …'` no terminal do usuário.
+- `printUrl` com `mode: "private"`: o link exige login no Melhor Envio. Corrigido para `public`.
+- Merge de PR pelo agente é bloqueado pelo classificador ("Merge Without Review").
+
+## Key Decisions
+
+| Decisão | Motivo |
+|---|---|
+| A plataforma absorve a diferença entre o frete cotado e a etiqueta | O comprador já pagou |
+| Rastreio por job a cada 2 h; webhook pronto, sem segredo (responde 503) | Token pessoal não recebe webhook; isso muda no ciclo do app OAuth |
+| O frete sai do repasse só com `platform_label` **e** `shipping_service_id` | Pedidos sem etiqueta continuam pagando o frete à loja |
+| Uma compra com falha é retomada (`paid`/`meOrderIds`); um `pending` com mais de 15 min é retomado pelo admin, sob a mesma trava | Nunca pagar a etiqueta duas vezes |
+
+## Warnings
+
+- O servidor de teste está em **sandbox**: todo e-mail vai para `adm@fixsistemas.com` e todo WhatsApp para `5598984156828` (Ailton). As mensagens saem do WhatsApp de teste do usuário.
+- O `db:migrate` roda sempre o script do Medusa `create-super-admin-role`. Até agora isso não causou problema.
+- Backlog das etiquetas: o "Para depois" do PR #85; o próximo ciclo é o app OAuth do Melhor Envio para produção.
+- Pendências antigas, ainda abertas: `docker-compose.prod.yml` fora do modelo OCI (a produção vai para outro provedor) e a validação jurídica que pausa o Mercado Livre.
