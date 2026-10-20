@@ -67,7 +67,11 @@ export function purchaseShippingLabel(deps: PurchaseDeps, orderId: string): Prom
   return promise
 }
 
+/** An error whose Portuguese message is safe to store as-is. */
+class LabelPurchaseError extends Error {}
+
 function describeError(err: unknown): string {
+  if (err instanceof LabelPurchaseError) return err.message
   if (err instanceof MelhorEnvioError) {
     let detail = ""
     try {
@@ -103,7 +107,7 @@ async function run(deps: PurchaseDeps, orderId: string): Promise<ShippingLabelSt
   // so a paid label is never bought twice.
   const state: ShippingLabelState = {
     ...emptyState(),
-    ...(existing ? { meOrderIds: [...(existing.meOrderIds ?? [])], price: existing.price ?? null, paid: existing.paid === true } : {}),
+    ...(existing?.status === "failed" ? { meOrderIds: [...(existing.meOrderIds ?? [])], price: existing.price ?? null, paid: existing.paid === true } : {}),
     status: "pending",
     pendingSince: now().toISOString(),
   }
@@ -200,6 +204,6 @@ async function resolveVolumes(deps: PurchaseDeps, order: any, labelOrder: LabelO
     products,
   })
   const quote = quotes.find((q) => q.serviceId === labelOrder.serviceId)
-  if (!quote) throw new Error("Serviço de frete escolhido indisponível na nova cotação")
+  if (!quote) throw new LabelPurchaseError("Serviço de frete escolhido indisponível na nova cotação")
   return quote.packages && quote.packages.length > 0 ? quote.packages : [PACKAGE_SIZES.medium]
 }

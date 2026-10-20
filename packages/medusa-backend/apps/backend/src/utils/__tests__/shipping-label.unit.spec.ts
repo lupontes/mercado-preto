@@ -171,6 +171,7 @@ describe("purchaseShippingLabel", () => {
     const t = setup({ quotes: [{ service: "SEDEX", serviceId: 2, price: 1, deliveryDays: 1 }] })
     const state = await purchaseShippingLabel(t.deps, "order_1")
     expect(state.status).toBe("failed")
+    expect(state.error).toBe("Serviço de frete escolhido indisponível na nova cotação")
     expect(t.labels.addToCart).not.toHaveBeenCalled()
   })
 
@@ -242,5 +243,15 @@ describe("purchaseShippingLabel", () => {
     expect(labels.generate).toHaveBeenCalledTimes(1)
     expect(labels.checkout).toHaveBeenLastCalledWith(["me_1"])
     expect(state).toMatchObject({ status: "generated", paid: true, price: 1500 })
+  })
+
+  it("starts a fresh purchase from a canceled state instead of resuming", async () => {
+    const canceled = { status: "canceled" as const, meOrderIds: ["x"], price: 99, trackingCode: null, generatedAt: null, postBy: null, reminderSentAt: null, error: null, paid: true, pendingSince: null }
+    const t = setup({ order: makeOrder(canceled) })
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(t.labels.addToCart).toHaveBeenCalledTimes(1)
+    expect(t.labels.checkout).toHaveBeenCalledWith(["me_1"])
+    expect(t.labels.generate).not.toHaveBeenCalledWith(["x"])
+    expect(state).toMatchObject({ status: "generated", meOrderIds: ["me_1"], price: 1500 })
   })
 })
