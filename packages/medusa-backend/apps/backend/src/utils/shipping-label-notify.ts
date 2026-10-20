@@ -59,6 +59,15 @@ export async function notifySellerPostingReminder(
   )
 }
 
+// BACKEND_URL ends in /api on the server, but the admin SPA lives at /app on the site root.
+function adminOrderLink(orderId: string): string | null {
+  try {
+    return `${new URL(process.env.BACKEND_URL ?? "").origin}/app/orders/${orderId}`
+  } catch {
+    return null
+  }
+}
+
 export async function alertTeamLabelFailed(order: OrderRef, state: ShippingLabelState): Promise<void> {
   const reason = state.error ?? "motivo não informado"
   const to = process.env.ADMIN_ALERT_EMAIL
@@ -66,10 +75,10 @@ export async function alertTeamLabelFailed(order: OrderRef, state: ShippingLabel
     console.error(`[shipping-label] Etiqueta não comprada — pedido #${order.displayId}: ${reason}`)
     return
   }
-  const adminLink = `${process.env.BACKEND_URL}/app/orders/${order.id}`
+  const adminLink = adminOrderLink(order.id)
   const html =
     `<p>A etiqueta do pedido #${order.displayId} não foi comprada.</p>` +
     `<p>Motivo: ${escapeHtml(reason)}</p>` +
-    `<p><a href="${adminLink}">${adminLink}</a></p>`
+    (adminLink ? `<p><a href="${adminLink}">${adminLink}</a></p>` : "")
   await sendBrevoEmail(to, `Etiqueta não comprada — pedido #${order.displayId}`, html)
 }

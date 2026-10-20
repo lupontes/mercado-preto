@@ -88,7 +88,19 @@ describe("shipping-label-notify", () => {
       expect(to).toBe("equipe@example.com")
       expect(subject).toBe("Etiqueta não comprada — pedido #42")
       expect(html).toContain("Saldo insuficiente")
-      expect(html).toContain("https://teste.mercadopreto.com.br/api/app/orders/order_01ABC")
+      expect(html).toContain("https://teste.mercadopreto.com.br/app/orders/order_01ABC")
+      expect(html).not.toContain("/api/app")
+    })
+
+    it.each([[undefined], ["not a url"]])("omits the admin link when BACKEND_URL is %j", async (value) => {
+      process.env.ADMIN_ALERT_EMAIL = "equipe@example.com"
+      if (value === undefined) delete process.env.BACKEND_URL
+      else process.env.BACKEND_URL = value
+      await alertTeamLabelFailed(order, state({ status: "failed", error: "Saldo insuficiente" }))
+      const html = email.mock.calls[0][2]
+      expect(html).toContain("Saldo insuficiente")
+      expect(html).not.toContain("href")
+      expect(html).not.toContain("undefined")
     })
 
     it("only logs when ADMIN_ALERT_EMAIL is missing", async () => {
