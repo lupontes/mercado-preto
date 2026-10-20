@@ -8,13 +8,24 @@ jest.mock("../../../../../utils/shipping-quote", () => ({
 jest.mock("../../../../../utils/melhor-envio", () => ({ getShippingCalculator: jest.fn(() => "calculator") }))
 
 import { BuyerFacingError, CART_ITEM_UNAVAILABLE_MESSAGE, quoteShipping } from "../../../../../utils/shipping-quote"
+import { COMMISSION_MODULE } from "../../../../../modules/commission"
 import { POST } from "../route"
 
-function makeReq(body: unknown) {
+const catalog = [
+  { id: "v1", prices: [{ amount: 500, currency_code: "usd" }, { amount: 10000, currency_code: "brl" }] },
+  { id: "v2", prices: [{ amount: 8200, currency_code: "brl" }] },
+]
+
+function makeReq(body: unknown, commissionRate = 15) {
   const logger = { error: jest.fn() }
+  const query = { graph: jest.fn(async () => ({ data: catalog })) }
+  const commission = { getCommissionRate: jest.fn(async () => commissionRate) }
   return {
     body,
-    scope: { resolve: (k: string) => (k === ContainerRegistrationKeys.QUERY ? { graph: jest.fn() } : k === "logger" ? logger : undefined) },
+    scope: {
+      resolve: (k: string) =>
+        k === ContainerRegistrationKeys.QUERY ? query : k === "logger" ? logger : k === COMMISSION_MODULE ? commission : undefined,
+    },
   } as any
 }
 function makeRes() {
@@ -32,9 +43,19 @@ describe("POST /store/shipping/quote", () => {
     const res = makeRes()
     await POST(makeReq({ postalCode: "01310-100", items: [{ variantId: "v1", quantity: 2 }] }), res)
     expect(res._status).toBe(200)
-    expect(res._body).toEqual({ options: [], unavailableSellers: [] })
+    expect(res._body).toEqual({ options: [], unavailableSellers: [], maxLoyaltyDiscountCents: 3000 })
     expect((quoteShipping as jest.Mock).mock.calls[0][1]).toEqual({ postalCode: "01310-100", items: [{ variantId: "v1", quantity: 2 }] })
     expect((quoteShipping as jest.Mock).mock.calls[0][0].calculator).toBe("calculator")
+  })
+
+  // The storefront offers at most this much in points, so it has to be the same
+  // ceiling the preference route enforces: commission on the catalog prices.
+  it("returns the points discount ceiling: commission over the catalog items total", async () => {
+    ;(quoteShipping as jest.Mock).mockResolvedValue({ options: [], unavailableSellers: [] })
+    const res = makeRes()
+    await POST(makeReq({ postalCode: "01310100", items: [{ variantId: "v1", quantity: 1 }, { variantId: "v2", quantity: 1 }] }, 10), res)
+    // (10000 + 8200) × 10% = 1820
+    expect(res._body.maxLoyaltyDiscountCents).toBe(1820)
   })
 
   it("rejects an invalid postal code or empty cart with 400", async () => {
