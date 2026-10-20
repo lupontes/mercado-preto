@@ -13,6 +13,7 @@ import { fetchTestCashEnabled } from '@/lib/test-cash'
 import { createTestCashOrder } from './create-test-cash-order'
 import { createPreference, type Address, type CheckoutItem, type PreferenceData } from './create-preference'
 import LoyaltyRedeem, { type LoyaltySelection } from './LoyaltyRedeem'
+import { CENTS_PER_POINT } from '@/lib/loyalty'
 import { fetchShippingQuote, shippingQuoteErrorMessage } from './shipping-quote'
 import ShippingOptions from './ShippingOptions'
 
@@ -211,7 +212,9 @@ export default function CheckoutPage() {
     setError(message)
   }
 
-  const totalCents = subtotal() + (selectedShipping?.total ?? 0)
+  // Until the server confirms the discount with the preference, show the one the buyer chose.
+  const discountCents = preferenceData ? preferenceData.discountCents ?? 0 : (loyalty?.redeemPoints ?? 0) * CENTS_PER_POINT
+  const totalCents = subtotal() + (selectedShipping?.total ?? 0) - discountCents
 
   const steps: { id: Step; label: string; icon: React.ReactNode }[] = [
     { id: 'address', label: 'Endereço', icon: <MapPin className="h-4 w-4" /> },
@@ -369,7 +372,7 @@ export default function CheckoutPage() {
                 )}
 
                 {!isTestCash && validateDocument(address.document).valid && (
-                  <LoyaltyRedeem document={address.document} maxDiscountCents={subtotal()} onChange={setLoyalty} />
+                  <LoyaltyRedeem document={address.document} maxDiscountCents={quote?.maxLoyaltyDiscountCents ?? 0} onChange={setLoyalty} />
                 )}
 
                 {error && <p className="text-terracotta text-sm mt-3">{error}</p>}
@@ -440,10 +443,10 @@ export default function CheckoutPage() {
                   <span>{formatPrice(selectedShipping.total)}</span>
                 </div>
               )}
-              {preferenceData?.discountCents ? (
+              {discountCents > 0 ? (
                 <div className="flex justify-between text-forest">
                   <span>Desconto em pontos</span>
-                  <span>-{formatPrice(preferenceData.discountCents)}</span>
+                  <span>-{formatPrice(discountCents)}</span>
                 </div>
               ) : null}
               <div className="flex justify-between font-display font-bold text-onyx pt-1">

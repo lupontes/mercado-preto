@@ -35,7 +35,12 @@ export type UnavailableSeller = {
   productTitles: string[]
 }
 
-export type ShippingQuote = { options: ShippingOption[]; unavailableSellers: UnavailableSeller[] }
+export type ShippingQuote = {
+  options: ShippingOption[]
+  unavailableSellers: UnavailableSeller[]
+  // Most the buyer can take off in points: the platform's commission on these items.
+  maxLoyaltyDiscountCents?: number
+}
 
 export type PriceChange = { variantId: string; price: number; title: string }
 
