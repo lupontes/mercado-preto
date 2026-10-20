@@ -116,7 +116,7 @@ describe("commissionOnPayment", () => {
     const orderService = makeOrderService({
       retrieveOrder: jest.fn().mockResolvedValue({
         ...baseOrder,
-        metadata: { ...baseOrder.metadata, platform_label: true },
+        metadata: { ...baseOrder.metadata, platform_label: true, shipping_service_id: 1 },
         shipping_methods: [{ amount: 6981 }],
       }),
     })
@@ -130,6 +130,26 @@ describe("commissionOnPayment", () => {
     await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
 
     expect(recordAndCreate).toHaveBeenCalledWith(expect.objectContaining({ shippingAmount: 0 }))
+  })
+
+  it("keeps shipping in the payout when platform_label is set but no label is bought (no shipping_service_id)", async () => {
+    const orderService = makeOrderService({
+      retrieveOrder: jest.fn().mockResolvedValue({
+        ...baseOrder,
+        metadata: { ...baseOrder.metadata, platform_label: true },
+        shipping_methods: [{ amount: 6981 }],
+      }),
+    })
+    const recordAndCreate = jest.fn().mockResolvedValue({ id: "comm_new", sellerPayout: 0 })
+    const container = makeContainer({
+      [Modules.ORDER]: orderService,
+      commission: { listCommissions: jest.fn().mockResolvedValue([]), recordAndCreate },
+      payout: { listPayouts: jest.fn().mockResolvedValue([]) },
+    })
+
+    await commissionOnPayment({ event: { data: { id: "order_1" } }, container } as any)
+
+    expect(recordAndCreate).toHaveBeenCalledWith(expect.objectContaining({ shippingAmount: 6981 }))
   })
 
   it("charges the full R$0,39 fixed banking fee when this is the only order for the payment (no split)", async () => {
