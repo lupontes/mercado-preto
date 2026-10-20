@@ -343,7 +343,31 @@ infra/scripts/smoke-oci.sh teste.mercadopreto.com.br 168.138.148.67
 
 ## Passo 9 — Conectar Evolution API ao WhatsApp
 
-> **Importante:** O WhatsApp bloqueia conexões de IPs de datacenter (Oracle Cloud). Use **pairing code** em vez de QR code — funciona melhor com IPs de cloud.
+### Ativar a licença (Evolution 2.4.0 ou mais novo)
+
+Desde a 2.4.0, o Evolution exige uma ativação de licença no primeiro acesso.
+Até ativar, **todos os endpoints respondem 503**, e o log mostra
+"License Registration Required". A licença `community` é gratuita e não tem
+limite de instâncias nem de mensagens.
+
+A primeira ativação é manual e precisa ser feita por uma pessoa, pois pede e-mail e telefone:
+
+1. Abra um túnel: `ssh -i ~/.ssh/oci_vms -L 18080:127.0.0.1:8080 ubuntu@168.138.148.67`.
+2. Abra `http://localhost:18080/manager`. A raiz `/` só devolve um JSON de status.
+3. Entre com a `EVOLUTION_API_KEY` do `infra/.env.oci` e faça o registro.
+4. Confira no log: `docker logs mercado-preto-evolution 2>&1 | grep "License activated"`.
+
+Em instalações seguintes, `EVOLUTION_OPERATOR_EMAIL` (com um e-mail já
+ativado) faz a ativação automática.
+
+### Parear o número
+
+No servidor de teste (20/10/2026), o QR Code do manager funcionou com o IP da
+OCI. Abra a instância e clique em "Get QR Code". O número pareado vira um
+"dispositivo conectado", e as mensagens enviadas pelo servidor aparecem no
+celular como enviadas por ele.
+
+> **Se o QR Code falhar:** o WhatsApp pode bloquear conexões de IPs de datacenter (Oracle Cloud). Nesse caso, use **pairing code**:
 
 ```bash
 # 1. Criar instância

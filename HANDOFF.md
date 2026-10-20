@@ -7,37 +7,35 @@ não usa `alpha` nem `beta` (decisão do usuário em 17/10).
 
 ## Fila de pendências (por prioridade)
 
-1. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
+1. **[teste] Confirmar com o Ailton a entrega do e-mail com o remetente do
+   domínio.** Em 20/10 às 12:46, depois da autenticação de
+   `mercadopreto.com.br` no Brevo, um código de pontos foi pedido e o backend
+   não registrou erro. Mesmo assim, o envio não apareceu em Transacional →
+   Logs do Brevo. Se não chegou, investigar por ali.
+2. **[teste] Upload de foto logado como vendedora no servidor (#72).**
+3. **[produção] `docker-compose.prod.yml` fora do modelo do OCI:** falta
    nginx no compose, portas em `127.0.0.1` e `PUBLIC_URL`. Bloqueia a ida a
    produção. **Parado:** a produção vai rodar em outro provedor, ainda não
    escolhido, no domínio `mercadopreto.com.br`. O domínio hoje aponta para a
    loja atual, então a troca do DNS precisa ser planejada.
-2. **[produção] Autenticar o domínio `mercadopreto.com.br` no Brevo**
-   (DKIM/DMARC no DNS). Sem isso, o Brevo recusa `noreply@mercadopreto.com.br`.
-   Depois, voltar o `EMAIL_FROM` do `.env.oci` para esse endereço (hoje é
-   `lupontes@gmail.com`, o único remetente verificado).
-3. **[produção] Evolution API parada:** não há container. As confirmações de
-   pedido por WhatsApp não saem. A `.env.oci` tem `EVOLUTION_API_KEY` e
-   `EVOLUTION_API_INSTANCE`, e `EVOLUTION_WEBHOOK_SECRET` está vazio.
-   O banco `evolution` não existe mais, e a imagem `2.4.0-rc2` não está
-   baixada. Para reativar, é preciso escanear o QR Code com o celular do
-   número de envio. **Adiado pelo usuário em 17/10.**
-4. **[vitrine] Resumo do pedido sem o desconto em pontos na etapa de entrega:**
-   depois de "Usar R$ X", a linha "Desconto em pontos" só aparece na etapa de
-   pagamento.
+4. **[produção] Número de WhatsApp próprio da loja para o Evolution.** No
+   teste, o número pareado é o do usuário, e as mensagens aparecem no celular
+   dele como enviadas por ele.
 5. **[usuário]**
    - Apagar o admin de teste `admin2@mercadopreto.com.br` no painel master
      (Configurações → Usuários).
    - Apagar no Brevo a chave `marketplace-dev` (tipo MCP, desativada).
    - ClearSale: ainda não contratada. Se for, a URL de teste é
      `https://teste.mercadopreto.com.br/api/webhooks/clearsale`.
-6. ~~Concluídos em 17–20/10~~: #69/#70, #72 (falta um upload logado de foto no
-   servidor), #74/#75/#77, #79 e a **Task 7 do programa de pontos**
-   (20/10: compra A `1353943231` com `earn` 182; compra B `1353946303` com
-   `redeem` −182, `loyaltyDiscount` 182, `earn` 180 e `sellerPayout` igual ao
-   da compra A). **NSG da OCI** limpo em 20/10 (ficaram ICMP, 22, 80 e 443).
-   Infra: o pnpm 11 reinstala o backend (npm) a cada `pnpm`; usar
-   `npx vitest` na vitrine (ver claude-mem).
+6. **[vitrine, menor]** Ao voltar do pagamento para a entrega, a
+   `preferenceData` antiga fica no estado (ver "Para depois" do #83).
+7. ~~Concluídos em 17–20/10~~: #69/#70, #72, #74/#75/#77, #79, a **Task 7 do
+   programa de pontos** (compra A `1353943231`; compra B `1353946303` com
+   `redeem`, `loyaltyDiscount` e `sellerPayout` conferidos no banco), **#83**
+   (teto de pontos na cotação e desconto no resumo), **#84** (erro 500 ao
+   editar produto no painel), NSG da OCI limpo, domínio autenticado no Brevo
+   e Evolution ativo. Infra: o pnpm 11 reinstala o backend (npm) a cada
+   `pnpm`; usar `npx vitest` na vitrine (ver claude-mem).
 
 **Do usuário, fora do código:** a validação jurídica e contábil
 (`docs/juridico/2026-09-05-memo-titularidade-consignacao.md`). Anexar ao
@@ -46,17 +44,17 @@ essa validação (`docs/deploy/2026-09-04-mercado-livre-integration-runbook.md`)
 
 ## Servidor de teste (168.138.148.67, instância `ambiente-b` na OCI)
 
-- Roda `develop` (`eefdd7e`). O procedimento de deploy está em
-  `docs/DEPLOY_OCI.md`: migrations antes de subir o container, e o backend
-  antes da vitrine.
-- Backups: banco `~/db-backup-20261018035801.sql.gz` e imagem
-  `mercado-preto-api:oci-bak-20261018035801` (antes do #79). O `.env.oci`
-  anterior a 20/10 está em `infra/.env.oci.bak-*`.
-- **E-mail (funcionando desde 20/10):** Brevo com a chave restrita
-  `mercado-preto-teste` (só e-mails transacionais) e o IP do servidor
-  autorizado. Em sandbox, **todos** os e-mails vão para
-  `TEST_EMAIL_RECIPIENT=adm@fixsistemas.com` (Ailton, responsável pelos
-  testes). Remetente: `EMAIL_FROM=lupontes@gmail.com` (ver pendência 2).
+- Roda `develop` em `c191a15` (#83 e #84), com o deploy de 20/10. O
+  procedimento está em `docs/DEPLOY_OCI.md`.
+- Backups antes desse deploy: banco `~/db-backup-20261020145929.sql.gz` e
+  imagem `mercado-preto-api:oci-bak-20261020145929`.
+- **E-mail:** Brevo com a chave restrita `mercado-preto-teste`, o IP do
+  servidor autorizado e o domínio autenticado (DNS na Locaweb, mantido pelo
+  Ailton). `EMAIL_FROM=noreply@mercadopreto.com.br`. Em sandbox, todos os
+  e-mails vão para `TEST_EMAIL_RECIPIENT=adm@fixsistemas.com` (Ailton).
+- **WhatsApp:** Evolution 2.4.0 com licença community ativa e instância
+  `mercadopreto` pareada com o número de teste do usuário. Em sandbox, tudo
+  vai para `TEST_WHATSAPP_RECIPIENT=5598984156828` (Ailton).
 - **Sandbox do Mercado Pago:** o pagador não pode ter e-mail
   `@testuser.com` (erro 2034).
 - O banco tem dados de teste das lojas Axé e FIX, os pedidos #38 a #43 e os
