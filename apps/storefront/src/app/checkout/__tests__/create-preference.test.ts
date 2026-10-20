@@ -4,7 +4,7 @@ import { createPreference, readCheckoutResponse } from '../create-preference'
 const items = [{ title: 'Camiseta', quantity: 1, price: 7900, variantId: 'var-1', productId: 'prod-1' }]
 const address = {
   firstName: 'João', lastName: 'Silva', email: 'joao@email.com', phone: '',
-  document: '111.444.777-35', cep: '44300-000', address1: 'Rua X', address2: '',
+  document: '111.444.777-35', cep: '44300-000', address1: 'Rua X', number: '10', district: 'Centro', address2: '',
   city: 'Cachoeira', state: 'BA',
 }
 const shipping = { tier: 'economico' as const, label: 'Econômico', total: 2500, deliveryDays: 11, sellers: [] }

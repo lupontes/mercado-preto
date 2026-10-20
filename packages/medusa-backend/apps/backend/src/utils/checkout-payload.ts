@@ -26,6 +26,9 @@ export const checkoutRequestSchema = z.object({
     cep: z.string().refine((v) => v.replace(/\D/g, "").length === 8, "CEP inválido. Informe 8 dígitos."),
     address1: z.string(),
     address2: z.string().optional(),
+    // Correios labels need the street number and district as separate fields.
+    number: z.string().min(1),
+    district: z.string().min(1),
     city: z.string(),
     state: z.string(),
   }),
@@ -102,6 +105,8 @@ export async function buildCheckoutSnapshot(
         phone: address.phone ?? "",
         address_1: address.address1,
         address_2: address.address2 ?? "",
+        number: address.number,
+        district: address.district,
         city: address.city,
         state: address.state,
         postal_code: address.cep.replace(/\D/g, ""),

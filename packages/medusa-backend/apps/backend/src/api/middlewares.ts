@@ -135,5 +135,11 @@ export default defineMiddlewares({
       matcher: "/store/sellers/logout",
       middlewares: [sellerCors],
     },
+    {
+      // The Melhor Envio signature is an HMAC of the exact bytes received.
+      matcher: "/webhooks/melhor-envio",
+      methods: ["POST"],
+      bodyParser: { preserveRawBody: true },
+    },
   ],
 })

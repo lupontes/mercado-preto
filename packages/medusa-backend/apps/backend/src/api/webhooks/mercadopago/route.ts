@@ -3,6 +3,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago"
 import { createOrdersFromCheckout } from "../../../utils/create-orders-from-checkout"
+import { labelsEnabled } from "../../../utils/shipping-label"
 import { LOYALTY_MODULE } from "../../../modules/loyalty"
 import type LoyaltyModuleService from "../../../modules/loyalty/service"
 import { POINTS_PER_REAL } from "../../../modules/loyalty/constants"
@@ -79,7 +80,12 @@ async function createOrders(req: MedusaRequest, payment: any, meta: Record<strin
     container: req.scope,
     externalReference: payment.external_reference as string,
     meta,
-    extraMetadata: { mercadopago_payment_id: String(payment.id) },
+    // Only mark when the flag is on: the key must be absent otherwise, so
+    // commission keeps paying shipping to the seller as before.
+    extraMetadata: {
+      mercadopago_payment_id: String(payment.id),
+      ...(labelsEnabled() ? { platform_label: true } : {}),
+    },
     fallbackPayer: payment.payer as Record<string, any> | undefined,
   })
 }

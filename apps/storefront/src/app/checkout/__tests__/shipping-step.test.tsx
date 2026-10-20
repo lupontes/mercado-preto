@@ -21,6 +21,8 @@ describe('CheckoutPage shipping step', () => {
 
     render(<CheckoutPage />)
     await user.type(screen.getByPlaceholderText('000.000.000-00'), '11144477735')
+    await user.type(screen.getByLabelText(/Número/), '10')
+    await user.type(screen.getByLabelText(/Bairro/), 'Centro')
     const button = screen.getByRole('button', { name: /Calcular frete/ })
     fireEvent.submit(button.closest('form')!)
 

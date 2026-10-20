@@ -288,6 +288,33 @@ describe("POST /webhooks/mercadopago", () => {
     )
   })
 
+  describe("platform_label mark", () => {
+    const original = process.env.MELHOR_ENVIO_LABELS_ENABLED
+    afterEach(() => {
+      if (original === undefined) delete process.env.MELHOR_ENVIO_LABELS_ENABLED
+      else process.env.MELHOR_ENVIO_LABELS_ENABLED = original
+    })
+
+    async function createdMetadata() {
+      mockPaymentGet.mockResolvedValue(approvedPayment)
+      mockPrefSearch.mockResolvedValue({ elements: [{ id: "pref-123" }] })
+      mockPrefGet.mockResolvedValue({ metadata: preferenceMetadata })
+      const req = makeReq({ type: "payment", data: { id: "42" } })
+      await POST(req, makeRes())
+      return req._orderService.createOrders.mock.calls[0][0][0].metadata
+    }
+
+    it("marks created orders with platform_label when labels are enabled", async () => {
+      process.env.MELHOR_ENVIO_LABELS_ENABLED = "true"
+      expect((await createdMetadata()).platform_label).toBe(true)
+    })
+
+    it("leaves the platform_label key out when labels are disabled", async () => {
+      delete process.env.MELHOR_ENVIO_LABELS_ENABLED
+      expect(await createdMetadata()).not.toHaveProperty("platform_label")
+    })
+  })
+
   it("does not create an order when metadata recovery fails via preference search error (refuses instead of creating an empty order)", async () => {
     mockPaymentGet.mockResolvedValue(approvedPayment)
     mockPrefSearch.mockRejectedValue(new Error("MP unavailable"))
