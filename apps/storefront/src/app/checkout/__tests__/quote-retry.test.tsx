@@ -31,13 +31,14 @@ function stub(secondQuote: () => Promise<unknown>) {
 }
 
 async function reachShippingStep(user: ReturnType<typeof userEvent.setup>, container: HTMLElement) {
-  const inputs = container.querySelectorAll<HTMLInputElement>('form input')
-  await user.type(inputs[0], 'João')
-  await user.type(inputs[1], 'Silva')
-  await user.type(inputs[2], 'joao@email.com')
-  await user.type(inputs[3], '11144477735')
-  await user.type(inputs[5], '44300000')
-  await user.type(inputs[8], 'Rua das Flores')
+  await user.type(screen.getByLabelText(/Nome \*/), 'João')
+  await user.type(screen.getByLabelText(/Sobrenome/), 'Silva')
+  await user.type(screen.getByLabelText(/E-mail/), 'joao@email.com')
+  await user.type(screen.getByLabelText(/CPF/), '11144477735')
+  await user.type(screen.getByLabelText(/CEP/), '44300000')
+  await user.type(screen.getByLabelText(/Endereço/), 'Rua das Flores')
+  await user.type(screen.getByLabelText(/Número/), '10')
+  await user.type(screen.getByLabelText(/Bairro/), 'Centro')
   await user.click(screen.getByRole('button', { name: /calcular frete/i }))
   return screen.findByRole('button', { name: 'Tentar novamente' })
 }
