@@ -17,6 +17,10 @@ export type ShippingLabelState = {
   postBy: string | null
   reminderSentAt: string | null
   error: string | null
+  /** True once checkout succeeded: the label is paid and must never be checked out again. */
+  paid: boolean
+  /** ISO time the state entered `pending`; lets a later task spot a stale pending. */
+  pendingSince: string | null
 }
 
 export type PurchaseDeps = {
@@ -48,7 +52,7 @@ export function labelsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
 
 const emptyState = (): ShippingLabelState => ({
   status: "pending", meOrderIds: [], price: null, trackingCode: null,
-  generatedAt: null, postBy: null, reminderSentAt: null, error: null,
+  generatedAt: null, postBy: null, reminderSentAt: null, error: null, paid: false, pendingSince: null,
 })
 
 // The backend runs as a single process, so this closes the window between
@@ -90,11 +94,19 @@ async function run(deps: PurchaseDeps, orderId: string): Promise<ShippingLabelSt
 
   const save = async (state: ShippingLabelState) => {
     // Medusa replaces metadata wholesale, so the full object always goes back.
-    await orderService.updateOrders(orderId, { metadata: { ...metadata, shipping_label: state } })
+    await orderService.updateOrders(orderId, { metadata: { ...metadata, shipping_label: { ...state, meOrderIds: [...state.meOrderIds] } } })
     return state
   }
 
-  const state: ShippingLabelState = emptyState()
+  const now = deps.now ?? (() => new Date())
+  // A retry resumes from what was already obtained/paid instead of starting over,
+  // so a paid label is never bought twice.
+  const state: ShippingLabelState = {
+    ...emptyState(),
+    ...(existing ? { meOrderIds: [...(existing.meOrderIds ?? [])], price: existing.price ?? null, paid: existing.paid === true } : {}),
+    status: "pending",
+    pendingSince: now().toISOString(),
+  }
   await save(state)
 
   try {
@@ -122,32 +134,40 @@ async function run(deps: PurchaseDeps, orderId: string): Promise<ShippingLabelSt
       },
     }
 
-    const volumes = await resolveVolumes(deps, order, labelOrder, sellerRecord)
-    // Build every request before the first Melhor Envio call, so a bad order never leaves a half-filled cart.
-    const bodies: CartRequest[] = []
-    for (const volume of volumes) {
-      const built = buildCartRequest(labelOrder, labelSeller, volume)
-      if (!built.ok) return save({ ...state, status: "failed", error: built.reason })
-      bodies.push(built.body)
-    }
+    if (state.meOrderIds.length === 0) {
+      const volumes = await resolveVolumes(deps, order, labelOrder, sellerRecord)
+      // Build every request before the first Melhor Envio call, so a bad order never leaves a half-filled cart.
+      const bodies: CartRequest[] = []
+      for (const volume of volumes) {
+        const built = buildCartRequest(labelOrder, labelSeller, volume)
+        if (!built.ok) return save({ ...state, status: "failed", error: built.reason })
+        bodies.push(built.body)
+      }
 
-    let price = 0
-    for (const body of bodies) {
-      try {
-        const added = await deps.labels.addToCart(body)
-        state.meOrderIds.push(added.id)
-        price += added.price
-      } catch (err) {
-        return save({ ...state, status: "failed", error: describeError(err) })
+      let price = 0
+      state.price = 0
+      for (const body of bodies) {
+        try {
+          const added = await deps.labels.addToCart(body)
+          state.meOrderIds.push(added.id)
+          price += added.price
+          state.price = price
+        } catch (err) {
+          return save({ ...state, status: "failed", error: describeError(err) })
+        }
       }
     }
-    await deps.labels.checkout(state.meOrderIds)
+    if (!state.paid) {
+      await deps.labels.checkout(state.meOrderIds)
+      state.paid = true
+      await save(state)
+    }
     await deps.labels.generate(state.meOrderIds)
 
-    const generatedAt = (deps.now ?? (() => new Date()))()
+    const generatedAt = now()
     const handlingDays = deps.handlingDays ?? handlingDaysFromEnv()
     return await save({
-      ...state, status: "generated", price, error: null,
+      ...state, status: "generated", error: null,
       generatedAt: generatedAt.toISOString(), postBy: addBusinessDays(generatedAt, handlingDays).toISOString(),
     })
   } catch (err) {

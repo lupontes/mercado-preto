@@ -127,7 +127,7 @@ describe("purchaseShippingLabel", () => {
   })
 
   it.each(["pending", "generated"] as const)("does not buy again when the state is %s", async (status) => {
-    const existing = { status, meOrderIds: ["x"], price: 1, trackingCode: null, generatedAt: null, postBy: null, reminderSentAt: null, error: null }
+    const existing = { status, meOrderIds: ["x"], price: 1, trackingCode: null, generatedAt: null, postBy: null, reminderSentAt: null, error: null, paid: false, pendingSince: null }
     const t = setup({ order: makeOrder(existing) })
     const state = await purchaseShippingLabel(t.deps, "order_1")
     expect(t.labels.addToCart).not.toHaveBeenCalled()
@@ -146,7 +146,7 @@ describe("purchaseShippingLabel", () => {
   })
 
   it("buys again from a failed state", async () => {
-    const failed = { status: "failed" as const, meOrderIds: [], price: null, trackingCode: null, generatedAt: null, postBy: null, reminderSentAt: null, error: "x" }
+    const failed = { status: "failed" as const, meOrderIds: [], price: null, trackingCode: null, generatedAt: null, postBy: null, reminderSentAt: null, error: "x", paid: false, pendingSince: null }
     const t = setup({ order: makeOrder(failed) })
     const state = await purchaseShippingLabel(t.deps, "order_1")
     expect(state.status).toBe("generated")
@@ -199,5 +199,48 @@ describe("purchaseShippingLabel", () => {
     const state = await purchaseShippingLabel(t.deps, "order_1")
     expect(state.status).toBe("failed")
     expect(state.error).toBe("Falha inesperada ao comprar a etiqueta")
+  })
+
+  it("sets pendingSince while pending", async () => {
+    const t = setup()
+    await purchaseShippingLabel(t.deps, "order_1")
+    expect(t.updates[0].metadata.shipping_label).toMatchObject({ status: "pending", pendingSince: NOW.toISOString(), paid: false })
+  })
+
+  it("keeps paid true when generate fails and resumes with generate only", async () => {
+    let failGenerate = true
+    const labels = {
+      addToCart: jest.fn(async () => ({ id: "me_1", price: 1500 })),
+      checkout: jest.fn(async () => {}),
+      generate: jest.fn(async () => { if (failGenerate) throw new MelhorEnvioError(500, "") }),
+    }
+    const t = setup({ labels })
+    const failed = await purchaseShippingLabel(t.deps, "order_1")
+    expect(failed).toMatchObject({ status: "failed", paid: true, meOrderIds: ["me_1"], price: 1500 })
+    failGenerate = false
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(labels.addToCart).toHaveBeenCalledTimes(1)
+    expect(labels.checkout).toHaveBeenCalledTimes(1)
+    expect(labels.generate).toHaveBeenCalledTimes(2)
+    expect(state).toMatchObject({ status: "generated", paid: true, price: 1500, meOrderIds: ["me_1"] })
+  })
+
+  it("reuses cart ids when checkout failed and never adds to cart again", async () => {
+    let failCheckout = true
+    const labels = {
+      addToCart: jest.fn(async () => ({ id: "me_1", price: 1500 })),
+      checkout: jest.fn(async () => { if (failCheckout) throw new MelhorEnvioError(422, "") }),
+      generate: jest.fn(async () => {}),
+    }
+    const t = setup({ labels })
+    const failed = await purchaseShippingLabel(t.deps, "order_1")
+    expect(failed).toMatchObject({ status: "failed", paid: false, meOrderIds: ["me_1"], price: 1500 })
+    failCheckout = false
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(labels.addToCart).toHaveBeenCalledTimes(1)
+    expect(labels.checkout).toHaveBeenCalledTimes(2)
+    expect(labels.generate).toHaveBeenCalledTimes(1)
+    expect(labels.checkout).toHaveBeenLastCalledWith(["me_1"])
+    expect(state).toMatchObject({ status: "generated", paid: true, price: 1500 })
   })
 })
