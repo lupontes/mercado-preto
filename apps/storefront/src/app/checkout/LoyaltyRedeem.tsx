@@ -3,10 +3,8 @@
 import { useState } from 'react'
 import { Gift, Loader2 } from 'lucide-react'
 import { formatPrice } from '@/lib/api'
+import { CENTS_PER_POINT } from '@/lib/loyalty'
 import { requestLoyaltyCode, verifyLoyaltyCode } from '@/lib/loyalty-api'
-
-// Must match CENTS_PER_POINT on the backend (modules/loyalty/constants.ts).
-const CENTS_PER_POINT = 1
 
 export type LoyaltySelection = { redeemPoints: number; loyaltyToken: string } | null
 
