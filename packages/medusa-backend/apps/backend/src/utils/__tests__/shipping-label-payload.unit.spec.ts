@@ -121,4 +121,18 @@ describe("buildCartRequest", () => {
       reason: "Endereço de envio da loja incompleto",
     })
   })
+
+  it.each([[""], ["123"], ["1234567890123"]])("rejects a seller document of invalid length (%j)", (cpfCnpj) => {
+    expect(buildCartRequest(makeOrder(), makeSeller({ cpfCnpj }), volume)).toEqual({
+      ok: false,
+      reason: "CPF/CNPJ da loja ausente",
+    })
+  })
+
+  it("checks the seller document after the seller address and before the buyer document", () => {
+    const badDoc = makeSeller({ cpfCnpj: "" })
+    expect(buildCartRequest(makeOrder({ buyerDocument: null }), badDoc, volume)).toEqual({ ok: false, reason: "CPF/CNPJ da loja ausente" })
+    const badBoth = makeSeller({ cpfCnpj: "", address: { ...makeSeller().address, street: null } })
+    expect(buildCartRequest(makeOrder(), badBoth, volume)).toEqual({ ok: false, reason: "Endereço de envio da loja incompleto" })
+  })
 })

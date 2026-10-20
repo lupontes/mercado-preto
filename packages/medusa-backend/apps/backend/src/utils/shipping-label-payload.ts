@@ -59,6 +59,9 @@ export function buildCartRequest(
   })
   if (!originOk) return { ok: false, reason: "Endereço de envio da loja incompleto" }
 
+  // Melhor Envio rejects the purchase without a valid CPF (11) or CNPJ (14) on the sender.
+  if (![11, 14].includes(digits(seller.cpfCnpj ?? "").length)) return { ok: false, reason: "CPF/CNPJ da loja ausente" }
+
   const buyerDocument = digits(order.buyerDocument ?? "")
   if (!buyerDocument) return { ok: false, reason: "CPF/CNPJ do comprador ausente" }
 
