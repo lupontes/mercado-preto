@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getSellerOrders } from '@/lib/seller-api'
 import { formatPrice } from '@/lib/api'
+import { medusaBaseUrl } from '@/lib/medusa-url'
 import { orderStatusBadge } from '@/lib/order-status'
 import { Loader2, ShoppingBag } from 'lucide-react'
 
@@ -11,6 +12,7 @@ type Order = {
   display_id?: number
   status: string
   shipping_status?: string | null
+  shipping_label?: { status: string; tracking_code: string | null; post_by: string | null } | null
   total?: number
   created_at: string
   items?: Array<{ title: string; quantity: number; unit_price: number }>
@@ -86,6 +88,7 @@ export default function PedidosPage() {
                   </td>
                   <td className="px-4 py-3">
                     <OrderStatusBadge status={order.status} shippingStatus={order.shipping_status} />
+                    <LabelInfo orderId={order.id} label={order.shipping_label} />
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-onyx/50">
                     {new Date(order.created_at).toLocaleDateString('pt-BR')}
@@ -108,5 +111,33 @@ function OrderStatusBadge({ status, shippingStatus }: { status: string; shipping
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${className}`}>
       {label}
     </span>
+  )
+}
+
+function formatDayMonth(iso: string): string {
+  // UTC to match how the backend computes the deadline day.
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })
+}
+
+function LabelInfo({ orderId, label }: { orderId: string; label?: Order['shipping_label'] }) {
+  if (!label) return null
+  if (label.status === 'pending') {
+    return <p className="mt-1 text-xs text-onyx/50">Etiqueta em preparação</p>
+  }
+  if (label.status !== 'generated') return null
+  return (
+    <div className="mt-1 space-y-0.5 text-xs">
+      {/* The print route authenticates by session cookie, so it must stay same-origin in the browser. */}
+      <a
+        href={`${medusaBaseUrl()}/seller/orders/${orderId}/label`}
+        target="_blank"
+        rel="noreferrer"
+        className="font-semibold text-amber underline"
+      >
+        Imprimir etiqueta
+      </a>
+      {label.tracking_code && <p className="font-mono text-onyx/60">{label.tracking_code}</p>}
+      {label.post_by && <p className="text-onyx/50">{`Postar até ${formatDayMonth(label.post_by)}`}</p>}
+    </div>
   )
 }

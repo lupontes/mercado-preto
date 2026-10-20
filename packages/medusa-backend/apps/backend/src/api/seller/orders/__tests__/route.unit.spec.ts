@@ -137,4 +137,23 @@ describe("GET /seller/orders", () => {
     expect(order.metadata).toBeUndefined()
     expect(legacy.shipping_status).toBeNull()
   })
+
+  it("exposes only status, tracking_code and post_by of the label, never the buyer document", async () => {
+    const listOrders = jest.fn().mockResolvedValue([
+      {
+        id: "order_1", items: [], shipping_methods: [],
+        metadata: {
+          buyer_document: "12345678900",
+          shipping_label: { status: "generated", trackingCode: "BR1", postBy: "2026-10-25T00:00:00Z", meOrderIds: ["me1"], error: "x" },
+        },
+      },
+      { id: "order_2", items: [], shipping_methods: [], metadata: {} },
+    ])
+    const req = { sellerId: "seller_1", query: {}, scope: makeScope({ [Modules.ORDER]: { listOrders } }) } as any
+    const res = makeRes()
+    await GET(req, res)
+    expect(res._body.orders[0].shipping_label).toEqual({ status: "generated", tracking_code: "BR1", post_by: "2026-10-25T00:00:00Z" })
+    expect(res._body.orders[1].shipping_label).toBeNull()
+    expect(JSON.stringify(res._body)).not.toContain("12345678900")
+  })
 })

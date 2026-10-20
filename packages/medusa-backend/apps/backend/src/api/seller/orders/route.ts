@@ -33,6 +33,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const ordersWithTotal = orders.map(({ metadata, ...order }: any) => ({
     ...order,
     shipping_status: metadata?.shipping_status ?? null,
+    // Only these three fields: the label state also holds Melhor Envio ids and errors.
+    shipping_label: metadata?.shipping_label
+      ? {
+          status: metadata.shipping_label.status,
+          tracking_code: metadata.shipping_label.trackingCode ?? null,
+          post_by: metadata.shipping_label.postBy ?? null,
+        }
+      : null,
     total:
       (order.items ?? []).reduce(
         (sum: number, item: any) => sum + Number(item.unit_price ?? 0) * Number(item.quantity ?? 0),
