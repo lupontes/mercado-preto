@@ -377,6 +377,24 @@ Se o pairing code não funcionar, verificar:
 
 ---
 
+## Etiquetas do Melhor Envio
+
+Com a funcionalidade ligada, cada pedido de loja recebe uma etiqueta comprada automaticamente assim que o pagamento no Mercado Pago é aprovado. O seller recebe o link da etiqueta por WhatsApp e e-mail, e também a vê no portal. O job `shipping-label-tracking` atualiza o status do envio a cada 2 h.
+
+**Ativar**: em `infra/.env.oci` defina `MELHOR_ENVIO_LABELS_ENABLED=true` e recrie o backend:
+
+```bash
+docker compose -f infra/docker-compose.oci.yml --env-file infra/.env.oci up -d --force-recreate medusa
+```
+
+- **Saldo**: a compra debita a carteira do Melhor Envio. No sandbox, adicione saldo fictício no painel do sandbox.
+- **Alertas**: defina `ADMIN_ALERT_EMAIL` para receber o aviso de compras que falharam.
+- **Falhas**: aparecem na página do pedido no admin, com as ações "Comprar etiqueta de novo" e "Cancelar etiqueta".
+- **Checkout**: agora exige Número e Bairro no endereço de entrega.
+- **Produção**: exige o aplicativo OAuth do Melhor Envio (próximo ciclo); tokens pessoais só funcionam no sandbox. Por isso `MELHOR_ENVIO_WEBHOOK_SECRET` fica vazio por ora e o status vem só do job.
+
+---
+
 ## Validação final
 
 ```bash
