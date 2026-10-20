@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@medusajs/admin-sdk", () => ({ defineWidgetConfig: (config: unknown) => config }))
+vi.mock("@medusajs/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@medusajs/ui")>()),
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
 vi.mock("../../lib/sdk", () => ({ sdk: { client: { fetch: vi.fn() } } }))
 
+import { toast } from "@medusajs/ui"
 import { sdk } from "../../lib/sdk"
 import OrderShippingStatusWidget, { config } from "../order-shipping-status"
 
@@ -25,8 +30,14 @@ const order = (shipping_label?: unknown, shipping_status = "awaiting_shipment") 
   ({ id: "order_1", status: "pending", metadata: { shipping_status, ...(shipping_label ? { shipping_label } : {}) } })
 
 describe("OrderShippingStatusWidget", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     fetchMock.mockReset()
+    vi.mocked(toast.success).mockReset()
+    vi.mocked(toast.error).mockReset()
     fetchMock.mockResolvedValue({ link: "https://api/labels/tok" })
   })
 
@@ -90,6 +101,33 @@ describe("OrderShippingStatusWidget", () => {
     unmount()
     renderWidget(order(label({ postBy: "2020-01-01T00:00:00Z" }), "shipped"))
     expect(screen.queryByText("Prazo de postagem vencido")).not.toBeInTheDocument()
+  })
+
+  it("does not flag the deadline during its last Sao Paulo day, only after it", () => {
+    // postBy is 12:00 BRT on the 23rd.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-10-23T23:00:00Z") })
+    const { unmount } = renderWidget(order(label({ postBy: "2026-10-23T15:00:00Z" })))
+    expect(screen.queryByText("Prazo de postagem vencido")).not.toBeInTheDocument()
+    unmount()
+    vi.setSystemTime(Date.parse("2026-10-24T12:00:00Z"))
+    renderWidget(order(label({ postBy: "2026-10-23T15:00:00Z" })))
+    expect(screen.getByText("Prazo de postagem vencido")).toBeInTheDocument()
+  })
+
+  it("toasts success after buy again only when the label comes back generated", async () => {
+    fetchMock.mockResolvedValue({ shipping_label: label({ status: "generated" }) })
+    renderWidget(order(label({ status: "failed" })))
+    await userEvent.click(screen.getByRole("button", { name: "Comprar etiqueta de novo" }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Compra da etiqueta refeita"))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it("toasts the error after buy again when the label comes back failed", async () => {
+    fetchMock.mockResolvedValue({ shipping_label: label({ status: "failed", error: "Saldo insuficiente" }) })
+    renderWidget(order(label({ status: "failed" })))
+    await userEvent.click(screen.getByRole("button", { name: "Comprar etiqueta de novo" }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Saldo insuficiente"))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it("offers buy again for a pending label stuck for over 15 minutes", () => {

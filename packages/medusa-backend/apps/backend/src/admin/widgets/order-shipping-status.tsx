@@ -31,6 +31,9 @@ function badgeFor(order: AdminOrder): { label: string; color: BadgeColor } {
   return { label: SHIPPING_STATUS_LABELS[status] ?? status, color: COLORS[status] ?? "grey" }
 }
 
+// en-CA formats as YYYY-MM-DD, which compares as a plain string.
+const saoPauloDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" })
+
 const formatPrice = (cents: number) =>
   (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
@@ -50,8 +53,14 @@ function ShippingLabelSection({ orderId, label, awaitingShipment }: { orderId: s
     queryClient.invalidateQueries()
   }
   const buyAgain = useMutation({
-    mutationFn: () => sdk.client.fetch(path, { method: "POST" }),
-    onSuccess: onSuccess("Compra da etiqueta refeita"),
+    mutationFn: () => sdk.client.fetch<{ shipping_label?: ShippingLabelState | null }>(path, { method: "POST" }),
+    // The route answers 200 even when the purchase failed again, so the toast follows the returned state.
+    onSuccess: (res) => {
+      const result = res?.shipping_label
+      if (result?.status === "generated") toast.success("Compra da etiqueta refeita")
+      else toast.error(result?.error ?? "A compra da etiqueta não foi concluída")
+      queryClient.invalidateQueries()
+    },
     onError,
   })
   const cancel = useMutation({
@@ -66,7 +75,8 @@ function ShippingLabelSection({ orderId, label, awaitingShipment }: { orderId: s
     Date.now() - new Date(label.pendingSince).getTime() > STALE_PENDING_MS
   const canBuyAgain = label.status === "failed" || stalePending
   const canCancel = label.status === "generated" && awaitingShipment
-  const overdue = !!label.postBy && new Date(label.postBy).getTime() < Date.now() && awaitingShipment
+  // The deadline day itself is still on time, so compare São Paulo calendar days.
+  const overdue = !!label.postBy && awaitingShipment && saoPauloDay.format(new Date()) > saoPauloDay.format(new Date(label.postBy))
   const { label: statusLabel, color } = LABEL_STATUS[label.status]
 
   return (
