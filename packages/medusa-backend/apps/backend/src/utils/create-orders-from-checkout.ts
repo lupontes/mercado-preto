@@ -90,6 +90,9 @@ export async function createOrdersFromCheckout({
         mercadopago_external_reference: externalReference,
         seller_id: group.sellerId,
         buyer_document: meta.buyer_document,
+        // Absent on snapshots created before checkout collected them; never write undefined.
+        ...(addr?.number ? { address_number: addr.number } : {}),
+        ...(addr?.district ? { address_district: addr.district } : {}),
         // Read by the commission subscriber: the platform, not the store, pays it.
         loyalty_discount: group.loyalty_discount ?? 0,
         shipping_status: INITIAL_SHIPPING_STATUS,

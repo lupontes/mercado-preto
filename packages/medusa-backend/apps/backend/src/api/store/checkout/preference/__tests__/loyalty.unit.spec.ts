@@ -65,7 +65,7 @@ const body = (extra: Record<string, unknown> = {}) => ({
     { title: "x", quantity: 1, price: 7900, variantId: "var-1", productId: "prod-1" },
     { title: "y", quantity: 1, price: 4000, variantId: "var-2", productId: "prod-2" },
   ],
-  address: { firstName: "A", lastName: "B", email: "a@b.com", cep: "01310-100", address1: "Rua", city: "SP", state: "SP" },
+  address: { firstName: "A", lastName: "B", email: "a@b.com", cep: "01310-100", address1: "Rua", number: "1", district: "Centro", city: "SP", state: "SP" },
   shipping: { tier: "economico", expectedTotal: 2000 },
   document: "111.444.777-35",
   ...extra,

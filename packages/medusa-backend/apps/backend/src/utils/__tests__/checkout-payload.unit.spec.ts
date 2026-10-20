@@ -13,6 +13,8 @@ const request: CheckoutRequest = {
     cep: "44300-000",
     address1: "Rua das Flores",
     address2: "100",
+    number: "1000",
+    district: "Bela Vista",
     city: "Cachoeira",
     state: "BA",
   },
@@ -66,6 +68,14 @@ describe("checkoutRequestSchema", () => {
     }
   })
 
+  it("rejects an address without number or district, or with them empty", () => {
+    const withAddress = (patch: Record<string, unknown>) => ({ ...request, address: { ...request.address, ...patch } })
+    for (const field of ["number", "district"]) {
+      expect(checkoutRequestSchema.safeParse(withAddress({ [field]: undefined })).success).toBe(false)
+      expect(checkoutRequestSchema.safeParse(withAddress({ [field]: "" })).success).toBe(false)
+    }
+  })
+
   it("rejects an invalid CPF/CNPJ", () => {
     expect(checkoutRequestSchema.safeParse({ ...request, document: "123" }).success).toBe(false)
   })
@@ -90,6 +100,8 @@ describe("buildCheckoutSnapshot", () => {
     if (!("payload" in result)) throw new Error("expected payload")
     expect(result.payload.buyer_document).toBe("11144477735")
     expect(result.payload.address.postal_code).toBe("44300000")
+    expect(result.payload.address.number).toBe("1000")
+    expect(result.payload.address.district).toBe("Bela Vista")
     expect(result.payload.seller_groups.map((g) => g.sellerId)).toEqual(["seller-a", "seller-b"])
     expect(result.payload.items).toEqual([
       { variant_id: "var-1", title: "Camiseta", quantity: 2, price: 7900 },
