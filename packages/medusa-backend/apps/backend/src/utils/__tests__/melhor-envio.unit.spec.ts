@@ -43,6 +43,21 @@ describe("createMelhorEnvioCalculator", () => {
     expect(quotes).toEqual([{ service: "PAC", serviceId: 1, price: 3679, deliveryDays: 10 }])
   })
 
+  it("maps the packages of the response to label volumes", async () => {
+    const fetchImpl = okFetch([
+      {
+        id: 1,
+        name: "PAC",
+        price: "36.79",
+        delivery_time: 9,
+        company: { name: "Correios" },
+        packages: [{ weight: "0.5", dimensions: { height: 10, width: "15", length: 20 } }],
+      },
+    ])
+    const quotes = await createMelhorEnvioCalculator({ token: "tok", sandbox: true, fetchImpl })(input)
+    expect(quotes[0].packages).toEqual([{ weight: 0.5, length: 20, width: 15, height: 10 }])
+  })
+
   it("drops services whose delivery time is missing or not a number", async () => {
     const fetchImpl = okFetch([
       { id: 1, name: "PAC", price: "36.79", delivery_time: null, company: { name: "Correios" } },

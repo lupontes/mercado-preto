@@ -9,7 +9,17 @@ export type QuoteProduct = {
   quantity: number
 }
 
-export type ServiceQuote = { service: "PAC" | "SEDEX"; serviceId: number; price: number; deliveryDays: number }
+/** One physical volume Melhor Envio plans for a quote (weight in kg, dimensions in cm). */
+export type LabelVolume = { weight: number; length: number; width: number; height: number }
+
+export type ServiceQuote = {
+  service: "PAC" | "SEDEX"
+  serviceId: number
+  price: number
+  deliveryDays: number
+  /** Volumes Melhor Envio planned for this quote; absent when the response omits them. */
+  packages?: LabelVolume[]
+}
 
 export type ShippingCalculator = (input: {
   fromPostalCode: string
@@ -25,6 +35,15 @@ const CORREIOS_SERVICES = "1,2"
 function toNumberOrNaN(value: unknown): number {
   if (value === null || value === undefined || value === "") return NaN
   return Number(value)
+}
+
+function toVolume(p: any): LabelVolume {
+  return {
+    weight: Number(p.weight),
+    length: Number(p.dimensions?.length),
+    width: Number(p.dimensions?.width),
+    height: Number(p.dimensions?.height),
+  }
 }
 
 export function createMelhorEnvioCalculator(opts: {
@@ -73,6 +92,7 @@ export function createMelhorEnvioCalculator(opts: {
           serviceId: Number(s.id),
           price: Math.round(Number(s.custom_price ?? s.price) * 100),
           deliveryDays: toNumberOrNaN(s.custom_delivery_time ?? s.delivery_time),
+          ...(Array.isArray(s.packages) && s.packages.length > 0 ? { packages: s.packages.map(toVolume) } : {}),
         }))
         // A service without a usable price or deadline would surface as
         // "R$ NaN" / "null dias" in the checkout, so it is treated as unavailable.
