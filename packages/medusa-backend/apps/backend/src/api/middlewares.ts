@@ -3,7 +3,12 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 import { verifySellerToken } from "../utils/seller-jwt"
 import { clientIp } from "../utils/client-ip"
-import { findForbiddenSellerField } from "../utils/store-fields-guard"
+import {
+  findForbiddenProductField,
+  findForbiddenProductRelationField,
+  findForbiddenSellerField,
+} from "../utils/store-fields-guard"
+import { stripPendingChanges } from "../utils/strip-pending-changes"
 import { sellerImageUpload } from "./seller/uploads/upload-middlewares"
 
 export function sellerCors(req: any, res: any, next: any) {
@@ -37,10 +42,35 @@ export function sellerAuth(req: any, res: any, next: any) {
 // Blocks private seller columns from being pulled through the seller↔product
 // link with the public publishable key (see utils/store-fields-guard.ts).
 export function storeFieldsGuard(req: any, res: any, next: any) {
-  const forbidden = findForbiddenSellerField(req.query?.fields)
+  // originalUrl, not req.path: for a `/store/*` mount Express strips the matched
+  // prefix from req.path, so it cannot be trusted to identify the route here.
+  const pathname = String(req.originalUrl ?? `${req.baseUrl ?? ""}${req.path ?? ""}`).split("?")[0]
+  // Case-insensitive because Express routes match that way; a case-sensitive test would be bypassable.
+  // Tag and type defaults include `*products`: every product column, metadata
+  // and unpublished products included, comes back even without `fields`. The
+  // storefront does not use these routes, so they are closed instead of patched.
+  if (/^\/store\/product-(tags|types)(\/|$)/i.test(pathname)) {
+    return res.status(404).json({ error: "Rota não disponível" })
+  }
+  const isProductRoute = /^\/store\/products(\/|$)/i.test(pathname)
+  const forbidden =
+    findForbiddenSellerField(req.query?.fields) ??
+    findForbiddenProductRelationField(req.query?.fields) ??
+    (isProductRoute ? findForbiddenProductField(req.query?.fields) : null)
   if (forbidden) {
     return res.status(400).json({ error: `Campo não permitido: ${forbidden}` })
   }
+  next()
+}
+
+// Defense in depth for the fields guard: Medusa's default store fields (order
+// and cart-complete responses expand `*items.variant.product`) return whole
+// products, metadata included, without any `fields` in the request. Wrapping
+// res.json removes the sellers' unreviewed edits from every store response,
+// whatever route or relation produced them.
+export function storeResponseSanitizer(req: any, res: any, next: any) {
+  const json = res.json.bind(res)
+  res.json = (body: unknown) => json(stripPendingChanges(body))
   next()
 }
 
@@ -98,7 +128,7 @@ export default defineMiddlewares({
   routes: [
     {
       matcher: "/store/*",
-      middlewares: [storeFieldsGuard],
+      middlewares: [storeFieldsGuard, storeResponseSanitizer],
     },
     {
       matcher: "/seller",

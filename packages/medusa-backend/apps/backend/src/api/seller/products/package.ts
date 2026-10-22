@@ -19,6 +19,5 @@ export function resolveSellerPackage(
     return { ok: false, error: (err as Error).message }
   }
   if (exceedsCorreiosLimits(dims)) return { ok: false, error: LIMIT_ERROR }
-  // Seller-measured boxes are the error-prone ones; the team reviews them.
-  return { ok: true, dims, metadata: size === "bulky" ? { package_size: size, package_review: "pending" } : { package_size: size } }
+  return { ok: true, dims, metadata: { package_size: size } }
 }

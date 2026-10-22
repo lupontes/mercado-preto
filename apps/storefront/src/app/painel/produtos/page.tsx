@@ -11,6 +11,7 @@ type Product = {
   title: string
   status: string
   thumbnail?: string
+  metadata?: { pending_changes?: unknown } | null
   categories?: Array<{ id: string; name: string }>
   variants?: Array<{
     prices?: Array<{ amount: number; currency_code: string }>
@@ -112,7 +113,7 @@ export default function ProdutosPage() {
                       {price ? formatPrice(price.amount) : '—'}
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
-                      <StatusBadge status={product.status} />
+                      <StatusBadge status={product.status} hasPending={!!product.metadata?.pending_changes} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -148,12 +149,14 @@ export default function ProdutosPage() {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, hasPending }: { status: string; hasPending: boolean }) {
   const map: Record<string, { label: string; className: string }> = {
     published: { label: 'Publicado', className: 'bg-forest/10 text-forest' },
     draft: { label: 'Rascunho', className: 'bg-sand-dark text-onyx/60' },
-    proposed: { label: 'Proposto', className: 'bg-amber/10 text-amber-dark' },
-    rejected: { label: 'Rejeitado', className: 'bg-terracotta/10 text-terracotta' },
+    proposed: { label: 'Em análise', className: 'bg-amber/10 text-amber-dark' },
+  }
+  if (status === 'published' && hasPending) {
+    map.published = { label: 'Publicado · alteração em análise', className: 'bg-amber/10 text-amber-dark' }
   }
   const { label, className } = map[status] ?? { label: status, className: 'bg-sand-dark text-onyx/60' }
   return (
