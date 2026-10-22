@@ -8,6 +8,7 @@ import {
   findForbiddenProductRelationField,
   findForbiddenSellerField,
 } from "../utils/store-fields-guard"
+import { stripPendingChanges } from "../utils/strip-pending-changes"
 import { sellerImageUpload } from "./seller/uploads/upload-middlewares"
 
 export function sellerCors(req: any, res: any, next: any) {
@@ -59,6 +60,17 @@ export function storeFieldsGuard(req: any, res: any, next: any) {
   if (forbidden) {
     return res.status(400).json({ error: `Campo não permitido: ${forbidden}` })
   }
+  next()
+}
+
+// Defense in depth for the fields guard: Medusa's default store fields (order
+// and cart-complete responses expand `*items.variant.product`) return whole
+// products, metadata included, without any `fields` in the request. Wrapping
+// res.json removes the sellers' unreviewed edits from every store response,
+// whatever route or relation produced them.
+export function storeResponseSanitizer(req: any, res: any, next: any) {
+  const json = res.json.bind(res)
+  res.json = (body: unknown) => json(stripPendingChanges(body))
   next()
 }
 
@@ -116,7 +128,7 @@ export default defineMiddlewares({
   routes: [
     {
       matcher: "/store/*",
-      middlewares: [storeFieldsGuard],
+      middlewares: [storeFieldsGuard, storeResponseSanitizer],
     },
     {
       matcher: "/seller",
