@@ -5,6 +5,7 @@ import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../modules/seller"
 import { categoryExists } from "./category-validation"
 import { resolveSellerPackage } from "./package"
+import { notifyTeamProductSubmitted } from "../../../utils/product-moderation-notify"
 
 const packageFields = {
   packageSize: z.enum(["small", "medium", "large", "bulky"]).optional(),
@@ -18,7 +19,7 @@ const CreateProductSchema = z.object({
   description: z.string().optional(),
   handle: z.string().optional(),
   thumbnail: z.string().url().optional(),
-  status: z.enum(["draft", "published"]).default("draft"),
+  status: z.enum(["draft", "proposed"]).default("draft"),
   category_id: z.string().optional(),
   variants: z.array(z.object({
     title: z.string().default("Default"),
@@ -45,6 +46,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       "products.handle",
       "products.thumbnail",
       "products.status",
+      "products.metadata",
       "products.description",
       "products.created_at",
       "products.categories.id",
@@ -79,6 +81,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Categoria não encontrada" })
   }
 
+  const isSubmission = parsed.data.status === "proposed"
+  // Records when the review started, so managers can tell how long a product has waited.
+  const metadata = isSubmission
+    ? { ...pkg.metadata, submitted_at: new Date().toISOString() }
+    : pkg.metadata
+
   let product: any
   try {
     // productService.createProducts() never touches the Pricing module, so
@@ -93,7 +101,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
           thumbnail: parsed.data.thumbnail,
           status: parsed.data.status as any,
           category_ids: parsed.data.category_id ? [parsed.data.category_id] : undefined,
-          metadata: pkg.metadata,
+          metadata,
           // The seller panel only creates single-variant products (no option
           // picker in the UI), so every variant gets the same fixed option.
           options: [{ title: "Default", values: ["Default"] }],
@@ -120,6 +128,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     }])
   } catch (err: any) {
     return res.status(500).json({ error: "Produto criado mas vínculo falhou", productId: product.id, details: err?.message })
+  }
+
+  if (isSubmission) {
+    // Alert only after the store link exists; a failed alert must not turn a
+    // successfully created product into an error response.
+    try {
+      const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: [seller] } = await query.graph({
+        entity: "seller",
+        fields: ["id", "name"],
+        filters: { id: sellerId },
+      })
+      await notifyTeamProductSubmitted(
+        { id: product.id, title: product.title, handle: product.handle },
+        seller?.name ?? "",
+        "new"
+      )
+    } catch (err: any) {
+      console.error("[seller/products POST] notifyTeamProductSubmitted error:", err?.message)
+    }
   }
 
   res.status(201).json({ product })
