@@ -109,7 +109,6 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
     const { data: [current] } = await query.graph({ entity: "product", fields: ["id", "metadata"], filters: { id } })
     const existing = (current?.metadata ?? {}) as Record<string, unknown>
-    // Re-review only when the seller measured the box; presets keep the team's verdict.
     updateData.metadata = { ...existing, ...pkg.metadata }
     await productService.updateProductVariants({ product_id: id }, pkg.dims)
   }

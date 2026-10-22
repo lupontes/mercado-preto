@@ -32,13 +32,13 @@ describe("POST /seller/products — package size", () => {
     expect(product.metadata).toEqual({ package_size: "small" })
   })
 
-  it("stores bulky custom dimensions and flags them for team review", async () => {
+  it("stores bulky custom dimensions and keeps the size in metadata", async () => {
     const res = makeRes()
     const dims = { weight: 1.2, length: 65, width: 40, height: 50 }
     await POST(makeReq({ ...base, packageSize: "bulky", packageDimensions: dims }), res)
     const product = run.mock.calls[0][0].input.products[0]
     expect(product.variants[0]).toEqual(expect.objectContaining(dims))
-    expect(product.metadata).toEqual({ package_size: "bulky", package_review: "pending" })
+    expect(product.metadata).toEqual({ package_size: "bulky" })
   })
 
   it("rejects bulky without dimensions and dimensions above the Correios limits", async () => {

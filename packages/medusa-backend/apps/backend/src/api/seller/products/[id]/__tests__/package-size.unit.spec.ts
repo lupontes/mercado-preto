@@ -9,7 +9,7 @@ function makeReq(body: unknown) {
   const graph = jest.fn(async ({ entity }: any) =>
     entity === "seller"
       ? { data: [{ products: [{ id: "prod-1" }] }] }
-      : { data: [{ id: "prod-1", metadata: { origin: "nuvemshop", package_review: "approved" } }] }
+      : { data: [{ id: "prod-1", metadata: { origin: "nuvemshop" } }] }
   )
   return {
     body, params: { id: "prod-1" }, sellerId: "s1",
@@ -36,13 +36,13 @@ describe("PATCH /seller/products/:id — package size", () => {
       { product_id: "prod-1" },
       { weight: 3, length: 40, width: 30, height: 20 }
     )
-    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual({ origin: "nuvemshop", package_size: "large", package_review: "approved" })
+    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual({ origin: "nuvemshop", package_size: "large" })
   })
 
-  it("marks bulky edits for review again", async () => {
+  it("stores bulky edits with the size in metadata", async () => {
     const req = makeReq({ packageSize: "bulky", packageDimensions: { weight: 1, length: 50, width: 50, height: 50 } })
     await PATCH(req, makeRes())
-    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual(expect.objectContaining({ package_size: "bulky", package_review: "pending" }))
+    expect(run.mock.calls[0][0].input.products[0].metadata).toEqual({ origin: "nuvemshop", package_size: "bulky" })
   })
 
   it("does not touch dimensions when no package size is sent", async () => {
