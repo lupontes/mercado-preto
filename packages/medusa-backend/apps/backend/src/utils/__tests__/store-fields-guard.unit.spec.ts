@@ -1,6 +1,11 @@
 import { readFileSync } from "fs"
 import path from "path"
-import { findForbiddenProductField, findForbiddenSellerField, PUBLIC_SELLER_FIELDS } from "../store-fields-guard"
+import {
+  findForbiddenProductField,
+  findForbiddenProductRelationField,
+  findForbiddenSellerField,
+  PUBLIC_SELLER_FIELDS,
+} from "../store-fields-guard"
 
 const STOREFRONT_API = path.resolve(__dirname, "../../../../../../../apps/storefront/src/lib/api.ts")
 
@@ -92,4 +97,51 @@ describe("findForbiddenProductField", () => {
       expect(findForbiddenProductField(fields)).toBeNull()
     }
   )
+})
+
+describe("findForbiddenProductRelationField", () => {
+  it.each([
+    "+variants.product.metadata",
+    "+product.metadata",
+    "product.metadata.pending_changes",
+    "+items.product.metadata",
+    "items.variant.product.metadata",
+    "+categories.products.metadata",
+    "products.metadata",
+    "Product.Metadata",
+    "*product",
+    "*products",
+    "+*items.product",
+    "*variants.product",
+    "*categories.products",
+    "product.*",
+    "+items.product.*",
+    "products.title",
+    "+products.status",
+    "categories.products.id",
+  ])("rejects %p", (token) => {
+    expect(findForbiddenProductRelationField(`id,${token}`)).toBe(token)
+  })
+
+  it.each([
+    "id,name,handle",
+    "id,categories.id",
+    "*variants.prices,+seller.name,+seller.phone",
+    "variants.metadata",
+    "+items.product.variants.metadata",
+    "+metadata",
+    "+items.product.title",
+    "product.id",
+    "*variants",
+    undefined,
+    "",
+  ])("accepts %p", (fields) => {
+    expect(findForbiddenProductRelationField(fields)).toBeNull()
+  })
+
+  it("accepts every fields= string found in the storefront API client", () => {
+    const source = readFileSync(STOREFRONT_API, "utf8")
+    const fieldStrings = [...source.matchAll(/fields=([^&$`"']+)/g)].map((m) => m[1])
+    for (const f of fieldStrings) expect(findForbiddenProductRelationField(f)).toBeNull()
+  })
 })

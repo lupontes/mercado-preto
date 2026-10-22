@@ -89,6 +89,48 @@ describe("storeFieldsGuard", () => {
     })
   })
 
+  describe("product metadata through relations", () => {
+    it.each([
+      ["/store/products", "+variants.product.metadata"],
+      ["/store/product-variants", "+product.metadata"],
+      ["/store/product-categories", "products.metadata"],
+      ["/store/carts/x", "+items.product.metadata"],
+      ["/store/collections", "*products"],
+      ["/store/product-categories/pcat_1", "products.title"],
+    ])("answers 400 on %s with fields=%s", (originalUrl, fields) => {
+      const res = makeRes()
+      const next = jest.fn()
+      storeFieldsGuard({ originalUrl: `${originalUrl}?fields=x`, query: { fields } } as any, res, next)
+      expect(res._status).toBe(400)
+      expect(res._body).toEqual({ error: `Campo não permitido: ${fields}` })
+      expect(next).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ["/store/product-categories", "id,name,handle"],
+      ["/store/products", "id,categories.id"],
+      ["/store/products/prod_1", "*variants.prices,+seller.name,+seller.phone"],
+      ["/store/carts/x", "+metadata"],
+    ])("lets %s with fields=%s through", (originalUrl, fields) => {
+      const next = jest.fn()
+      storeFieldsGuard({ originalUrl, query: { fields } } as any, makeRes(), next)
+      expect(next).toHaveBeenCalled()
+    })
+  })
+
+  describe("routes whose defaults expand products", () => {
+    it.each(["/store/product-tags", "/store/product-tags/ptag_1", "/store/product-types?limit=5", "/STORE/Product-Types/ptyp_1"])(
+      "answers 404 on %s even without fields",
+      (originalUrl) => {
+        const res = makeRes()
+        const next = jest.fn()
+        storeFieldsGuard({ originalUrl, query: {} } as any, res, next)
+        expect(res._status).toBe(404)
+        expect(next).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   it("is registered for every /store route", () => {
     const route = (middlewareConfig as any).routes.find((r: any) => r.middlewares?.includes(storeFieldsGuard))
     expect(route).toBeDefined()
