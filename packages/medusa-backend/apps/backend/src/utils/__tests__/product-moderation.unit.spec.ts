@@ -38,6 +38,13 @@ describe("diffSellerChanges", () => {
     expect(diffSellerChanges(live, { packageSize: "small" })).toEqual({})
     expect(diffSellerChanges(live, { packageSize: "medium" })).toEqual({ packageSize: "medium" })
   })
+  it("compares measures when the live product has no package_size", () => {
+    const small = { length: 16, width: 11, height: 6, weight: 0.3 }
+    const legacy = { ...live, metadata: {}, variants: [{ ...live.variants![0], ...small }] }
+    expect(diffSellerChanges(legacy, { packageSize: "small" })).toEqual({})
+    const other = { ...legacy, variants: [{ ...legacy.variants[0], weight: 5 }] }
+    expect(diffSellerChanges(other, { packageSize: "small" })).toEqual({ packageSize: "small" })
+  })
   it("compares bulky dimensions against the first variant", () => {
     const bulky = { ...live, metadata: { package_size: "bulky" }, variants: [{ ...live.variants![0], length: 40, width: 30, height: 20, weight: 2 }] }
     const same = { packageSize: "bulky" as const, packageDimensions: { length: 40, width: 30, height: 20, weight: 2 } }

@@ -1,4 +1,4 @@
-import type { PackageDimensions, PackageSize } from "./package-size"
+import { resolvePackageDimensions, type PackageDimensions, type PackageSize } from "./package-size"
 
 type Price = { amount: number; currency_code: string }
 
@@ -43,6 +43,15 @@ function sameDimensions(a: { [K in keyof PackageDimensions]?: number | null }, b
   return Number(a.length) === b.length && Number(a.width) === b.width && Number(a.height) === b.height && Number(a.weight) === b.weight
 }
 
+function matchesVariantDimensions(live: LiveProduct, size: PackageSize, custom?: PackageDimensions): boolean {
+  try {
+    return sameDimensions(live.variants?.[0] ?? {}, resolvePackageDimensions(size, custom))
+  } catch {
+    // Bulky without valid measures cannot match anything.
+    return false
+  }
+}
+
 /**
  * Pure: keeps only the keys whose submitted value differs from the live product.
  * The seller form resubmits every field, so unchanged ones must not trigger a new review.
@@ -71,8 +80,11 @@ export function diffSellerChanges(live: LiveProduct, submitted: SellerProductCha
   }
 
   if (submitted.packageSize !== undefined) {
-    const sizeChanged = submitted.packageSize !== live.metadata?.package_size
     const dims = submitted.packageDimensions
+    const liveSize = live.metadata?.package_size
+    // Older/imported products have no stored preset: compare the measures the
+    // submitted size resolves to against the variant instead of flagging a change.
+    const sizeChanged = liveSize ? submitted.packageSize !== liveSize : !matchesVariantDimensions(live, submitted.packageSize, dims)
     const dimsChanged =
       submitted.packageSize === "bulky" && !!dims && !sameDimensions(live.variants?.[0] ?? {}, dims)
     // Size and dimensions travel together so a bulky change can be applied atomically.
