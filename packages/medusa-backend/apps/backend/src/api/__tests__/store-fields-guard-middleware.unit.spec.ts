@@ -43,6 +43,41 @@ describe("storeFieldsGuard", () => {
     expect(next).toHaveBeenCalledTimes(2)
   })
 
+  describe("product metadata", () => {
+    it.each([
+      ["/store/products", "+metadata"],
+      ["/store/products/prod_1", "*metadata"],
+      ["/store/products", "id,*"],
+    ])("answers 400 on %s with fields=%s", (originalUrl, fields) => {
+      const res = makeRes()
+      const next = jest.fn()
+      storeFieldsGuard({ originalUrl: `${originalUrl}?fields=x`, query: { fields } } as any, res, next)
+      expect(res._status).toBe(400)
+      expect(res._body).toEqual({ error: `Campo não permitido: ${fields.split(",").pop()}` })
+      expect(next).not.toHaveBeenCalled()
+    })
+
+    it("still works when Express stripped the mount path from req.path", () => {
+      const res = makeRes()
+      const next = jest.fn()
+      storeFieldsGuard({ path: "/", baseUrl: "", originalUrl: "/store/products?fields=%2Bmetadata", query: { fields: "+metadata" } } as any, res, next)
+      expect(res._status).toBe(400)
+    })
+
+    it("does not touch other store routes", () => {
+      const next = jest.fn()
+      storeFieldsGuard({ originalUrl: "/store/carts/x?fields=%2Bmetadata", query: { fields: "+metadata" } } as any, makeRes(), next)
+      storeFieldsGuard({ originalUrl: "/store/products-export", query: { fields: "+metadata" } } as any, makeRes(), next)
+      expect(next).toHaveBeenCalledTimes(2)
+    })
+
+    it("lets the storefront product query through", () => {
+      const next = jest.fn()
+      storeFieldsGuard({ originalUrl: "/store/products", query: { fields: "*variants.prices,+seller.name" } } as any, makeRes(), next)
+      expect(next).toHaveBeenCalled()
+    })
+  })
+
   it("is registered for every /store route", () => {
     const route = (middlewareConfig as any).routes.find((r: any) => r.middlewares?.includes(storeFieldsGuard))
     expect(route).toBeDefined()

@@ -30,6 +30,33 @@ function isAllowedToken(token: string): boolean {
   )
 }
 
+function forEachToken(fields: unknown, visit: (token: string) => string | null): string | null {
+  const values: string[] = []
+  collectStrings(fields, values)
+  for (const value of values) {
+    for (const raw of value.split(",")) {
+      const token = raw.trim()
+      const hit = token ? visit(token) : null
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
+/**
+ * Product `metadata` holds the seller's pending, unreviewed edits, so the
+ * public API must never return it. Rejects a first segment of `metadata` under
+ * any prefix (`-metadata` is harmless but rejected too, to keep the rule
+ * simple) and a bare `*`, which would expand every product column. Nested
+ * `variants.metadata` is out of scope: variants hold no pending edits.
+ */
+export function findForbiddenProductField(fields: unknown): string | null {
+  return forEachToken(fields, (token) => {
+    const rest = token.replace(/^[+\-*]*/, "")
+    return rest === "" || rest.split(".")[0] === "metadata" ? token : null
+  })
+}
+
 /** Returns the first `fields` token that would expose a non-public seller field, or null. */
 export function findForbiddenSellerField(fields: unknown): string | null {
   const values: string[] = []

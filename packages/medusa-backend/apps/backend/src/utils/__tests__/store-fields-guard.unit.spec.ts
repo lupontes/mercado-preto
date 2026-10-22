@@ -1,6 +1,6 @@
 import { readFileSync } from "fs"
 import path from "path"
-import { findForbiddenSellerField, PUBLIC_SELLER_FIELDS } from "../store-fields-guard"
+import { findForbiddenProductField, findForbiddenSellerField, PUBLIC_SELLER_FIELDS } from "../store-fields-guard"
 
 const STOREFRONT_API = path.resolve(__dirname, "../../../../../../../apps/storefront/src/lib/api.ts")
 
@@ -76,4 +76,20 @@ describe("findForbiddenSellerField", () => {
   it("does not flag unrelated fields", () => {
     expect(findForbiddenSellerField("id,title,*variants,+metadata,variants.prices.amount")).toBeNull()
   })
+})
+
+describe("findForbiddenProductField", () => {
+  it.each(["metadata", "+metadata", "*metadata", "-metadata", "+*", "*", "metadata.pending"])(
+    "rejects %p",
+    (token) => {
+      expect(findForbiddenProductField(`id,${token}`)).toBe(token)
+    }
+  )
+
+  it.each(["title,+variants.prices", "*variants.prices,+seller.name", "variants.metadata", "metadatas", undefined, ""])(
+    "accepts %p",
+    (fields) => {
+      expect(findForbiddenProductField(fields)).toBeNull()
+    }
+  )
 })

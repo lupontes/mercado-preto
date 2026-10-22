@@ -3,7 +3,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit"
 import { parseCookie, SELLER_SESSION_COOKIE } from "../utils/cookies"
 import { verifySellerToken } from "../utils/seller-jwt"
 import { clientIp } from "../utils/client-ip"
-import { findForbiddenSellerField } from "../utils/store-fields-guard"
+import { findForbiddenProductField, findForbiddenSellerField } from "../utils/store-fields-guard"
 import { sellerImageUpload } from "./seller/uploads/upload-middlewares"
 
 export function sellerCors(req: any, res: any, next: any) {
@@ -37,7 +37,13 @@ export function sellerAuth(req: any, res: any, next: any) {
 // Blocks private seller columns from being pulled through the seller↔product
 // link with the public publishable key (see utils/store-fields-guard.ts).
 export function storeFieldsGuard(req: any, res: any, next: any) {
-  const forbidden = findForbiddenSellerField(req.query?.fields)
+  // originalUrl, not req.path: for a `/store/*` mount Express strips the matched
+  // prefix from req.path, so it cannot be trusted to identify the route here.
+  const pathname = String(req.originalUrl ?? `${req.baseUrl ?? ""}${req.path ?? ""}`).split("?")[0]
+  const isProductRoute = pathname === "/store/products" || pathname.startsWith("/store/products/")
+  const forbidden =
+    findForbiddenSellerField(req.query?.fields) ??
+    (isProductRoute ? findForbiddenProductField(req.query?.fields) : null)
   if (forbidden) {
     return res.status(400).json({ error: `Campo não permitido: ${forbidden}` })
   }
