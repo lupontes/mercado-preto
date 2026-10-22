@@ -1,6 +1,6 @@
 # Handoff: Mercado Preto — etiquetas validadas, produção do Melhor Envio planejada
 
-**Gerado**: 2026-10-22 · **Branch**: `docs/handoff-2026-10-22` · **Status**: etiquetas e rastreio validados no sandbox; produção depende de conta com CNPJ
+**Gerado**: 2026-10-22 · **Branch**: `feature/moderacao-produtos` · **Status**: etiquetas e rastreio validados no sandbox; produção depende de conta com CNPJ
 
 **Fluxo de branches:** `develop → release → main` (sem alpha/beta). Merge de PR é do usuário.
 
@@ -17,11 +17,12 @@ Deixar as etiquetas por loja prontas para produção. Checklist: `docs/deploy/20
 - [x] Checklist de produção mergeado (PR #86).
 - [x] Limpeza (22/10): admin `admin2@mercadopreto.com.br` removido do servidor de teste (soft delete + identidade de login apagada); chave Brevo `marketplace-dev` excluída (resta `mercado-preto-teste`, usada pelo servidor).
 - [x] Decisão: conta única do Mercado Preto; comprador paga o frete cotado e a plataforma absorve a diferença; OAuth fica para depois (sem data de produção).
+- [x] Moderação de produtos implementada na branch (spec `docs/superpowers/specs/2026-10-22-moderacao-de-produtos-design.md`, plano `docs/superpowers/plans/2026-10-22-moderacao-de-produtos.md`).
 
 ## Not Yet Done
 
 - [ ] Usuário: dizer de quem é o admin `teste-admin@mercadopreto.com.br` no servidor de teste (sem registro no repo nem no claude-mem) e se pode ser removido.
-- [ ] **Feedback do Ailton (21/10):** remover a conferência de medidas no painel master e criar moderação manual de produto novo ("Em análise" → "Publicado", correções pelo WhatsApp da vendedora, aviso ao publicar). Funcionalidade nova: ciclo brainstorming → spec → plano. Responder o Ailton depois de decidir.
+- [ ] Moderação: revisão final da branch, PR para develop, deploy no servidor de teste (definir MODERATION_ALERT_WHATSAPP se quiser WhatsApp), conferir telas no painel real, roteiro de teste e resposta ao Ailton.
 - [ ] Produção: conta Melhor Envio com CNPJ (checklist), número de WhatsApp da loja, `docker-compose.prod.yml`, validação jurídica do Mercado Livre.
 - [ ] Depois: app OAuth do Melhor Envio + webhook (quando a conta existir e a espera de 2 h incomodar).
 
@@ -38,3 +39,4 @@ Deixar as etiquetas por loja prontas para produção. Checklist: `docs/deploy/20
 - O servidor de teste está em **sandbox**: e-mails vão para `adm@fixsistemas.com` e WhatsApp para `5598984156828` (Ailton).
 - `MARKETPLACE_SANDBOX=false` vira tudo junto (Melhor Envio, Mercado Pago, Focus NFe, e-mail, WhatsApp). Ver o checklist.
 - O job de rastreio só escreve no log quando há erro ou quando as etiquetas estão desligadas: log vazio é normal.
+- Metadata no Medusa: para apagar uma chave, grave `""` (o `mergeMetadata` mantém chaves ausentes).
