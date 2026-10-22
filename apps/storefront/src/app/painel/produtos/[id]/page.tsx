@@ -13,7 +13,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 type ProductForm = {
   title: string
   description: string
-  status: 'draft' | 'published'
+  status: 'draft' | 'proposed' | 'published'
   thumbnail: string
   price: string
   category_id: string
@@ -40,30 +40,42 @@ export default function EditarProdutoPage() {
   // Saving mid-upload would store the product without the photo.
   const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState('')
+  const [hasPending, setHasPending] = useState(false)
+  // Approved products can never go back to review: they only toggle draft/published.
+  const [approved, setApproved] = useState(false)
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     if (!id) return
     getSellerProduct(id)
       .then((data) => {
         const product = data.product as any
-        const price = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
+        const pending = data.pendingChanges ?? null
+        setHasPending(!!pending)
+        setApproved(product.status === 'published' || !!product.metadata?.approved_at)
+        // Pending values win over the live ones so the seller keeps editing their own submission.
+        const pendingVariant = pending?.variants?.[0]
+        const livePrice = product.variants?.[0]?.prices?.find((p: any) => p.currency_code === 'brl')
+        const price = pendingVariant?.prices?.find((p: any) => p.currency_code === 'brl') ?? livePrice
         setVariantId(product.variants?.[0]?.id ?? null)
-        const storedSize = product.metadata?.package_size as PackageSize | undefined
+        const storedSize = (pending?.packageSize ?? product.metadata?.package_size) as PackageSize | undefined
         if (storedSize) {
           const v = product.variants?.[0]
-          const candidate = v && { length: Number(v.length), width: Number(v.width), height: Number(v.height), weight: Number(v.weight) }
+          const candidate = pending?.packageDimensions
+            ? { ...pending.packageDimensions }
+            : v && { length: Number(v.length), width: Number(v.width), height: Number(v.height), weight: Number(v.weight) }
           const dims = storedSize === 'bulky' && candidate && Object.values(candidate).every(Number.isFinite)
             ? candidate
             : undefined
           setPkg({ size: storedSize, dimensions: dims })
         }
         setForm({
-          title: product.title ?? '',
-          description: product.description ?? '',
+          title: pending?.title ?? product.title ?? '',
+          description: pending?.description ?? product.description ?? '',
           status: product.status ?? 'draft',
-          thumbnail: product.thumbnail ?? '',
+          thumbnail: pending?.thumbnail ?? product.thumbnail ?? '',
           price: price ? String(price.amount / 100).replace('.', ',') : '',
-          category_id: product.categories?.[0]?.id ?? '',
+          category_id: pending && 'category_id' in pending ? (pending.category_id ?? '') : (product.categories?.[0]?.id ?? ''),
         })
       })
       .catch(() => router.replace('/painel/produtos'))
@@ -90,7 +102,7 @@ export default function EditarProdutoPage() {
       const priceAmount = Math.round(Number(form.price.replace(',', '.')) * 100)
       if (isNaN(priceAmount) || priceAmount <= 0) throw new Error('Preço inválido')
 
-      await updateSellerProduct(id, {
+      const result = await updateSellerProduct(id, {
         title: form.title,
         description: form.description || undefined,
         status: form.status,
@@ -103,6 +115,11 @@ export default function EditarProdutoPage() {
           : undefined,
       })
 
+      if (approved && result.pendingChanges) {
+        setNotice('Alteração enviada para análise.')
+        // Leave the message visible long enough to be read before returning to the list.
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+      }
       router.push('/painel/produtos')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar produto')
@@ -127,6 +144,12 @@ export default function EditarProdutoPage() {
         </Link>
         <h1 className="font-display text-2xl font-black text-onyx">Editar produto</h1>
       </div>
+
+      {hasPending && (
+        <p className="text-sm text-amber-dark bg-amber/10 rounded-lg px-3 py-2">
+          Alteração em análise. A versão anterior continua à venda até a aprovação.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-sand-dark p-6 space-y-5">
         <Field label="Título do produto" htmlFor="title" required>
@@ -156,9 +179,11 @@ export default function EditarProdutoPage() {
             />
           </Field>
           <Field label="Visibilidade" htmlFor="status">
-            <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
+            <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as ProductForm['status'])} className="input">
               <option value="draft">Rascunho</option>
-              <option value="published">Publicado</option>
+              {approved
+                ? <option value="published">Publicar</option>
+                : <option value="proposed">Enviar para análise</option>}
             </select>
           </Field>
         </div>
@@ -173,6 +198,10 @@ export default function EditarProdutoPage() {
           <p className="block text-xs font-semibold text-onyx/60 mb-1">Foto principal</p>
           <ProductImageField value={form.thumbnail} onChange={(url) => set('thumbnail', url)} onUploadingChange={setUploadingImage} />
         </div>
+
+        {notice && (
+          <p className="text-sm text-forest bg-forest/10 rounded-lg px-3 py-2">{notice}</p>
+        )}
 
         {error && (
           <p className="text-sm text-terracotta bg-terracotta/10 rounded-lg px-3 py-2">{error}</p>

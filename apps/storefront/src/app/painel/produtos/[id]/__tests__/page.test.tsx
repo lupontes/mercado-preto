@@ -109,4 +109,74 @@ describe("EditarProdutoPage", () => {
     await waitFor(() => expect(updateSellerProduct).toHaveBeenCalled())
     expect(updateSellerProduct).toHaveBeenCalledWith("prod_1", expect.objectContaining({ thumbnail: "https://teste.mercadopreto.com.br/static/produto-x.jpg" }))
   })
+
+  it("offers 'Publicar' and not 'Enviar para análise' for an approved product", async () => {
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges: null })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+
+    render(<EditarProdutoPage />)
+    await screen.findByDisplayValue("Turbante Afro Premium")
+
+    expect(screen.getByRole("option", { name: "Publicar" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Enviar para análise" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Alteração em análise/)).not.toBeInTheDocument()
+  })
+
+  it("treats a draft with metadata.approved_at as approved", async () => {
+    const product = { ...baseProduct, status: "draft", metadata: { approved_at: "2026-10-01T00:00:00Z" } }
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product, pendingChanges: null })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+
+    render(<EditarProdutoPage />)
+    await screen.findByDisplayValue("Turbante Afro Premium")
+
+    expect(screen.getByRole("option", { name: "Publicar" })).toBeInTheDocument()
+  })
+
+  it("offers 'Enviar para análise' for a never-approved product and shows proposed as selected", async () => {
+    const product = { ...baseProduct, status: "proposed" }
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product, pendingChanges: null })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+
+    render(<EditarProdutoPage />)
+    await screen.findByDisplayValue("Turbante Afro Premium")
+
+    expect(screen.queryByRole("option", { name: "Publicar" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Visibilidade")).toHaveDisplayValue("Enviar para análise")
+  })
+
+  it("pre-fills pending values over the live product and shows the banner", async () => {
+    const pendingChanges = {
+      title: "Turbante Novo Título",
+      variants: [{ id: "variant_1", prices: [{ amount: 15000, currency_code: "brl" }] }],
+      submittedAt: "2026-10-20T00:00:00Z",
+    }
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+
+    render(<EditarProdutoPage />)
+
+    expect(await screen.findByDisplayValue("Turbante Novo Título")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("150")).toBeInTheDocument()
+    expect(screen.getByText("Alteração em análise. A versão anterior continua à venda até a aprovação.")).toBeInTheDocument()
+  })
+
+  it("tells the seller the change was sent for review after saving an approved product", async () => {
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges: null })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    vi.spyOn(sellerApi, "updateSellerProduct").mockResolvedValue({
+      product: baseProduct,
+      pendingChanges: { title: "Outro", submittedAt: "2026-10-22T00:00:00Z" },
+    })
+    const user = userEvent.setup()
+
+    render(<EditarProdutoPage />)
+    const title = await screen.findByDisplayValue("Turbante Afro Premium")
+    await user.clear(title)
+    await user.type(title, "Outro")
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }))
+
+    expect(await screen.findByText("Alteração enviada para análise.")).toBeInTheDocument()
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/painel/produtos"), { timeout: 3000 })
+  })
 })

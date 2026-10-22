@@ -16,7 +16,7 @@ export default function NovoProdutoPage() {
   const [form, setForm] = useState({
     title: '',
     description: '',
-    status: 'draft' as 'draft' | 'published',
+    status: 'draft' as 'draft' | 'proposed',
     thumbnail: '',
     price: '',
     sku: '',
@@ -135,9 +135,9 @@ export default function NovoProdutoPage() {
         </div>
 
         <Field label="Visibilidade" htmlFor="status">
-          <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'published')} className="input">
-            <option value="draft">Rascunho (não aparece na loja)</option>
-            <option value="published">Publicado (visível para clientes)</option>
+          <select id="status" value={form.status} onChange={(e) => set('status', e.target.value as 'draft' | 'proposed')} className="input">
+            <option value="draft">Rascunho</option>
+            <option value="proposed">Enviar para análise</option>
           </select>
         </Field>
 

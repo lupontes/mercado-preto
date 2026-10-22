@@ -87,6 +87,18 @@ export async function getDashboard() {
   }>('/seller/dashboard')
 }
 
+// Only the keys the seller changed are present; the live product stays on sale until approval.
+export type PendingChanges = {
+  title?: string
+  description?: string
+  thumbnail?: string
+  category_id?: string | null
+  variants?: Array<{ id: string; prices: Array<{ amount: number; currency_code: string }> }>
+  packageSize?: string
+  packageDimensions?: { length: number; width: number; height: number; weight: number }
+  submittedAt: string
+}
+
 export async function getSellerProducts(params?: { limit?: number; offset?: number }) {
   const qs = new URLSearchParams({
     limit: String(params?.limit ?? 20),
@@ -96,7 +108,7 @@ export async function getSellerProducts(params?: { limit?: number; offset?: numb
 }
 
 export async function getSellerProduct(id: string) {
-  return sellerFetch<{ product: Record<string, unknown> }>(`/seller/products/${id}`)
+  return sellerFetch<{ product: Record<string, unknown>; pendingChanges?: PendingChanges | null }>(`/seller/products/${id}`)
 }
 
 export async function createSellerProduct(data: Record<string, unknown>) {
@@ -107,7 +119,7 @@ export async function createSellerProduct(data: Record<string, unknown>) {
 }
 
 export async function updateSellerProduct(id: string, data: Record<string, unknown>) {
-  return sellerFetch<{ product: Record<string, unknown> }>(`/seller/products/${id}`, {
+  return sellerFetch<{ product: Record<string, unknown>; pendingChanges?: PendingChanges | null }>(`/seller/products/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   })

@@ -118,4 +118,24 @@ describe("NovoProdutoPage", () => {
     expect(await screen.findByText("Enviando foto...")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Criar produto" })).toBeDisabled()
   })
+
+  it("submits status proposed when the seller picks 'Enviar para análise'", async () => {
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    const createSellerProduct = vi.spyOn(sellerApi, "createSellerProduct").mockResolvedValue({ product: { id: "prod_1" } })
+    const user = userEvent.setup()
+
+    render(<NovoProdutoPage />)
+    await fillRequiredFields(user)
+    await user.selectOptions(screen.getByLabelText("Visibilidade"), "Enviar para análise")
+    await user.click(screen.getByRole("button", { name: "Criar produto" }))
+
+    await waitFor(() => expect(createSellerProduct).toHaveBeenCalled())
+    expect(createSellerProduct).toHaveBeenCalledWith(expect.objectContaining({ status: "proposed" }))
+  })
+
+  it("does not offer direct publication for a new product", async () => {
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    render(<NovoProdutoPage />)
+    expect(screen.queryByRole("option", { name: /Publicado/ })).not.toBeInTheDocument()
+  })
 })
