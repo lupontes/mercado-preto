@@ -64,6 +64,17 @@ describe("storeFieldsGuard", () => {
       expect(res._status).toBe(400)
     })
 
+    it.each(["/Store/PRODUCTS?fields=%2Bmetadata", "/STORE/Products/prod_1?fields=metadata"])(
+      "matches the product route case-insensitively like Express: %s",
+      (originalUrl) => {
+        const res = makeRes()
+        const next = jest.fn()
+        storeFieldsGuard({ originalUrl, query: { fields: "+metadata" } } as any, res, next)
+        expect(res._status).toBe(400)
+        expect(next).not.toHaveBeenCalled()
+      }
+    )
+
     it("does not touch other store routes", () => {
       const next = jest.fn()
       storeFieldsGuard({ originalUrl: "/store/carts/x?fields=%2Bmetadata", query: { fields: "+metadata" } } as any, makeRes(), next)

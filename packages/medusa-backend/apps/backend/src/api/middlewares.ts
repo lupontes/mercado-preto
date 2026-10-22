@@ -40,7 +40,8 @@ export function storeFieldsGuard(req: any, res: any, next: any) {
   // originalUrl, not req.path: for a `/store/*` mount Express strips the matched
   // prefix from req.path, so it cannot be trusted to identify the route here.
   const pathname = String(req.originalUrl ?? `${req.baseUrl ?? ""}${req.path ?? ""}`).split("?")[0]
-  const isProductRoute = pathname === "/store/products" || pathname.startsWith("/store/products/")
+  // Case-insensitive because Express routes match that way; a case-sensitive test would be bypassable.
+  const isProductRoute = /^\/store\/products(\/|$)/i.test(pathname)
   const forbidden =
     findForbiddenSellerField(req.query?.fields) ??
     (isProductRoute ? findForbiddenProductField(req.query?.fields) : null)
