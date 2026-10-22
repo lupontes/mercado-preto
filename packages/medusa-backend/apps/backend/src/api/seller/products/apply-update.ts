@@ -59,6 +59,19 @@ export async function applySellerProductUpdate(
     updateData.metadata = merged
   }
 
+  if (changes.variants) {
+    // Medusa's product repository replaces the whole variants collection on
+    // update, so a partial list (the portal only edits the first variant) would
+    // delete the others. Listing them by id alone keeps them unchanged.
+    const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: [live] } = await query.graph({ entity: "product", fields: ["id", "variants.id"], filters: { id: productId } })
+    const listed = new Set(changes.variants.map((v) => v.id))
+    const unlisted = ((live?.variants ?? []) as { id: string }[])
+      .filter((v) => !listed.has(v.id))
+      .map((v) => ({ id: v.id }))
+    updateData.variants = [...changes.variants, ...unlisted]
+  }
+
   // Not the selector form: there Medusa's update step selects the previous state using
   // the update's keys, and "category_ids" is not a Product column, so every edit failed.
   const { result: [product] } = await updateProductsWorkflow(scope).run({
