@@ -179,4 +179,40 @@ describe("EditarProdutoPage", () => {
     expect(await screen.findByText("Alteração enviada para análise.")).toBeInTheDocument()
     await waitFor(() => expect(push).toHaveBeenCalledWith("/painel/produtos"), { timeout: 3000 })
   })
+
+  const pendingBulky = {
+    title: "Pendente",
+    packageSize: "bulky",
+    packageDimensions: { length: 40, width: 30, height: 20, weight: 2 },
+    submittedAt: "2026-10-20T00:00:00Z",
+  }
+
+  it("pre-fills the pending bulky package with its measures", async () => {
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges: pendingBulky })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+
+    render(<EditarProdutoPage />)
+    await screen.findByDisplayValue("Pendente")
+
+    expect(screen.getByLabelText("Comprimento (cm)")).toHaveValue("40")
+    expect(screen.getByLabelText("Peso (kg)")).toHaveValue("2")
+  })
+
+  it("keeps sending the pending package when only the title is edited", async () => {
+    vi.spyOn(sellerApi, "getSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges: pendingBulky })
+    vi.spyOn(api, "listCategories").mockResolvedValue({ product_categories: [], count: 0 })
+    const updateSellerProduct = vi.spyOn(sellerApi, "updateSellerProduct").mockResolvedValue({ product: baseProduct, pendingChanges: pendingBulky })
+    const user = userEvent.setup()
+
+    render(<EditarProdutoPage />)
+    const title = await screen.findByDisplayValue("Pendente")
+    await user.type(title, " 2")
+    await user.click(screen.getByRole("button", { name: "Salvar alterações" }))
+
+    await waitFor(() => expect(updateSellerProduct).toHaveBeenCalled())
+    expect(updateSellerProduct).toHaveBeenCalledWith("prod_1", expect.objectContaining({
+      packageSize: "bulky",
+      packageDimensions: { length: 40, width: 30, height: 20, weight: 2 },
+    }))
+  })
 })

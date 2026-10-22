@@ -68,6 +68,9 @@ export default function EditarProdutoPage() {
             ? candidate
             : undefined
           setPkg({ size: storedSize, dimensions: dims })
+          // The backend replaces the pending object with the diff of what we send, so a pending
+          // package must be resent or editing another field would silently drop it.
+          if (pending?.packageSize) setPkgTouched(true)
         }
         setForm({
           title: pending?.title ?? product.title ?? '',
