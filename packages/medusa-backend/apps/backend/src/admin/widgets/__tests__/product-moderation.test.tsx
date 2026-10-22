@@ -57,15 +57,16 @@ describe("ProductModerationWidget", () => {
 
   it("approves a new product with a POST and a toast", async () => {
     fetchMock.mockImplementation((_path: string, opts?: { method?: string }) =>
-      Promise.resolve(opts?.method === "POST" ? { ok: true } : { kind: "new", pendingChanges: null, current, seller })
+      Promise.resolve(opts?.method === "POST" ? { ok: true } : { kind: "new", pendingChanges: null, version: "fp_1", current, seller })
     )
     renderWidget()
 
     expect(await screen.findByText("Em análise")).toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Aprovar e publicar" }))
 
+    // The version shown goes back so the server can refuse a newer, unseen one.
     await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith("/admin/products/prod_1/moderation", { method: "POST" })
+      expect(fetchMock).toHaveBeenCalledWith("/admin/products/prod_1/moderation", { method: "POST", body: { version: "fp_1" } })
     )
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Produto aprovado"))
   })
@@ -111,6 +112,22 @@ describe("ProductModerationWidget", () => {
     expect(screen.getByText("Brinco → Brinco novo")).toBeInTheDocument()
     expect(screen.getByText("Pequeno → Grande")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Aprovar alteração" })).toBeInTheDocument()
+  })
+
+  it("approves a change sending the submittedAt of the pendency it showed", async () => {
+    const submittedAt = "2026-10-21T15:00:00.000Z"
+    fetchMock.mockImplementation((_path: string, opts?: { method?: string }) =>
+      Promise.resolve(
+        opts?.method === "POST"
+          ? { ok: true }
+          : { kind: "change", pendingChanges: { title: "Novo", submittedAt }, version: submittedAt, current, seller }
+      )
+    )
+    renderWidget()
+    await userEvent.click(await screen.findByRole("button", { name: "Aprovar alteração" }))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/admin/products/prod_1/moderation", { method: "POST", body: { version: submittedAt } })
+    )
   })
 
   it("links to WhatsApp adding the 55 prefix", async () => {

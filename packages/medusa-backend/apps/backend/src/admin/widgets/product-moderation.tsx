@@ -74,7 +74,7 @@ const ProductModerationWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   const phone = moderation.seller.phone
 
   const onApprove = () =>
-    approve.mutate(undefined, {
+    approve.mutate(moderation.version, {
       onSuccess: () => toast.success("Produto aprovado"),
       onError: (err) => toast.error((err as Error)?.message || "Não foi possível aprovar."),
     })

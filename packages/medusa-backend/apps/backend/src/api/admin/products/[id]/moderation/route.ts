@@ -1,3 +1,4 @@
+import { createHash } from "crypto"
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
@@ -22,31 +23,53 @@ function fail(res: MedusaResponse, status: number, text: string) {
   return res.status(status).json({ error: text, message: text })
 }
 
+// The live values the widget shows; the admin product page loads the product
+// without variants, so the widget gets them ("before" values) from here.
+function currentValues(product: any) {
+  const variant = product.variants?.[0]
+  const brl = variant?.prices?.find((p: any) => p.currency_code === "brl")
+  const hasDims = variant && [variant.weight, variant.length, variant.width, variant.height].every((x) => typeof x === "number")
+  return {
+    title: product.title ?? null,
+    description: product.description ?? null,
+    thumbnail: product.thumbnail ?? null,
+    categoryId: product.categories?.[0]?.id ?? null,
+    price: brl?.amount ?? null,
+    packageSize: product.metadata?.package_size ?? null,
+    packageDimensions: hasDims
+      ? { weight: variant.weight, length: variant.length, width: variant.width, height: variant.height }
+      : null,
+  }
+}
+
+/**
+ * Identifies the version the manager is looking at, so approval can refuse a
+ * newer one the seller saved meanwhile. A change uses its `submittedAt`, which
+ * the seller PATCH renews whenever the pending diff changes. A new product
+ * uses a fingerprint of the values shown: the seller edits a product in review
+ * in place without renewing `submitted_at`, and a price- or measure-only edit
+ * touches only variant rows, so neither `submitted_at` nor the product's
+ * `updated_at` would reliably change.
+ */
+function reviewVersion(product: any, pending: ReturnType<typeof pendingChangesOf>): string | null {
+  if (pending) return pending.submittedAt ?? null
+  if (product.status !== "proposed") return null
+  return createHash("sha256").update(JSON.stringify(currentValues(product))).digest("hex")
+}
+
+const STALE_REVIEW = "A vendedora alterou o produto. Recarregue e confira de novo."
+
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const product = await loadProduct(req)
   if (!product) return fail(res, 404, "Produto não encontrado")
 
   const pending = pendingChangesOf(product)
   const kind = pending ? "change" : product.status === "proposed" ? "new" : null
-  // The admin product page loads the product without variants, so the widget
-  // gets the live ("before") values from here.
-  const variant = product.variants?.[0]
-  const brl = variant?.prices?.find((p: any) => p.currency_code === "brl")
-  const hasDims = variant && [variant.weight, variant.length, variant.width, variant.height].every((x) => typeof x === "number")
   res.json({
     kind,
     pendingChanges: pending,
-    current: {
-      title: product.title ?? null,
-      description: product.description ?? null,
-      thumbnail: product.thumbnail ?? null,
-      categoryId: product.categories?.[0]?.id ?? null,
-      price: brl?.amount ?? null,
-      packageSize: product.metadata?.package_size ?? null,
-      packageDimensions: hasDims
-        ? { weight: variant.weight, length: variant.length, width: variant.width, height: variant.height }
-        : null,
-    },
+    version: reviewVersion(product, pending),
+    current: currentValues(product),
     seller: { name: product.seller?.name ?? null, phone: product.seller?.phone ?? null },
   })
 }
@@ -56,6 +79,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   if (!product) return fail(res, 404, "Produto não encontrado")
 
   const pending = pendingChangesOf(product)
+  const version = reviewVersion(product, pending)
+  if (version === null) return fail(res, 409, "Nada para aprovar")
+
+  // Approving must apply exactly what the manager reviewed; a missing version
+  // (an old, cached widget) is treated as stale too.
+  const seen = (req.body as { version?: unknown } | undefined)?.version
+  if (typeof seen !== "string" || seen !== version) return fail(res, 409, STALE_REVIEW)
 
   if (pending) {
     // Destructure instead of assigning undefined: an explicit `category_id: undefined`
@@ -77,13 +107,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.json({ ok: true })
   }
 
-  if (product.status === "proposed") {
-    // approved_at and the seller notice come from the product.updated subscriber.
-    await updateProductsWorkflow(req.scope).run({
-      input: { products: [{ id: product.id, status: "published" }] },
-    })
-    return res.json({ ok: true })
-  }
-
-  return fail(res, 409, "Nada para aprovar")
+  // Only a proposed product gets here (reviewVersion is null otherwise).
+  // approved_at and the seller notice come from the product.updated subscriber.
+  await updateProductsWorkflow(req.scope).run({
+    input: { products: [{ id: product.id, status: "published" }] },
+  })
+  return res.json({ ok: true })
 }

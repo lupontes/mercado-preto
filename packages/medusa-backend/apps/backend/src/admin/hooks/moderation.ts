@@ -36,6 +36,8 @@ export type CurrentProductValues = {
 export type ProductModeration = {
   kind: ModerationKind | null
   pendingChanges: PendingChanges | null
+  /** Sent back on approval so the server refuses a version the manager did not see. */
+  version: string | null
   current: CurrentProductValues
   seller: { name: string | null; phone: string | null }
 }
@@ -58,8 +60,8 @@ export function useProductModeration(productId: string) {
 export function useApproveProductModeration(productId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () =>
-      sdk.client.fetch<{ ok: true }>(`/admin/products/${productId}/moderation`, { method: "POST" }),
+    mutationFn: (version: string | null) =>
+      sdk.client.fetch<{ ok: true }>(`/admin/products/${productId}/moderation`, { method: "POST", body: { version } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-moderation-products"] })
       queryClient.invalidateQueries({ queryKey: ["admin-product-moderation", productId] })
