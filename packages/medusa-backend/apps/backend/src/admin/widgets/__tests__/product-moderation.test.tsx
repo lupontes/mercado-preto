@@ -22,9 +22,7 @@ const product = {
   title: "Brinco",
   description: "Antigo",
   thumbnail: "https://x/old.png",
-  categories: [{ id: "pcat_1" }],
-  variants: [{ prices: [{ currency_code: "brl", amount: 5000 }] }],
-  metadata: { package_size: "small" },
+  // Mirrors the real detail page: no variants, so "before" values must come from the endpoint.
 }
 
 function renderWidget() {
@@ -36,6 +34,7 @@ function renderWidget() {
   )
 }
 
+const current = { title: "Brinco", description: "Antigo", thumbnail: null, categoryId: "pcat_1", price: 5000, packageSize: "small", packageDimensions: null }
 const seller = { name: "Loja Axé", phone: "(11) 91234-5678" }
 
 describe("ProductModerationWidget", () => {
@@ -50,7 +49,7 @@ describe("ProductModerationWidget", () => {
   })
 
   it("renders nothing when there is nothing to review", async () => {
-    fetchMock.mockResolvedValue({ kind: null, pendingChanges: null, seller })
+    fetchMock.mockResolvedValue({ kind: null, pendingChanges: null, current, seller })
     const { container } = renderWidget()
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(container).toBeEmptyDOMElement()
@@ -58,7 +57,7 @@ describe("ProductModerationWidget", () => {
 
   it("approves a new product with a POST and a toast", async () => {
     fetchMock.mockImplementation((_path: string, opts?: { method?: string }) =>
-      Promise.resolve(opts?.method === "POST" ? { ok: true } : { kind: "new", pendingChanges: null, seller })
+      Promise.resolve(opts?.method === "POST" ? { ok: true } : { kind: "new", pendingChanges: null, current, seller })
     )
     renderWidget()
 
@@ -74,12 +73,23 @@ describe("ProductModerationWidget", () => {
   it("shows the server error in a toast when approval is refused", async () => {
     fetchMock.mockImplementation((_path: string, opts?: { method?: string }) =>
       opts?.method === "POST"
-        ? Promise.reject(new Error("Nada para aprovar"))
-        : Promise.resolve({ kind: "new", pendingChanges: null, seller })
+        ? Promise.reject(Object.assign(new Error("Nada para aprovar"), { status: 409, statusText: "Conflict" }))
+        : Promise.resolve({ kind: "new", pendingChanges: null, current, seller })
     )
     renderWidget()
     await userEvent.click(await screen.findByRole("button", { name: "Aprovar e publicar" }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Nada para aprovar"))
+  })
+
+  it("falls back to a pt-BR message when the error has none", async () => {
+    fetchMock.mockImplementation((_path: string, opts?: { method?: string }) =>
+      opts?.method === "POST"
+        ? Promise.reject(new Error(""))
+        : Promise.resolve({ kind: "new", pendingChanges: null, current, seller })
+    )
+    renderWidget()
+    await userEvent.click(await screen.findByRole("button", { name: "Aprovar e publicar" }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Não foi possível aprovar."))
   })
 
   it("shows before and after for each changed field", async () => {
@@ -91,6 +101,7 @@ describe("ProductModerationWidget", () => {
         packageSize: "large",
         submittedAt: "2026-10-21T15:00:00.000Z",
       },
+      current,
       seller,
     })
     renderWidget()
@@ -103,7 +114,7 @@ describe("ProductModerationWidget", () => {
   })
 
   it("links to WhatsApp adding the 55 prefix", async () => {
-    fetchMock.mockResolvedValue({ kind: "new", pendingChanges: null, seller })
+    fetchMock.mockResolvedValue({ kind: "new", pendingChanges: null, current, seller })
     renderWidget()
     const link = await screen.findByRole("link", { name: "Falar com a vendedora no WhatsApp" })
     expect(link).toHaveAttribute("href", "https://wa.me/5511912345678")
@@ -111,7 +122,7 @@ describe("ProductModerationWidget", () => {
   })
 
   it("does not duplicate the 55 prefix", async () => {
-    fetchMock.mockResolvedValue({ kind: "new", pendingChanges: null, seller: { name: "L", phone: "+55 (11) 91234-5678" } })
+    fetchMock.mockResolvedValue({ kind: "new", pendingChanges: null, current, seller: { name: "L", phone: "+55 (11) 91234-5678" } })
     renderWidget()
     const link = await screen.findByRole("link", { name: "Falar com a vendedora no WhatsApp" })
     expect(link).toHaveAttribute("href", "https://wa.me/5511912345678")

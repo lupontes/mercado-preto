@@ -39,14 +39,14 @@ describe("GET /admin/products/:id/moderation", () => {
     const { req } = makeReq(product({ metadata: { pending_changes: pending } }))
     const res = makeRes()
     await GET(req, res)
-    expect(res._body).toEqual({ kind: "change", pendingChanges: pending, seller: { name: "Loja", phone: "5511" } })
+    expect(res._body).toMatchObject({ kind: "change", pendingChanges: pending, seller: { name: "Loja", phone: "5511" } })
   })
 
   it("returns kind new for a proposed product", async () => {
     const { req } = makeReq(product({ status: "proposed" }))
     const res = makeRes()
     await GET(req, res)
-    expect(res._body).toEqual({ kind: "new", pendingChanges: null, seller: { name: "Loja", phone: "5511" } })
+    expect(res._body).toMatchObject({ kind: "new", pendingChanges: null, seller: { name: "Loja", phone: "5511" } })
   })
 
   it("returns kind null when nothing awaits review and 404 for unknown product", async () => {
@@ -56,6 +56,28 @@ describe("GET /admin/products/:id/moderation", () => {
     const res404 = makeRes()
     await GET(makeReq(null).req, res404)
     expect(res404._status).toBe(404)
+  })
+})
+
+describe("GET current values", () => {
+  it("returns the live values the widget compares against", async () => {
+    const { req } = makeReq(product({
+      description: "D", thumbnail: "t.png", metadata: { package_size: "small" },
+      categories: [{ id: "pcat_1" }],
+      variants: [{ weight: 1, length: 2, width: 3, height: 4, prices: [{ amount: 5000, currency_code: "usd" }, { amount: 4000, currency_code: "brl" }] }],
+    }))
+    const res = makeRes()
+    await GET(req, res)
+    expect(res._body.current).toEqual({
+      title: "T", description: "D", thumbnail: "t.png", categoryId: "pcat_1", price: 4000,
+      packageSize: "small", packageDimensions: { weight: 1, length: 2, width: 3, height: 4 },
+    })
+  })
+
+  it("returns nulls for a product without variants or category", async () => {
+    const res = makeRes()
+    await GET(makeReq(product({})).req, res)
+    expect(res._body.current).toMatchObject({ categoryId: null, price: null, packageSize: null, packageDimensions: null })
   })
 })
 
@@ -99,7 +121,7 @@ describe("POST /admin/products/:id/moderation", () => {
     const res = makeRes()
     await POST(req, res)
     expect(res._status).toBe(409)
-    expect(res._body).toEqual({ error: "Categoria não encontrada" })
+    expect(res._body).toEqual({ error: "Categoria não encontrada", message: "Categoria não encontrada" })
     expect(notifySellerProductApproved).not.toHaveBeenCalled()
   })
 
@@ -107,7 +129,7 @@ describe("POST /admin/products/:id/moderation", () => {
     const res = makeRes()
     await POST(makeReq(product({})).req, res)
     expect(res._status).toBe(409)
-    expect(res._body).toEqual({ error: "Nada para aprovar" })
+    expect(res._body).toEqual({ error: "Nada para aprovar", message: "Nada para aprovar" })
   })
 
   it("passes only the listed variant (with id) when a two-variant product has a partial list", async () => {

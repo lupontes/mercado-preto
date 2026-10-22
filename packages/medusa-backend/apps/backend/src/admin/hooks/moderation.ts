@@ -23,9 +23,20 @@ export type PendingChanges = {
   submittedAt?: string
 }
 
+export type CurrentProductValues = {
+  title: string | null
+  description: string | null
+  thumbnail: string | null
+  categoryId: string | null
+  price: number | null
+  packageSize: string | null
+  packageDimensions: { weight: number; length: number; width: number; height: number } | null
+}
+
 export type ProductModeration = {
   kind: ModerationKind | null
   pendingChanges: PendingChanges | null
+  current: CurrentProductValues
   seller: { name: string | null; phone: string | null }
 }
 

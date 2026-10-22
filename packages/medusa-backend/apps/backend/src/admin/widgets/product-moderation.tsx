@@ -1,7 +1,7 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { Button, Container, Heading, StatusBadge, Text, toast } from "@medusajs/ui"
 import type { AdminProduct, DetailWidgetProps } from "@medusajs/framework/types"
-import { useApproveProductModeration, useProductModeration, type PendingChanges } from "../hooks/moderation"
+import { useApproveProductModeration, useProductModeration, type CurrentProductValues, type PendingChanges } from "../hooks/moderation"
 import { PACKAGE_SIZE_LABELS, type PackageSize } from "../../utils/package-size"
 
 const formatPrice = (cents: number) =>
@@ -19,33 +19,32 @@ function whatsappUrl(phone: string): string {
 
 type DiffRow = { key: string; label: string; before: string; after: string; image?: boolean }
 
-function buildDiff(product: AdminProduct, changes: PendingChanges): DiffRow[] {
+function buildDiff(current: CurrentProductValues, changes: PendingChanges): DiffRow[] {
   const rows: DiffRow[] = []
   if (changes.title !== undefined) {
-    rows.push({ key: "title", label: "Título", before: product.title ?? "—", after: changes.title })
+    rows.push({ key: "title", label: "Título", before: current.title ?? "—", after: changes.title })
   }
   if (changes.description !== undefined) {
-    rows.push({ key: "description", label: "Descrição", before: product.description || "—", after: changes.description || "—" })
+    rows.push({ key: "description", label: "Descrição", before: current.description || "—", after: changes.description || "—" })
   }
   const newPrice = changes.variants?.[0]?.prices?.find((p) => p.currency_code === "brl")
   if (newPrice) {
-    const oldPrice = product.variants?.[0]?.prices?.find((p) => p.currency_code === "brl")
     rows.push({
       key: "price",
       label: "Preço em R$",
-      before: oldPrice ? formatPrice(oldPrice.amount) : "—",
+      before: current.price != null ? formatPrice(current.price) : "—",
       after: formatPrice(newPrice.amount),
     })
   }
   if (changes.thumbnail !== undefined) {
-    rows.push({ key: "thumbnail", label: "Foto", before: product.thumbnail ?? "", after: changes.thumbnail, image: true })
+    rows.push({ key: "thumbnail", label: "Foto", before: current.thumbnail ?? "", after: changes.thumbnail, image: true })
   }
   if (changes.category_id !== undefined) {
     // Names are not loaded here; the id is enough for the team to recognise the category.
     rows.push({
       key: "category",
       label: "Categoria",
-      before: product.categories?.[0]?.id ?? "—",
+      before: current.categoryId ?? "—",
       after: changes.category_id ?? "—",
     })
   }
@@ -53,7 +52,7 @@ function buildDiff(product: AdminProduct, changes: PendingChanges): DiffRow[] {
     rows.push({
       key: "package",
       label: "Embalagem",
-      before: packageLabel(product.metadata?.package_size as string | undefined),
+      before: packageLabel(current.packageSize),
       after: packageLabel(changes.packageSize),
     })
   }
@@ -71,13 +70,13 @@ const ProductModerationWidget = ({ data }: DetailWidgetProps<AdminProduct>) => {
   if (!moderation?.kind) return null
 
   const isChange = moderation.kind === "change"
-  const rows = isChange && moderation.pendingChanges ? buildDiff(data, moderation.pendingChanges) : []
+  const rows = isChange && moderation.pendingChanges ? buildDiff(moderation.current, moderation.pendingChanges) : []
   const phone = moderation.seller.phone
 
   const onApprove = () =>
     approve.mutate(undefined, {
       onSuccess: () => toast.success("Produto aprovado"),
-      onError: (err) => toast.error((err as Error)?.message ?? "Não foi possível aprovar o produto"),
+      onError: (err) => toast.error((err as Error)?.message || "Não foi possível aprovar."),
     })
 
   return (

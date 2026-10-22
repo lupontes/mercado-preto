@@ -9,28 +9,51 @@ async function loadProduct(req: MedusaRequest) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
   const { data: [product] } = await query.graph({
     entity: "product",
-    fields: ["id", "title", "handle", "status", "metadata", "seller.name", "seller.phone", "seller.email"],
+    fields: ["id", "title", "handle", "status", "metadata", "description", "thumbnail", "categories.id",
+      "variants.weight", "variants.length", "variants.width", "variants.height",
+      "variants.prices.amount", "variants.prices.currency_code", "seller.name", "seller.phone", "seller.email"],
     filters: { id: req.params.id },
   })
   return product as any
 }
 
+// Medusa's FetchError message comes from `message`, not `error`, so both are sent.
+function fail(res: MedusaResponse, status: number, text: string) {
+  return res.status(status).json({ error: text, message: text })
+}
+
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const product = await loadProduct(req)
-  if (!product) return res.status(404).json({ error: "Produto não encontrado" })
+  if (!product) return fail(res, 404, "Produto não encontrado")
 
   const pending = pendingChangesOf(product)
   const kind = pending ? "change" : product.status === "proposed" ? "new" : null
+  // The admin product page loads the product without variants, so the widget
+  // gets the live ("before") values from here.
+  const variant = product.variants?.[0]
+  const brl = variant?.prices?.find((p: any) => p.currency_code === "brl")
+  const hasDims = variant && [variant.weight, variant.length, variant.width, variant.height].every((x) => typeof x === "number")
   res.json({
     kind,
     pendingChanges: pending,
+    current: {
+      title: product.title ?? null,
+      description: product.description ?? null,
+      thumbnail: product.thumbnail ?? null,
+      categoryId: product.categories?.[0]?.id ?? null,
+      price: brl?.amount ?? null,
+      packageSize: product.metadata?.package_size ?? null,
+      packageDimensions: hasDims
+        ? { weight: variant.weight, length: variant.length, width: variant.width, height: variant.height }
+        : null,
+    },
     seller: { name: product.seller?.name ?? null, phone: product.seller?.phone ?? null },
   })
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   const product = await loadProduct(req)
-  if (!product) return res.status(404).json({ error: "Produto não encontrado" })
+  if (!product) return fail(res, 404, "Produto não encontrado")
 
   const pending = pendingChangesOf(product)
 
@@ -39,7 +62,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     // would be read as "clear the category".
     const { submittedAt: _submittedAt, ...changes } = pending
     const result = await applySellerProductUpdate(req.scope, product.id, changes, { pending_changes: null })
-    if (!result.ok) return res.status(409).json({ error: result.error })
+    if (!result.ok) return fail(res, 409, result.error)
 
     try {
       await notifySellerProductApproved(
@@ -62,5 +85,5 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.json({ ok: true })
   }
 
-  return res.status(409).json({ error: "Nada para aprovar" })
+  return fail(res, 409, "Nada para aprovar")
 }
