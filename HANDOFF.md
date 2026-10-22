@@ -1,6 +1,6 @@
 # Handoff: Mercado Preto — etiquetas validadas, produção do Melhor Envio planejada
 
-**Gerado**: 2026-10-22 · **Branch**: `docs/checklist-producao-melhor-envio` · **Status**: etiquetas e rastreio validados no sandbox; produção depende de conta com CNPJ
+**Gerado**: 2026-10-22 · **Branch**: `docs/handoff-2026-10-22` · **Status**: etiquetas e rastreio validados no sandbox; produção depende de conta com CNPJ
 
 **Fluxo de branches:** `develop → release → main` (sem alpha/beta). Merge de PR é do usuário.
 
@@ -13,12 +13,14 @@ Deixar as etiquetas por loja prontas para produção. Checklist: `docs/deploy/20
 - [x] Etiquetas por loja (PR #85) no servidor de teste, ponta a ponta (pedidos #46/#47).
 - [x] Roteiro de teste das etiquetas enviado ao Ailton (20/10, 20:02).
 - [x] **Rastreio validado no sandbox:** #46 e #47 em `delivered` com código de rastreio (job das 00:00 UTC de 21/10). O sandbox avança o status sozinho a cada 15 min.
-- [x] Rascunho no Gmail corrigindo para o Ailton ("Enviado/Entregue" dá para testar). **Usuário revisa e envia.**
+- [x] Correção enviada ao Ailton ("Enviado/Entregue" dá para testar no sandbox).
+- [x] Checklist de produção mergeado (PR #86).
+- [x] Limpeza (22/10): admin `admin2@mercadopreto.com.br` removido do servidor de teste (soft delete + identidade de login apagada); chave Brevo `marketplace-dev` excluída (resta `mercado-preto-teste`, usada pelo servidor).
 - [x] Decisão: conta única do Mercado Preto; comprador paga o frete cotado e a plataforma absorve a diferença; OAuth fica para depois (sem data de produção).
 
 ## Not Yet Done
 
-- [ ] Usuário: enviar o rascunho ao Ailton; merge do PR do checklist; apagar o admin `admin2@mercadopreto.com.br` e a chave Brevo `marketplace-dev`.
+- [ ] Usuário: dizer de quem é o admin `teste-admin@mercadopreto.com.br` no servidor de teste (sem registro no repo nem no claude-mem) e se pode ser removido.
 - [ ] **Feedback do Ailton (21/10):** remover a conferência de medidas no painel master e criar moderação manual de produto novo ("Em análise" → "Publicado", correções pelo WhatsApp da vendedora, aviso ao publicar). Funcionalidade nova: ciclo brainstorming → spec → plano. Responder o Ailton depois de decidir.
 - [ ] Produção: conta Melhor Envio com CNPJ (checklist), número de WhatsApp da loja, `docker-compose.prod.yml`, validação jurídica do Mercado Livre.
 - [ ] Depois: app OAuth do Melhor Envio + webhook (quando a conta existir e a espera de 2 h incomodar).
