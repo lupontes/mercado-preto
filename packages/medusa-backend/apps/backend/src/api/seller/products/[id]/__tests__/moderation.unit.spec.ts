@@ -225,7 +225,8 @@ describe("PATCH /seller/products/:id — approved product", () => {
     await PATCH(makeReq(unchangedBody, product), res)
 
     expect(res._status).toBe(200)
-    expect(workflowInput().metadata).not.toHaveProperty("pending_changes")
+    // "" is Medusa's delete marker for metadata keys; omitting the key would keep it.
+    expect(workflowInput().metadata.pending_changes).toBe("")
     expect(notify).not.toHaveBeenCalled()
     expect(res._body.pendingChanges).toBeNull()
   })
@@ -270,11 +271,8 @@ describe("PATCH /seller/products/:id — approved product", () => {
     })
     await PATCH(makeReq({ status: "draft" }, product), makeRes())
 
-    const input = workflowInput()
-    expect(input.status).toBe("draft")
-    expect(input).not.toHaveProperty("title")
-    // Status-only bodies must leave the pending edit alone.
-    expect(input.metadata?.pending_changes ?? pending).toEqual(pending)
+    // Status-only bodies must leave the pending edit alone: no metadata is written at all.
+    expect(workflowInput()).toEqual({ id: "prod_1", status: "draft" })
     expect(notify).not.toHaveBeenCalled()
   })
 

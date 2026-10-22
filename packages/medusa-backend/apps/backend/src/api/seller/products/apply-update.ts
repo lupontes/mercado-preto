@@ -13,6 +13,8 @@ export type ApplySellerProductUpdateResult =
  * Applies a seller's product edit. Takes only the container (no request) so the
  * seller PATCH and the admin approval can share it.
  * `extraMetadata` is merged over the current metadata; a `null` value removes the key.
+ * Removal is sent as `""`: Medusa's product repository runs `mergeMetadata` on update,
+ * which keeps every stored key absent from the new object and only drops keys set to "".
  */
 export async function applySellerProductUpdate(
   scope: MedusaContainer,
@@ -51,8 +53,8 @@ export async function applySellerProductUpdate(
     const { data: [current] } = await query.graph({ entity: "product", fields: ["id", "metadata"], filters: { id: productId } })
     const merged: Record<string, unknown> = { ...((current?.metadata ?? {}) as Record<string, unknown>), ...packageMetadata }
     for (const [key, value] of Object.entries(extraMetadata ?? {})) {
-      if (value === null) delete merged[key]
-      else merged[key] = value
+      // Deleting the key here would be a no-op: the stored value would survive the merge.
+      merged[key] = value === null ? "" : value
     }
     updateData.metadata = merged
   }
