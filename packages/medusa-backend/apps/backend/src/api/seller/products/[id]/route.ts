@@ -1,10 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { SELLER_MODULE } from "../../../../modules/seller"
-import { categoryExists } from "../category-validation"
-import { resolveSellerPackage } from "../package"
+import { applySellerProductUpdate } from "../apply-update"
 
 const packageFields = {
   packageSize: z.enum(["small", "medium", "large", "bulky"]).optional(),
@@ -87,37 +85,11 @@ export async function PATCH(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Dados inválidos", details: parsed.error.flatten() })
   }
 
-  const productService = req.scope.resolve(Modules.PRODUCT)
-
-  const { category_id, packageSize, packageDimensions, ...rest } = parsed.data
-  const updateData: Record<string, unknown> = { ...rest }
-  // Zod's .optional() can't tell "key omitted" from "key sent as null" (both parse to undefined-ish),
-  // so we check the raw body to get three states: absent (don't touch), null (clear), string (set).
-  if (req.body && typeof req.body === "object" && "category_id" in (req.body as Record<string, unknown>)) {
-    if (category_id === "") {
-      return res.status(400).json({ error: "category_id não pode ser uma string vazia; use null para limpar a categoria" })
-    }
-    if (category_id && !(await categoryExists(productService, category_id))) {
-      return res.status(400).json({ error: "Categoria não encontrada" })
-    }
-    updateData.category_ids = category_id ? [category_id] : []
-  }
-
-  if (packageSize) {
-    const pkg = resolveSellerPackage(packageSize, packageDimensions)
-    if (!pkg.ok) return res.status(400).json({ error: pkg.error })
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-    const { data: [current] } = await query.graph({ entity: "product", fields: ["id", "metadata"], filters: { id } })
-    const existing = (current?.metadata ?? {}) as Record<string, unknown>
-    updateData.metadata = { ...existing, ...pkg.metadata }
-    await productService.updateProductVariants({ product_id: id }, pkg.dims)
-  }
-
-  // Not the selector form: there Medusa's update step selects the previous state using
-  // the update's keys, and "category_ids" is not a Product column, so every edit failed.
-  const { result: [product] } = await updateProductsWorkflow(req.scope).run({
-    input: { products: [{ id, ...updateData } as any] },
-  })
+  // Zod omits absent keys but keeps an explicit null, so "category_id" in parsed.data
+  // keeps the three states: absent (don't touch), null (clear), string (set).
+  const result = await applySellerProductUpdate(req.scope, id, parsed.data)
+  if (!result.ok) return res.status(result.status).json({ error: result.error })
+  const product = result.product
   res.json({ product })
 }
 
