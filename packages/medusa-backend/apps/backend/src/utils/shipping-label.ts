@@ -91,17 +91,37 @@ export function resumeStalePurchase(
 /** An error whose Portuguese message is safe to store as-is. */
 class LabelPurchaseError extends Error {}
 
+/**
+ * A 422 from Melhor Envio says only "invalid data" in `message`; the actual
+ * cause is in `errors` (field -> messages), so both are kept, one message per field.
+ */
+function melhorEnvioDetail(parsed: any): string {
+  const parts: string[] = []
+  if (typeof parsed?.message === "string") parts.push(parsed.message)
+  else if (typeof parsed?.error === "string") parts.push(parsed.error)
+
+  if (parsed?.errors && typeof parsed.errors === "object") {
+    const fields = Object.entries(parsed.errors)
+      .map(([field, messages]) => {
+        const first = Array.isArray(messages) ? messages.find((m) => typeof m === "string") : messages
+        return typeof first === "string" ? `${field}: ${first}` : null
+      })
+      .filter((f): f is string => f !== null)
+    if (fields.length > 0) parts.push(`(${fields.join("; ")})`)
+  }
+  return parts.join(" ")
+}
+
 function describeError(err: unknown): string {
   if (err instanceof LabelPurchaseError) return err.message
   if (err instanceof MelhorEnvioError) {
     let detail = ""
     try {
-      const parsed = JSON.parse(err.body)
-      if (typeof parsed?.message === "string") detail = parsed.message
+      detail = melhorEnvioDetail(JSON.parse(err.body))
     } catch {
       detail = ""
     }
-    return `Melhor Envio: ${err.status}${detail ? ` ${detail.slice(0, 200)}` : ""}`
+    return `Melhor Envio: ${err.status}${detail ? ` ${detail.slice(0, 500)}` : ""}`
   }
   // Raw messages of unknown errors could echo request headers, so they are not stored.
   return "Falha inesperada ao comprar a etiqueta"
