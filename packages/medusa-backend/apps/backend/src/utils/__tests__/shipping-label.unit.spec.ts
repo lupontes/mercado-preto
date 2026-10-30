@@ -191,6 +191,47 @@ describe("purchaseShippingLabel", () => {
     expect(t.order.metadata.shipping_label.status).toBe("failed")
   })
 
+  it("stores the field errors of a 422 so the cause is visible in the panel", async () => {
+    const body = {
+      message: "The given data was invalid.",
+      errors: { "from.number": ["O campo número é obrigatório."], "volumes.0.weight": ["Peso inválido.", "Outro"] },
+    }
+    const labels = {
+      addToCart: jest.fn(async () => { throw new MelhorEnvioError(422, JSON.stringify(body)) }),
+      checkout: jest.fn(),
+      generate: jest.fn(),
+    }
+    const t = setup({ labels })
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(state.status).toBe("failed")
+    expect(state.error).toBe(
+      "Melhor Envio: 422 The given data was invalid. (from.number: O campo número é obrigatório.; volumes.0.weight: Peso inválido.)"
+    )
+  })
+
+  it("stores the error text when the body has only an error field", async () => {
+    const labels = {
+      addToCart: jest.fn(async () => { throw new MelhorEnvioError(422, JSON.stringify({ error: "Serviço indisponível para o trecho" })) }),
+      checkout: jest.fn(),
+      generate: jest.fn(),
+    }
+    const t = setup({ labels })
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(state.error).toBe("Melhor Envio: 422 Serviço indisponível para o trecho")
+  })
+
+  it("caps the stored detail of a long error body", async () => {
+    const errors = Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`field${i}`, ["x".repeat(30)]]))
+    const labels = {
+      addToCart: jest.fn(async () => { throw new MelhorEnvioError(422, JSON.stringify({ errors })) }),
+      checkout: jest.fn(),
+      generate: jest.fn(),
+    }
+    const t = setup({ labels })
+    const state = await purchaseShippingLabel(t.deps, "order_1")
+    expect(state.error!.length).toBeLessThanOrEqual("Melhor Envio: 422 ".length + 500)
+  })
+
   it("stores a generic message for unexpected errors and never throws", async () => {
     const labels = {
       addToCart: jest.fn(async () => { throw new Error("boom Bearer secret") }),
